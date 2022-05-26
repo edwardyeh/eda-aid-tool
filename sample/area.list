@@ -1,24 +1,6 @@
-#mem_core/src_dma/src_buf
-#mem_core/src_dma/cmd_gen
-#mem_core/src_dma/fifo
-#mem_core/src_ctrl/line_buf/line_buf_ctrl
-
 #mem_core/src_dma bbox sum inf
-sum: 1 class 1
-func_core/func1 sum1 
-mem_core/src_dma inf bbox sum0 
+
+func_core/func1 sum1
+mem_core/src_dma inf bbox sum0:"class 0"
 func_core/func2/func2_p1 sum
-sum: 0 class 0
-sum: 2 class 2
-#func_core/func2 inf
-#mem_core/dst_dma/dma_core
-#mem_core/src_dma
 
-#func_core 1
-#func_core inf
-
-#func_core
-#func_core/func1/func1_p1
-
-#mem_core 1
-#mem_core/src_ctrl/line_buf/line_buf_ctrl

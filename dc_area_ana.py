@@ -162,14 +162,16 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
     with open(cfg_fp) as f:
         line_no = 0
         for line in f.readlines():
+            line_no += 1
             toks = line.split()
             if len(toks):
                 if toks[0][0] == '#':
                     continue
 
-                if toks[0] == 'sum:':
-                    group_id = int(toks[1])
-                    name = ' '.join(toks[2:]).strip('\"\' ')
+                if toks[0].startswith('sum'):
+                    group, name = line.split(':')
+                    group_id = 0 if group.strip() == 'sum' else int(group.strip()[3:])
+                    name = name.strip('\"\'\n ')
                     if group_id not in sum_dict:
                         sum_dict[group_id] = SumGroup(name)
                     else:
@@ -209,12 +211,33 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
 
                 ## Load command from configuration
 
+                idx = 1
+                end_cond = len(toks)
+
                 try:
-                    for cmd in toks[1:]:
+                    while idx < end_cond:
+                        cmd = toks[idx]
+                        idx += 1
+
+                        if cmd[0] == '#':
+                            break
+
                         if cmd.startswith('sum'):
-                            node.group_id = (group_id := 0 if cmd[3:] == '' else int(cmd[3:]))
+                            cmd_toks = cmd.split(':')
+                            node.group_id = (group_id := 0 if cmd_toks[0] == 'sum' else int(cmd_toks[0][3:]))
                             if group_id not in sum_dict:
                                 sum_dict[group_id] = SumGroup(f'Group {group_id}')
+                            if len(cmd_toks) > 1:
+                                name = cmd_toks[1]
+                                if name.startswith('\"'):
+                                    while not name.endswith('\"'):
+                                        name += f" {toks[idx]}"
+                                        idx += 1
+                                elif name.startswith('\''):
+                                    while not name.endswith('\''):
+                                        name += f" {toks[idx]}"
+                                        idx += 1
+                                sum_dict[group_id].name = name.strip('\"\'\n ')
                         elif cmd == 'bbox':
                             trace_sub_bbox(node)
                             table_attr.is_trace_bbox = True
@@ -238,8 +261,6 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
                     print("error command.")
                     print("-" * 60)
                     raise e
-
-            line_no += 1
 
     ## Backward scan link
 
@@ -333,6 +354,7 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
     show_header(path_len, area_len)
     show_divider(path_len, area_len)
 
+    max_group_id = -1
     scan_stack = [root_node]
     sym_list = []
 
@@ -400,6 +422,8 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
                 sum_group.total_area += node.total_area
                 sum_group.logic_area += node_logic
                 sum_group.bbox_area += node_bbox
+                if node.group_id > max_group_id:
+                    max_group_id = node.group_id
             else:
                 star = ''
 
@@ -428,19 +452,26 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
 
         scan_stack.extend(sorted(node.scans, key=lambda x:x.total_area))
 
-    show_divider(path_len, area_len)
-
     if len(sum_dict) != 0:
+        print()
+        show_divider(path_len, area_len)
+        show_header(path_len, area_len, title='Group')
+        show_divider(path_len, area_len)
+
+        group_len = 1 if max_group_id == 0 else int(math.log10(max_group_id)) + 1
         bk = ' ' if table_attr.is_trace_bbox else ''
-        for _, sum_group in sorted(sum_dict.items()):
+        for group_id, sum_group in sorted(sum_dict.items()):
             sum_bbox_percent = 0 if sum_group.total_area == 0 else sum_group.bbox_area / sum_group.total_area
             sum_total_percent = sum_group.total_area / root_node.total_area
-            print("{}  {}  {}  {}  {}  {}".format(f"{sum_group.name}".ljust(path_len),
-                                                  f"{sum_group.total_area:.4f}".rjust(area_len),
-                                                  f"{sum_total_percent:.1%}".rjust(7),
-                                                  f"{bk}{sum_group.logic_area:.4f}{bk}".rjust(area_len),
-                                                  f"{bk}{sum_group.bbox_area:.4f}{bk}".rjust(area_len),
-                                                  f"{sum_bbox_percent:.1%}".rjust(7)))
+            print("{}{}  {}  {}  {}  {}  {}".format(f"{group_id}: ".rjust(group_len+2),
+                                                    f"{sum_group.name}".ljust(path_len-group_len-2),
+                                                    f"{sum_group.total_area:.4f}".rjust(area_len),
+                                                    f"{sum_total_percent:.1%}".rjust(7),
+                                                    f"{bk}{sum_group.logic_area:.4f}{bk}".rjust(area_len),
+                                                    f"{bk}{sum_group.bbox_area:.4f}{bk}".rjust(area_len),
+                                                    f"{sum_bbox_percent:.1%}".rjust(7)))
+    else:
+        show_divider(path_len, area_len)
 
     print()
 #}}}
@@ -566,9 +597,9 @@ def show_bbox_area(root_node: Node, table_attr: TableAttribute):
     print()
 #}}}
 
-def show_header(path_len: int, area_len: int):
+def show_header(path_len: int, area_len: int, title: str='Instance'):
     """Show header"""  #{{{
-    print("{}  {}  {}  {}  {}  {}".format('Instance'.ljust(path_len),
+    print("{}  {}  {}  {}  {}  {}".format(title.ljust(path_len),
                                           'Absolute'.ljust(area_len),
                                           'Percent'.ljust(7),
                                           'Logic'.ljust(area_len),
