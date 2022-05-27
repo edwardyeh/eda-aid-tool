@@ -1,6 +1,8 @@
 #mem_core/src_dma bbox sum inf
 
-func_core/func1 sum1
-mem_core/src_dma inf bbox sum0:"class 0"
-func_core/func2/func2_p1 sum
+#func_core/func1 sum1
+#mem_core/src_dma inf bbox sum0:"class 0"
+#func_core/func2/func2_p1 sum
 
+#re:.+\/func1$ sum0:"top sum"
+#re:.+\/func1/ sum1:"sub sum"

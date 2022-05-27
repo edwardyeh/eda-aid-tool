@@ -13,6 +13,7 @@ func_core/func1/func1_p2         156.4711      2.0    x.xxxx      x.xxxx      0.
 func_core/func2                  300.4700      3.8    x.xxxx      x.xxxx      0.0000  NNN 
 func_core/func2/func2_p1         100.1234      1.6    x.xxxx      x.xxxx      0.0000  NNN 
 func_core/func2/func2_p2         128.5431      1.3    x.xxxx      x.xxxx      0.0000  NNN 
+func_core/func2/func1_p2         128.5431      1.3    x.xxxx      x.xxxx      0.0000  NNN 
 mem_core                        5120.4781     65.1    x.xxxx      x.xxxx      0.0000  NNN   
 mem_core/src_ctrl                512.7860      6.5    x.xxxx      x.xxxx      0.0000  NNN   
 mem_core/src_ctrl/line_buf       321.7645      4.1    x.xxxx      x.xxxx      0.0000  NNN   

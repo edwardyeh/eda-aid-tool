@@ -10,6 +10,7 @@ import argparse
 import gzip
 import math
 import os
+import re
 import sys
 import textwrap
 from dataclasses import dataclass
@@ -168,7 +169,7 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
                 if toks[0][0] == '#':
                     continue
 
-                if toks[0].startswith('sum'):
+                if toks[0].startswith('sum:'):
                     group, name = line.split(':')
                     group_id = 0 if group.strip() == 'sum' else int(group.strip()[3:])
                     name = name.strip('\"\'\n ')
@@ -180,87 +181,63 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
 
                 ## Load node from configuration
 
-                try:
-                    node = node_dict[toks[0]]
-                    node.is_dominant = True
+                node_list = []
+                cmd_list = []
+                if toks[0].startswith('re:'):
+                    _, pattern, *cmds = re.split("re:\s*|\s", line)
+                    regex = re.compile(pattern)
+                    for path in node_dict.keys():
+                        if regex.match(path) is not None:
+                            node_list.append(node_dict[path])
+                    cmd_list.extend(cmds)
+                else:
+                    node_list.append(node_dict[toks[0]])
+                    cmd_list.extend(toks[1:])
 
-                    if table_attr.is_tree_view:
-                        path_len = len(node.bname) + node.level * 2
-                    elif table_attr.is_bname_view:
-                        path_len = len(node.bname)
-                    elif table_attr.is_ext_pathcol:
-                        path_len = len(node.dname) + len(node.bname) + 1
-                    else:
-                        path_len = DEFAULT_PATH_COL_SIZE
+                for node in node_list:
+                    try:
+                        node.is_dominant = True
 
-                    if path_len > max_path_len:
-                        max_path_len = path_len
-
-                    if max_lv < node.level:
-                        level_list.extend([set() for i in range(node.level - max_lv)])
-                        max_lv = node.level
-
-                    scan_set.add(node)
-                    level_list[node.level].add(node)
-                except Exception as e:
-                    print("-" * 60)
-                    print("ConfigParseError: (line: {})".format(line_no))
-                    print("unexisted path in the list.")
-                    print("-" * 60)
-                    raise e
-
-                ## Load command from configuration
-
-                idx = 1
-                end_cond = len(toks)
-
-                try:
-                    while idx < end_cond:
-                        cmd = toks[idx]
-                        idx += 1
-
-                        if cmd[0] == '#':
-                            break
-
-                        if cmd.startswith('sum'):
-                            cmd_toks = cmd.split(':')
-                            node.group_id = (group_id := 0 if cmd_toks[0] == 'sum' else int(cmd_toks[0][3:]))
-                            if group_id not in sum_dict:
-                                sum_dict[group_id] = SumGroup(f'Group {group_id}')
-                            if len(cmd_toks) > 1:
-                                name = cmd_toks[1]
-                                if name.startswith('\"'):
-                                    while not name.endswith('\"'):
-                                        name += f" {toks[idx]}"
-                                        idx += 1
-                                elif name.startswith('\''):
-                                    while not name.endswith('\''):
-                                        name += f" {toks[idx]}"
-                                        idx += 1
-                                sum_dict[group_id].name = name.strip('\"\'\n ')
-                        elif cmd == 'bbox':
-                            trace_sub_bbox(node)
-                            table_attr.is_trace_bbox = True
-                        elif cmd == 'inf':
-                            sub_max_path_len, sub_max_lv = trace_sub_node(node, 'inf')
-                            if sub_max_path_len > max_path_len:
-                                max_path_len = sub_max_path_len
-                            if sub_max_lv > max_lv:
-                                max_lv = sub_max_lv
-                        elif cmd[0] == 'l':
-                            sub_max_path_len, sub_max_lv = trace_sub_node(node, cmd[1:])
-                            if sub_max_path_len > max_path_len:
-                                max_path_len = sub_max_path_len
-                            if sub_max_lv > max_lv:
-                                max_lv = sub_max_lv
+                        if table_attr.is_tree_view:
+                            path_len = len(node.bname) + node.level * 2
+                        elif table_attr.is_bname_view:
+                            path_len = len(node.bname)
+                        elif table_attr.is_ext_pathcol:
+                            path_len = len(node.dname) + len(node.bname) + 1
                         else:
-                            raise SyntaxError('error command')
-                except Exception as e:
-                    print("-" * 60)
-                    print("ConfigParseError: (line: {})".format(line_no))
-                    print("error command.")
-                    print("-" * 60)
-                    raise e
+                            path_len = DEFAULT_PATH_COL_SIZE
+
+                        if path_len > max_path_len:
+                            max_path_len = path_len
+
+                        if max_lv < node.level:
+                            level_list.extend([set() for i in range(node.level - max_lv)])
+                            max_lv = node.level
+
+                        scan_set.add(node)
+                        level_list[node.level].add(node)
+                    except Exception as e:
+                        print("-" * 60)
+                        print("ConfigParseError: (line: {})".format(line_no))
+                        print("unexisted path in the list.")
+                        print("-" * 60)
+                        raise e
+
+                    ## Load command from configuration
+
+                    try:
+                        sub_max_path_len, sub_max_lv = parse_cmd(node, cmd_list, table_attr)
+                    except Exception as e:
+                        print("-" * 60)
+                        print("ConfigParseError: (line: {})".format(line_no))
+                        print("error command.")
+                        print("-" * 60)
+                        raise e
+
+                    if sub_max_path_len > max_path_len:
+                        max_path_len = sub_max_path_len
+                    if sub_max_lv > max_lv:
+                        max_lv = sub_max_lv
 
     ## Backward scan link
 
@@ -286,6 +263,52 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
                 level_list[level-1].add(node.parent)
 
     table_attr.path_col_size = max_path_len
+#}}}
+
+def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttribute) -> (int, int):
+    """Parsing command"""  #{{{
+    ## return: max_path_len, max_lv
+    global sum_dict
+    idx = max_path_len = max_lv = 0
+    end_cond = len(cmd_list)
+    print(cmd_list)
+
+    while idx < end_cond:
+        cmd = cmd_list[idx]
+        idx += 1
+
+        if cmd == '':
+            continue
+        if cmd[0] == '#':
+            break
+
+        if cmd.startswith('sum'):
+            sum_toks = cmd.split(':')
+            node.group_id = (group_id := 0 if sum_toks[0] == 'sum' else int(sum_toks[0][3:]))
+            if group_id not in sum_dict:
+                sum_dict[group_id] = SumGroup(f'Group {group_id}')
+            if len(sum_toks) > 1:
+                name = sum_toks[1]
+                if name.startswith('\"'):
+                    while not name.endswith('\"'):
+                        name += f" {cmd_list[idx]}"
+                        idx += 1
+                elif name.startswith('\''):
+                    while not name.endswith('\''):
+                        name += f" {cmd_list[idx]}"
+                        idx += 1
+                sum_dict[group_id].name = name.strip('\"\'\n ')
+        elif cmd == 'bbox':
+            trace_sub_bbox(node)
+            table_attr.is_trace_bbox = True
+        elif cmd == 'inf':
+            max_path_len, max_lv = trace_sub_node(node, 'inf')
+        elif cmd[0] == 'l':
+            max_path_len, max_lv = trace_sub_node(node, cmd[1:])
+        else:
+            raise SyntaxError('error command')
+
+    return max_path_len, max_lv
 #}}}
 
 def trace_sub_node(cur_node: Node, trace_lv: str) -> (int, int):
