@@ -301,16 +301,16 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttribute) -> (int, i
             trace_sub_bbox(node)
             table_attr.is_trace_bbox = True
         elif cmd == 'inf':
-            max_path_len, max_lv = trace_sub_node(node, 'inf')
+            max_path_len, max_lv = trace_sub_node(node, 'inf', table_attr)
         elif cmd[0] == 'l':
-            max_path_len, max_lv = trace_sub_node(node, cmd[1:])
+            max_path_len, max_lv = trace_sub_node(node, cmd[1:], table_attr)
         else:
             raise SyntaxError('error command')
 
     return max_path_len, max_lv
 #}}}
 
-def trace_sub_node(cur_node: Node, trace_lv: str) -> (int, int):
+def trace_sub_node(cur_node: Node, trace_lv: str, table_attr: TableAttribute) -> (int, int):
     """Trace sub nodes"""  #{{{
     global scan_set
     global level_list
@@ -324,7 +324,15 @@ def trace_sub_node(cur_node: Node, trace_lv: str) -> (int, int):
         node = scan_stack.pop()
         node.is_dominant = True
 
-        path_len = len(node.bname) + node.level * 2
+        if table_attr.is_tree_view:
+            path_len = len(node.bname) + node.level * 2
+        elif table_attr.is_bname_view:
+            path_len = len(node.bname)
+        elif table_attr.is_ext_pathcol:
+            path_len = len(node.dname) + len(node.bname) + 1
+        else:
+            path_len = DEFAULT_PATH_COL_SIZE
+
         if path_len > max_path_len:
             max_path_len = path_len
         
