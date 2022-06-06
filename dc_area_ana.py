@@ -390,8 +390,15 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
             node_bbox = node.bbox_area
 
         node_logic = node_area - node_bbox
-        bbox_percent = node_bbox / node_area
         total_percent = node.total_area / root_node.total_area
+
+        try:
+            bbox_percent = node_bbox / node_area
+        except ZeroDivisionError as e:
+            if node_bbox == 0:
+                bbox_percent = 0
+            else:
+                raise e
 
         if table_attr.is_tree_view:
             try:
