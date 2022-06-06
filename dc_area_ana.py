@@ -271,7 +271,6 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttribute) -> (int, i
     global sum_dict
     idx = max_path_len = max_lv = 0
     end_cond = len(cmd_list)
-    print(cmd_list)
 
     while idx < end_cond:
         cmd = cmd_list[idx]
