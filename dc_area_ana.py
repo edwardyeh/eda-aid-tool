@@ -169,7 +169,7 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
                 if toks[0][0] == '#':
                     continue
 
-                if toks[0].startswith('sum:'):
+                if toks[0].startswith('sum'):
                     group, name = line.split(':')
                     group_id = 0 if group.strip() == 'sum' else int(group.strip()[3:])
                     name = name.strip('\"\'\n ')
