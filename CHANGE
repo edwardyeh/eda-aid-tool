@@ -1,0 +1,21 @@
+v0.1.0:
+
+    Initial release.
+
+v0.1.1:
+
+    Refactor the group sum function of 'dc_area_ana'.
+
+v0.2.0:
+    
+    Support order node path by regular expressions in the advance mode.
+
+v0.3.0:
+
+    Add PrimeTime violation report analysers.
+
+v0.3.2:
+
+    1. Fix full path support error in the function 'trace_sub_node'.
+    2. Add CLI.
+
