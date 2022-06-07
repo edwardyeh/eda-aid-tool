@@ -44,7 +44,8 @@ class Node:
         self.childs = set() if childs is None else childs
         self.scans = set() if scans is None else scans
         self.is_dominant = False
-        self.group_id = -1
+        self.is_hide = False
+        self.group_id = None
         self.sub_bbox_area = -1
     #}}}
 
@@ -169,9 +170,9 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
                 if toks[0][0] == '#':
                     continue
 
-                if toks[0].startswith('sum'):
+                if toks[0].startswith('grp'):
                     group, name = line.split(':')
-                    group_id = 0 if group.strip() == 'sum' else int(group.strip()[3:])
+                    group_id = 0 if group.strip() == 'grp' else int(group.strip()[3:])
                     name = name.strip('\"\'\n ')
                     if group_id not in sum_dict:
                         sum_dict[group_id] = SumGroup(name)
@@ -281,9 +282,10 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttribute) -> (int, i
         if cmd[0] == '#':
             break
 
-        if cmd.startswith('sum'):
+        if cmd.startswith('add') or cmd.startswith('sub') :
             sum_toks = cmd.split(':')
-            node.group_id = (group_id := 0 if sum_toks[0] == 'sum' else int(sum_toks[0][3:]))
+            group_id = 0 if len(sum_toks[0]) == 3 else int(sum_toks[0][3:])
+            node.group_id = group_id if sum_toks[0][0:3] == 'add' else -group_id - 1
             if group_id not in sum_dict:
                 sum_dict[group_id] = SumGroup(f'Group {group_id}')
             if len(sum_toks) > 1:
@@ -300,6 +302,8 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttribute) -> (int, i
         elif cmd == 'bbox':
             trace_sub_bbox(node)
             table_attr.is_trace_bbox = True
+        elif cmd == 'hide':
+            node.is_hide = True
         elif cmd == 'inf':
             max_path_len, max_lv = trace_sub_node(node, 'inf', table_attr)
         elif cmd[0] == 'l':
@@ -413,12 +417,6 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
                 if node is root_node:
                     sym = ""
 
-                elif scan_stack[-1].level == node.level:
-                    sym = "".join(sym_list + [ISYM]) 
-
-                    if len(node.scans):
-                        sym_list.append(BSYM)
-
                 elif scan_stack[-1].level < node.level:
                     sym = "".join(sym_list + [ESYM])
 
@@ -426,6 +424,21 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
                         sym_list.append("  ")
                     else:
                         sym_list = sym_list[:scan_stack[-1].level - node.level]
+
+                else:
+                    for idx in range(len(scan_stack)-1, -1, -1):
+                        next_node = scan_stack[idx]
+                        if next_node.level == node.level and not next_node.is_hide:
+                            sym = "".join(sym_list + [ISYM]) 
+                            break
+                        elif next_node.level < node.level:
+                            sym = "".join(sym_list + [ESYM])
+                            break
+                    else:
+                        sym = "".join(sym_list + [ESYM])
+
+                    if len(node.scans):
+                        sym_list.append(BSYM)
 
             except Exception:
                 sym = "".join(sym_list + [ESYM])
@@ -444,7 +457,30 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
         if table_attr.is_show_level:
             path_name = f"({node.level:2d}) " + path_name
 
+        if node.group_id is not None:
+            if node.group_id >= 0:
+                star = ' *{}+'.format(group_id := node.group_id)
+                sum_group = sum_dict[group_id]
+                sum_group.total_area += node.total_area
+                sum_group.logic_area += node_logic
+                sum_group.bbox_area += node_bbox
+            else:
+                star = ' *{}-'.format(group_id := abs(node.group_id+1))
+                sum_group = sum_dict[group_id]
+                sum_group.total_area -= node.total_area
+                sum_group.logic_area -= node_logic
+                sum_group.bbox_area -= node_bbox
+
+            if group_id > max_group_id:
+                max_group_id = group_id
+        else:
+            star = ''
+
         if not node.is_dominant and not table_attr.is_full_trace:
+            pass
+        elif node.is_hide and not table_attr.is_full_trace:
+            pass
+        elif node.is_hide and table_attr.is_full_trace and len(node.scans) == 0:
             pass
         else:
             if len(path_name) > path_len:
@@ -453,16 +489,24 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
             else:
                 print(f"{path_name.ljust(path_len)}", end='')
 
-            if node.group_id != -1:
-                star = f' *{node.group_id}'
-                sum_group = sum_dict[node.group_id]
-                sum_group.total_area += node.total_area
-                sum_group.logic_area += node_logic
-                sum_group.bbox_area += node_bbox
-                if node.group_id > max_group_id:
-                    max_group_id = node.group_id
-            else:
-                star = ''
+            # if node.group_id is not None:
+            #     if node.group_id >= 0:
+            #         star = ' *{}+'.format(group_id := node.group_id)
+            #         sum_group = sum_dict[group_id]
+            #         sum_group.total_area += node.total_area
+            #         sum_group.logic_area += node_logic
+            #         sum_group.bbox_area += node_bbox
+            #     else:
+            #         star = ' *{}-'.format(group_id := abs(node.group_id+1))
+            #         sum_group = sum_dict[group_id]
+            #         sum_group.total_area -= node.total_area
+            #         sum_group.logic_area -= node_logic
+            #         sum_group.bbox_area -= node_bbox
+
+            #     if group_id > max_group_id:
+            #         max_group_id = group_id
+            # else:
+            #     star = ''
 
             if node.sub_bbox_area != -1:
                 lbk = '('
@@ -473,7 +517,7 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
             else:
                 lbk = rbk = rbk2 = ''
 
-            if node.is_dominant:
+            if node.is_dominant and not node.is_hide:
                 print("  {}  {}  {}  {}  {} {}".format(f"{node.total_area:.4f}".rjust(area_len),
                                                        f"{total_percent:.1%}".rjust(7),
                                                        f"{lbk}{node_logic:.4f}{rbk}".rjust(area_len),
