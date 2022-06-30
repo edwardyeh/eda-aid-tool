@@ -24,3 +24,7 @@ v0.4.0:
     1. Change the node command group 'sum' to group 'add'.
     2. Support the node command group 'sub'.
     3. Support the node command node 'hide'.
+
+v0.4.1:
+
+    1. Fix issues occured by the node command 'hide'.
