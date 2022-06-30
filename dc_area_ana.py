@@ -25,7 +25,6 @@ BSYM = f"{0x2502:c} "
 
 top_node = None
 node_dict = {}
-scan_set = set()
 level_list = []
 sum_dict = {}
 
@@ -156,9 +155,7 @@ def load_area(area_fp, is_full_dominant: bool, table_attr: TableAttribute) -> in
 def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
     """Load configuration"""  #{{{
     global node_dict
-    global scan_set
     global level_list
-    max_path_len = 0
     max_lv = -1
 
     with open(cfg_fp) as f:
@@ -199,23 +196,10 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
                     try:
                         node.is_dominant = True
 
-                        if table_attr.is_tree_view:
-                            path_len = len(node.bname) + node.level * 2
-                        elif table_attr.is_bname_view:
-                            path_len = len(node.bname)
-                        elif table_attr.is_ext_pathcol:
-                            path_len = len(node.dname) + len(node.bname) + 1
-                        else:
-                            path_len = DEFAULT_PATH_COL_SIZE
-
-                        if path_len > max_path_len:
-                            max_path_len = path_len
-
                         if max_lv < node.level:
                             level_list.extend([set() for i in range(node.level - max_lv)])
                             max_lv = node.level
 
-                        scan_set.add(node)
                         level_list[node.level].add(node)
                     except Exception as e:
                         print("-" * 60)
@@ -227,7 +211,7 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
                     ## Load command from configuration
 
                     try:
-                        sub_max_path_len, sub_max_lv = parse_cmd(node, cmd_list, table_attr)
+                        sub_max_lv = parse_cmd(node, cmd_list, table_attr)
                     except Exception as e:
                         print("-" * 60)
                         print("ConfigParseError: (line: {})".format(line_no))
@@ -235,8 +219,6 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
                         print("-" * 60)
                         raise e
 
-                    if sub_max_path_len > max_path_len:
-                        max_path_len = sub_max_path_len
                     if sub_max_lv > max_lv:
                         max_lv = sub_max_lv
 
@@ -244,33 +226,18 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
 
     for level in range(max_lv, 0, -1):
         for node in level_list[level]:
-            if node.parent:
+            if node.parent is not None:
                 if is_full_dominant:
                     node.parent.is_dominant = True
-
-                    if table_attr.is_tree_view:
-                        path_len = len(node.bname) + node.level * 2
-                    elif table_attr.is_bname_view:
-                        path_len = len(node.bname)
-                    elif table_attr.is_ext_pathcol:
-                        path_len = len(node.dname) + len(node.bname) + 1
-                    else:
-                        path_len = DEFAULT_PATH_COL_SIZE
-
-                    if path_len > max_path_len:
-                        max_path_len = path_len
-
                 node.parent.scans.add(node)
                 level_list[level-1].add(node.parent)
-
-    table_attr.path_col_size = max_path_len
 #}}}
 
-def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttribute) -> (int, int):
+def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttribute) -> int:
     """Parsing command"""  #{{{
-    ## return: max_path_len, max_lv
+    ## return: max_lv
     global sum_dict
-    idx = max_path_len = max_lv = 0
+    idx = max_lv = 0
     end_cond = len(cmd_list)
 
     while idx < end_cond:
@@ -305,21 +272,19 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttribute) -> (int, i
         elif cmd == 'hide':
             node.is_hide = True
         elif cmd == 'inf':
-            max_path_len, max_lv = trace_sub_node(node, 'inf', table_attr)
+            max_lv = trace_sub_node(node, 'inf', table_attr)
         elif cmd[0] == 'l':
-            max_path_len, max_lv = trace_sub_node(node, cmd[1:], table_attr)
+            max_lv = trace_sub_node(node, cmd[1:], table_attr)
         else:
             raise SyntaxError('error command')
 
-    return max_path_len, max_lv
+    return max_lv
 #}}}
 
-def trace_sub_node(cur_node: Node, trace_lv: str, table_attr: TableAttribute) -> (int, int):
+def trace_sub_node(cur_node: Node, trace_lv: str, table_attr: TableAttribute) -> int:
     """Trace sub nodes"""  #{{{
-    global scan_set
     global level_list
     scan_lv = math.inf if trace_lv == 'inf' else cur_node.level + int(trace_lv)
-    max_path_len = 0
     max_lv = len(level_list) - 1
 
     scan_stack = [cur_node]
@@ -328,30 +293,17 @@ def trace_sub_node(cur_node: Node, trace_lv: str, table_attr: TableAttribute) ->
         node = scan_stack.pop()
         node.is_dominant = True
 
-        if table_attr.is_tree_view:
-            path_len = len(node.bname) + node.level * 2
-        elif table_attr.is_bname_view:
-            path_len = len(node.bname)
-        elif table_attr.is_ext_pathcol:
-            path_len = len(node.dname) + len(node.bname) + 1
-        else:
-            path_len = DEFAULT_PATH_COL_SIZE
-
-        if path_len > max_path_len:
-            max_path_len = path_len
-        
         if max_lv < node.level:
             level_list.extend([set() for i in range(node.level - max_lv)])
             max_lv = node.level
 
-        scan_set.add(node)
         level_list[node.level].add(node)
 
         if node.level < scan_lv:
             node.scans = node.childs
             scan_stack.extend(node.childs)
 
-    return max_path_len, max_lv
+    return max_lv
 #}}}
 
 def trace_sub_bbox(cur_node: Node):
@@ -368,11 +320,53 @@ def trace_sub_bbox(cur_node: Node):
 #}}}
 
 def show_hier_area(root_node: Node, table_attr: TableAttribute):
-    """Show area with hierarchical view"""  #{{{
+    """Show hierarchical area"""  #{{{
+
+    ## Group sum and remove hide node
+
+    max_path_len = 0
+    max_group_id = -1
+    for level in range(len(level_list)-1, -1, -1):
+        for node in level_list[level]:
+            if node.group_id is not None:
+                if node.group_id >= 0:
+                    sum_group = sum_dict[(group_id := node.group_id)]
+                    sum_group.total_area += node.total_area
+                    sum_group.logic_area += node_logic
+                    sum_group.bbox_area += node_bbox
+                else:
+                    sum_group = sum_dict[(group_id := abs(node.group_id+1))]
+                    sum_group.total_area -= node.total_area
+                    sum_group.logic_area -= node_logic
+                    sum_group.bbox_area -= node_bbox
+
+                if group_id > max_group_id:
+                    max_group_id = group_id
+
+            if node.is_hide or not node.is_dominant:
+                if len(node.scans) == 0 and node.parent is not None:
+                    node.parent.scans.remove(node)
+                else:
+                    node.is_dominant = False
+            else:
+                if table_attr.is_tree_view:
+                    path_len = len(node.bname) + node.level * 2
+                elif table_attr.is_bname_view:
+                    path_len = len(node.bname)
+                elif table_attr.is_ext_pathcol:
+                    path_len = len(node.dname) + len(node.bname) + 1
+                else:
+                    path_len = DEFAULT_PATH_COL_SIZE
+
+                if path_len > max_path_len:
+                    max_path_len = path_len
+
+    ## Show area report
+
     if table_attr.is_show_level:
-        path_len = table_attr.path_col_size + 5
+        path_len = max_path_len + 5
     else:
-        path_len = table_attr.path_col_size
+        path_len = max_path_len
 
     if path_len < DEFAULT_PATH_COL_SIZE:
         path_len = DEFAULT_PATH_COL_SIZE
@@ -388,7 +382,6 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
     show_header(path_len, area_len)
     show_divider(path_len, area_len)
 
-    max_group_id = -1
     scan_stack = [root_node]
     sym_list = []
 
@@ -460,16 +453,8 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
         if node.group_id is not None:
             if node.group_id >= 0:
                 star = ' *{}+'.format(group_id := node.group_id)
-                sum_group = sum_dict[group_id]
-                sum_group.total_area += node.total_area
-                sum_group.logic_area += node_logic
-                sum_group.bbox_area += node_bbox
             else:
                 star = ' *{}-'.format(group_id := abs(node.group_id+1))
-                sum_group = sum_dict[group_id]
-                sum_group.total_area -= node.total_area
-                sum_group.logic_area -= node_logic
-                sum_group.bbox_area -= node_bbox
 
             if group_id > max_group_id:
                 max_group_id = group_id
@@ -478,10 +463,6 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
 
         if not node.is_dominant and not table_attr.is_full_trace:
             pass
-        elif node.is_hide and not table_attr.is_full_trace:
-            pass
-        elif node.is_hide and table_attr.is_full_trace and len(node.scans) == 0:
-            pass
         else:
             if len(path_name) > path_len:
                 print(f"{path_name.ljust(path_len)}")
@@ -489,35 +470,14 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
             else:
                 print(f"{path_name.ljust(path_len)}", end='')
 
-            # if node.group_id is not None:
-            #     if node.group_id >= 0:
-            #         star = ' *{}+'.format(group_id := node.group_id)
-            #         sum_group = sum_dict[group_id]
-            #         sum_group.total_area += node.total_area
-            #         sum_group.logic_area += node_logic
-            #         sum_group.bbox_area += node_bbox
-            #     else:
-            #         star = ' *{}-'.format(group_id := abs(node.group_id+1))
-            #         sum_group = sum_dict[group_id]
-            #         sum_group.total_area -= node.total_area
-            #         sum_group.logic_area -= node_logic
-            #         sum_group.bbox_area -= node_bbox
-
-            #     if group_id > max_group_id:
-            #         max_group_id = group_id
-            # else:
-            #     star = ''
-
             if node.sub_bbox_area != -1:
-                lbk = '('
-                rbk = ')'
-                rbk2 = ' '
+                lbk, rbk, rbk2 = '(', ')', ' '
             elif table_attr.is_trace_bbox:
                 lbk = rbk = rbk2 = ' '
             else:
                 lbk = rbk = rbk2 = ''
 
-            if node.is_dominant and not node.is_hide:
+            if node.is_dominant:
                 print("  {}  {}  {}  {}  {} {}".format(f"{node.total_area:.4f}".rjust(area_len),
                                                        f"{total_percent:.1%}".rjust(7),
                                                        f"{lbk}{node_logic:.4f}{rbk}".rjust(area_len),

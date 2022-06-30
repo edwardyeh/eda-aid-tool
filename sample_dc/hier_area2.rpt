@@ -1,0 +1,40 @@
+
+Hierarchical area distribution
+------------------------------
+
+Hierarchical cell               Absolute   Percent  Combi-    Noncombi-   Black-
+                                Total      Total    national  national    boxes       Design
+------------------------------  ---------  -------  --------  ----------  ----------  ---------------------
+engine_top                      7864.5770    100.0    x.xxxx      x.xxxx      0.0000  NNN
+func_core                        952.7900     12.1    x.xxxx      x.xxxx      0.0000  NNN 
+func_core/func1                  217.2000      5.3    x.xxxx      x.xxxx      0.0000  NNN 
+func_core/func1/func1_p1         100.1200      2.5    x.xxxx      x.xxxx      0.0000  NNN 
+func_core/func1/func1_p2          56.4711      2.0    x.xxxx      x.xxxx      0.0000  NNN 
+func_core/func2                  300.4700      3.8    x.xxxx      x.xxxx      0.0000  NNN 
+func_core/func2/func2_p1         100.1234      1.6    x.xxxx      x.xxxx      0.0000  NNN 
+func_core/func2/func2_p2          64.2700      1.3    x.xxxx      x.xxxx      0.0000  NNN 
+func_core/func2/func1_p2          22.5431      1.3    x.xxxx      x.xxxx      0.0000  NNN 
+func_core/func2/func3_p3          11.5431      1.3    x.xxxx      x.xxxx      0.0000  NNN 
+mem_core                        5120.4781     65.1    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/src_ctrl22222222222222222222333333                512.7860      6.5    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/src_ctrl22222222222222222222333333/line_buf111111111       321.7645      4.1    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/src_ctrl22222222222222222222333333/line_buf111111111/sram_cell              
+                                 140.2400      1.8    x.xxxx      x.xxxx    128.2400  NNN   
+mem_core/src_ctrl22222222222222222222333333/line_buf111111111/line_buf_ctrl
+                                 100.2200      1.3    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/src_ctrl22222222222222222222333333/fifo_ctrl       55.4400      0.7    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/src_dma                2000.1700     25.4    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/src_dma/src_buf         256.4613      3.3    x.xxxx      x.xxxx    200.4103  NNN   
+mem_core/src_dma/cmd_gen         256.7700      3.3    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/src_dma/fifo            987.2200     12.6    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/src_dma/fifo/sram_cell  512.7800      6.5    x.xxxx      x.xxxx    311.4522  NNN   
+mem_core/src_dma/fifo/fifo_ctrl  121.4400      1.5    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/dst_dma                2015.4770     25.6    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/dst_dma/dma_core       1458.2000     18.5    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/dst_dma/dma_core/dst_cmd_gen        
+                                 168.4750      2.1    x.xxxx      x.xxxx      0.0000  NNN   
+mem_core/dst_dma/dma_core/dst_buf            
+                                1024.4521     13.0    x.xxxx      x.xxxx    780.1024  NNN   
+------------------------------  ---------  -------  --------  ----------  ----------  ---------------------
+Total                                                 x.xxxx      x.xxxx   1420.2049
+
