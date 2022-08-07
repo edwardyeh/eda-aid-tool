@@ -28,3 +28,10 @@ v0.4.0:
 v0.4.1:
 
     1. Fix issues occured by the node command 'hide'.
+
+v0.5.0:
+
+    1. Add combination/sequence area display mode.
+    2. Fix group sum issue.
+    3. Support full path display in the normal mode.
+
