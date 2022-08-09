@@ -5,36 +5,38 @@ Hierarchical area distribution
 Hierarchical cell               Absolute   Percent  Combi-    Noncombi-   Black-
                                 Total      Total    national  national    boxes       Design
 ------------------------------  ---------  -------  --------  ----------  ----------  ---------------------
-engine_top                      7864.5770    100.0    x.xxxx      x.xxxx      0.0000  NNN
-func_core                        952.7900     12.1    x.xxxx      x.xxxx      0.0000  NNN 
-func_core/func1                  217.2000      5.3    x.xxxx      x.xxxx      0.0000  NNN 
-func_core/func1/func1_p1         100.1200      2.5    x.xxxx      x.xxxx      0.0000  NNN 
-func_core/func1/func1_p2          56.4711      2.0    x.xxxx      x.xxxx      0.0000  NNN 
-func_core/func2                  300.4700      3.8    x.xxxx      x.xxxx      0.0000  NNN 
-func_core/func2/func2_p1         100.1234      1.6    x.xxxx      x.xxxx      0.0000  NNN 
-func_core/func2/func2_p2          64.2700      1.3    x.xxxx      x.xxxx      0.0000  NNN 
-func_core/func2/func1_p2          22.5431      1.3    x.xxxx      x.xxxx      0.0000  NNN 
-func_core/func2/func3_p3          11.5431      1.3    x.xxxx      x.xxxx      0.0000  NNN 
-mem_core                        5120.4781     65.1    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/src_ctrl                512.7860      6.5    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/src_ctrl/line_buf       321.7645      4.1    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/src_ctrl/line_buf/sram_cell              
-                                 140.2400      1.8    x.xxxx      x.xxxx    128.2400  NNN   
-mem_core/src_ctrl/line_buf/line_buf_ctrl
-                                 100.2200      1.3    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/src_ctrl/fifo_ctrl       55.4400      0.7    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/src_dma                2000.1700     25.4    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/src_dma/src_buf         256.4613      3.3    x.xxxx      x.xxxx    200.4103  NNN   
-mem_core/src_dma/cmd_gen         256.7700      3.3    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/src_dma/fifo            987.2200     12.6    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/src_dma/fifo/sram_cell  512.7800      6.5    x.xxxx      x.xxxx    311.4522  NNN   
-mem_core/src_dma/fifo/fifo_ctrl  121.4400      1.5    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/dst_dma                2015.4770     25.6    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/dst_dma/dma_core       1458.2000     18.5    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/dst_dma/dma_core/dst_cmd_gen        
-                                 168.4750      2.1    x.xxxx      x.xxxx      0.0000  NNN   
-mem_core/dst_dma/dma_core/dst_buf            
-                                1024.4521     13.0    x.xxxx      x.xxxx    780.1024  NNN   
+engine_top                      6134.0467    100.0    1.2315     10.4500      0.0000  NNN
+proc_ctrl                         71.1231      1.2   40.1233     30.9998      0.0000  NNN
+proc_dp                          803.3598     13.1   10.1201      5.1123      0.0000  NNN
+proc_dp/proc_pipe_ctrl           100.1111      1.6   50.1111     50.0000      0.0000  NNN
+proc_dp/proc_core                688.0163     11.2   20.1000     10.5123      0.0000  NNN
+proc_dp/proc_core/proc_p1        153.6391      2.5  100.4545     50.1333      0.0000  NNN
+proc_dp/proc_core/proc_p1/clk_gate_p1a_reg
+                                   1.0512      0.0    0.0000      1.0512      0.0000  NNN
+proc_dp/proc_core/proc_p1/clk_gate_p1b_reg
+                                   2.0001      0.0    0.0000      2.0001      0.0000  NNN
+proc_dp/proc_core/proc_p2        503.7649      8.2  400.5555    100.1212      0.0000  NNN
+proc_dp/proc_core/proc_p2/clk_gate_p2a_reg
+                                   1.1311      0.0    0.0000      1.1311      0.0000  NNN
+proc_dp/proc_core/proc_p2/clk_gate_p2b_reg
+                                   1.9571      0.0    0.0000      1.9571      0.0000  NNN
+lbuf_mgr                        5247.8823     85.6   10.1515     30.0778      0.0000  NNN
+lbuf_mgr/lbuf_ctrl               253.7636      4.1   99.1111    151.9877      0.0000  NNN
+lbuf_mgr/lbuf_ctrl/clk_gate_lb_fsm_1_reg
+                                   1.1234      0.0    0.0000      1.1234      0.0000  NNN
+lbuf_mgr/lbuf_ctrl/clk_gate_lb_fsm_2_reg
+                                   1.5414      0.0    0.0000      1.5414      0.0000  NNN
+lbuf_mgr/lbuf_core              4953.8894     80.8   20.1234     30.1111      0.0000  NNN
+lbuf_mgr/lbuf_core/dff_fifo      300.6526      4.9  100.5511    200.1015      0.0000  NNN
+lbuf_mgr/lbuf_core/clk_gate_lbc1_reg
+                                   0.9877      0.0    0.0000      0.9877      0.0000  NNN
+lbuf_mgr/lbuf_core/clk_gate_lbc2_reg
+                                   1.0001      0.0    0.0000      1.0001      0.0000  NNN
+lbuf_mgr/lbuf_core/sram1_SP512x64
+                                1400.5701     22.8    0.0000      0.0000   1400.5701  NNN
+lbuf_mgr/lbuf_core/sram2_SP512x64
+                                3200.4444     52.2    0.0000      0.0000   3200.4444  NNN
+
 ------------------------------  ---------  -------  --------  ----------  ----------  ---------------------
-Total                                                 x.xxxx      x.xxxx   1420.2049
+Total                                                 x.xxxx      x.xxxx      x.xxxx
 
