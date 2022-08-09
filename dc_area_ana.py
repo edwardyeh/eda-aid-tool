@@ -27,6 +27,8 @@ top_node = None
 node_dict = {}
 level_list = []
 sum_dict = {}
+area_str = ""
+area_str_bk = ""
 
 ### Class Defintion ###
 
@@ -55,14 +57,16 @@ class Node:
 @dataclass
 class TableAttribute:
 #{{{
-    is_show_level:   bool = False
-    is_logic_detail: bool = False
-    is_tree_view:    bool = False
-    is_bname_view:   bool = False
-    is_ext_pathcol:  bool = False
-    is_trace_bbox:   bool = False
-    is_full_trace:   bool = False
-    path_col_size:   int  = DEFAULT_PATH_COL_SIZE
+    dec_pl:         int  = 4
+    is_show_ts:     bool = False
+    is_show_level:  bool = False
+    is_logic_sep:   bool = False
+    is_tree_view:   bool = False
+    is_bname_view:  bool = False
+    is_ext_pathcol: bool = False
+    is_trace_bbox:  bool = False
+    is_full_trace:  bool = False
+    path_col_size:  int  = DEFAULT_PATH_COL_SIZE
 #}}}
 
 @dataclass
@@ -306,6 +310,7 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttribute) -> int:
 
 def trace_sub_node(cur_node: Node, trace_lv: str, table_attr: TableAttribute) -> int:
     """Trace sub nodes"""  #{{{
+    ## return: max_lv
     global level_list
     scan_lv = math.inf if trace_lv == 'inf' else cur_node.level + int(trace_lv)
     max_lv = len(level_list) - 1
@@ -413,17 +418,8 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
     if path_len < DEFAULT_PATH_COL_SIZE:
         path_len = DEFAULT_PATH_COL_SIZE
 
-    area_len = int(math.log10(math.ceil(root_node.total_area))) + 6
-    if area_len < DEFAULT_AREA_COL_SIZE:
-        area_len = DEFAULT_AREA_COL_SIZE 
-    if table_attr.is_trace_bbox:
-        area_len += 2
-
-    print()
-    show_divider(path_len, area_len, is_logic_detail=table_attr.is_logic_detail)
-    show_header(path_len, area_len, is_logic_detail=table_attr.is_logic_detail)
-    show_divider(path_len, area_len, is_logic_detail=table_attr.is_logic_detail)
-
+    area_len = DEFAULT_AREA_COL_SIZE
+    is_first_cell = True
     scan_stack = [root_node]
     sym_list = []
 
@@ -509,6 +505,22 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
         if not node.is_dominant and not table_attr.is_full_trace:
             pass
         else:
+            if is_first_cell:
+                is_first_cell = False
+
+                area_len = int(math.log10(math.ceil(node.total_area))) + 2 + table_attr.dec_pl
+                if table_attr.is_show_ts:
+                    area_len += int(math.log(node.total_area) / math.log(1000))
+                if table_attr.is_trace_bbox:
+                    area_len += 2
+                if area_len < DEFAULT_AREA_COL_SIZE:
+                    area_len = DEFAULT_AREA_COL_SIZE 
+
+                print()
+                show_divider(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
+                show_header(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
+                show_divider(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
+
             if len(path_name) > path_len:
                 print(f"{path_name.ljust(path_len)}")
                 print(f"{' ' * path_len}", end='')
@@ -522,15 +534,16 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
             else:
                 lbk = rbk = rbk2 = ''
 
-            if table_attr.is_logic_detail:
+            if table_attr.is_logic_sep:
                 if node.is_dominant:
-                    print("  {}  {}  {}  {}  {}  {} {}".format(f"{node.total_area:.4f}".rjust(area_len),
-                                                               f"{total_percent:.1%}".rjust(7),
-                                                               f"{lbk}{node_comb:.4f}{rbk}".rjust(area_len),
-                                                               f"{lbk}{node_seq:.4f}{rbk}".rjust(area_len),
-                                                               f"{lbk}{node_bbox:.4f}{rbk}".rjust(area_len),
-                                                               f"{bbox_percent:.1%}".rjust(7),
-                                                               star))
+                    print("  {}  {}  {}  {}  {}  {} {}".format(
+                            area_str.format(node.total_area).rjust(area_len),
+                            f"{total_percent:.1%}".rjust(7),
+                            area_str_bk.format(lbk, node_comb, rbk).rjust(area_len),
+                            area_str_bk.format(lbk, node_seq, rbk).rjust(area_len),
+                            area_str_bk.format(lbk, node_bbox, rbk).rjust(area_len),
+                            f"{bbox_percent:.1%}".rjust(7),
+                            star))
                 else:
                     print("  {}  {}  {}  {}  {}  {}".format(f"-".rjust(area_len),
                                                             f"-".rjust(7),
@@ -540,12 +553,13 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
                                                             f"-".rjust(7)))
             else:
                 if node.is_dominant:
-                    print("  {}  {}  {}  {}  {} {}".format(f"{node.total_area:.4f}".rjust(area_len),
-                                                           f"{total_percent:.1%}".rjust(7),
-                                                           f"{lbk}{node_logic:.4f}{rbk}".rjust(area_len),
-                                                           f"{lbk}{node_bbox:.4f}{rbk}".rjust(area_len),
-                                                           f"{bbox_percent:.1%}".rjust(7),
-                                                           star))
+                    print("  {}  {}  {}  {}  {} {}".format(
+                            area_str.format(node.total_area).rjust(area_len),
+                            f"{total_percent:.1%}".rjust(7),
+                            area_str_bk.format(lbk, node_logic, rbk).rjust(area_len),
+                            area_str_bk.format(lbk, node_bbox, rbk).rjust(area_len),
+                            f"{bbox_percent:.1%}".rjust(7),
+                            star))
                 else:
                     print("  {}  {}  {}  {}  {}".format(f"-".rjust(area_len),
                                                         f"-".rjust(7),
@@ -557,36 +571,38 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
 
     if len(sum_dict) != 0:
         print()
-        show_divider(path_len, area_len, is_logic_detail=table_attr.is_logic_detail)
-        show_header(path_len, area_len, title='Group', is_logic_detail=table_attr.is_logic_detail)
-        show_divider(path_len, area_len, is_logic_detail=table_attr.is_logic_detail)
+        show_divider(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
+        show_header(path_len, area_len, title='Group', is_logic_sep=table_attr.is_logic_sep)
+        show_divider(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
 
         group_len = 1 if max_group_id <= 0 else int(math.log10(max_group_id)) + 1
         bk = ' ' if table_attr.is_trace_bbox else ''
         for group_id, sum_group in sorted(sum_dict.items()):
             sum_bbox_percent = 0 if sum_group.total_area == 0 else sum_group.bbox_area / sum_group.total_area
             sum_total_percent = sum_group.total_area / root_node.total_area
-            if table_attr.is_logic_detail:
-                print("{}{}  {}  {}  {}  {}  {}  {}".format(f"{group_id}: ".rjust(group_len+2),
-                                                        f"{sum_group.name}".ljust(path_len-group_len-2),
-                                                        f"{sum_group.total_area:.4f}".rjust(area_len),
-                                                        f"{sum_total_percent:.1%}".rjust(7),
-                                                        f"{bk}{sum_group.comb_area:.4f}{bk}".rjust(area_len),
-                                                        f"{bk}{sum_group.seq_area:.4f}{bk}".rjust(area_len),
-                                                        f"{bk}{sum_group.bbox_area:.4f}{bk}".rjust(area_len),
-                                                        f"{sum_bbox_percent:.1%}".rjust(7)))
+            if table_attr.is_logic_sep:
+                print("{}{}  {}  {}  {}  {}  {}  {}".format(
+                        f"{group_id}: ".rjust(group_len+2),
+                        f"{sum_group.name}".ljust(path_len-group_len-2),
+                        area_str.format(sum_group.total_area).rjust(area_len),
+                        f"{sum_total_percent:.1%}".rjust(7),
+                        area_str_bk.format(bk, sum_group.comb_area, bk).rjust(area_len),
+                        area_str_bk.format(bk, sum_group.seq_area, bk).rjust(area_len),
+                        area_str_bk.format(bk, sum_group.bbox_area, bk).rjust(area_len),
+                        f"{sum_bbox_percent:.1%}".rjust(7)))
             else:
                 logic_area = sum_group.comb_area + sum_group.seq_area
-                print("{}{}  {}  {}  {}  {}  {}".format(f"{group_id}: ".rjust(group_len+2),
-                                                        f"{sum_group.name}".ljust(path_len-group_len-2),
-                                                        f"{sum_group.total_area:.4f}".rjust(area_len),
-                                                        f"{sum_total_percent:.1%}".rjust(7),
-                                                        f"{bk}{logic_area:.4f}{bk}".rjust(area_len),
-                                                        f"{bk}{sum_group.bbox_area:.4f}{bk}".rjust(area_len),
-                                                        f"{sum_bbox_percent:.1%}".rjust(7)))
+                print("{}{}  {}  {}  {}  {}  {}".format(
+                        f"{group_id}: ".rjust(group_len+2),
+                        f"{sum_group.name}".ljust(path_len-group_len-2),
+                        area_str.format(sum_group.total_area).rjust(area_len),
+                        f"{sum_total_percent:.1%}".rjust(7),
+                        area_str_bk.format(bk, logic_area, bk).rjust(area_len),
+                        area_str_bk.format(bk, sum_group.bbox_area, bk).rjust(area_len),
+                        f"{sum_bbox_percent:.1%}".rjust(7)))
 
     else:
-        show_divider(path_len, area_len, is_logic_detail=table_attr.is_logic_detail)
+        show_divider(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
 
     print()
 #}}}
@@ -604,10 +620,6 @@ def show_bbox_area(root_node: Node, table_attr: TableAttribute):
     if path_len < DEFAULT_PATH_COL_SIZE:
         path_len = DEFAULT_PATH_COL_SIZE
 
-    area_len = int(math.log10(math.ceil(root_node.total_area))) + 6
-    if area_len < DEFAULT_AREA_COL_SIZE:
-        area_len = DEFAULT_AREA_COL_SIZE 
-
     ## Backward trace from black-box node
 
     for node in node_dict.values():
@@ -624,11 +636,8 @@ def show_bbox_area(root_node: Node, table_attr: TableAttribute):
 
     ## Show area
 
-    print()
-    show_divider(path_len, area_len)
-    show_header(path_len, area_len)
-    show_divider(path_len, area_len)
-
+    area_len = DEFAULT_AREA_COL_SIZE
+    is_first_cell = True
     scan_stack = [root_node]
     sym_list = []
 
@@ -675,6 +684,20 @@ def show_bbox_area(root_node: Node, table_attr: TableAttribute):
         if not node.is_dominant and not table_attr.is_full_trace:
             pass
         else:
+            if is_first_cell:
+                is_first_cell = False
+
+                area_len = int(math.log10(math.ceil(node.total_area))) + 2 + table_attr.dec_pl
+                if table_attr.is_show_ts:
+                    area_len += int(math.log(node.total_area) / math.log(1000))
+                if area_len < DEFAULT_AREA_COL_SIZE:
+                    area_len = DEFAULT_AREA_COL_SIZE 
+
+                print()
+                show_divider(path_len, area_len)
+                show_header(path_len, area_len)
+                show_divider(path_len, area_len)
+
             if len(path_name) > path_len:
                 print(f"{path_name.ljust(path_len)}")
                 print(f"{' ' * path_len}", end='')
@@ -684,11 +707,12 @@ def show_bbox_area(root_node: Node, table_attr: TableAttribute):
             sub_bbox += node.bbox_area
 
             if node.is_dominant:
-                print("  {}  {}  {}  {}  {}".format(f"-".rjust(area_len),
-                                                    f"{total_percent:.1%}".rjust(7),
-                                                    f"-".rjust(area_len),
-                                                    f"{node.bbox_area:.4f}".rjust(area_len),
-                                                    f"-".rjust(7)))
+                print("  {}  {}  {}  {}  {}".format(
+                        f"-".rjust(area_len),
+                        f"{total_percent:.1%}".rjust(7),
+                        f"-".rjust(area_len),
+                        area_str.format(node.bbox_area).rjust(area_len),
+                        f"-".rjust(7)))
             else:
                 print("  {}  {}  {}  {}  {}".format(f"-".rjust(area_len),
                                                     f"-".rjust(7),
@@ -702,19 +726,20 @@ def show_bbox_area(root_node: Node, table_attr: TableAttribute):
 
     if sub_bbox != 0:
         sub_total_percent = sub_bbox / root_node.total_area
-        print("{}  {}  {}  {}  {}  {}".format(f"Black-box Total".ljust(path_len),
-                                              f"-".rjust(area_len),
-                                              f"{sub_total_percent:.1%}".rjust(7),
-                                              f"-".rjust(area_len),
-                                              f"{sub_bbox:.4f}".rjust(area_len),
-                                              f"-".rjust(7)))
+        print("{}  {}  {}  {}  {}  {}".format(
+                f"Black-box Total".ljust(path_len),
+                f"-".rjust(area_len),
+                f"{sub_total_percent:.1%}".rjust(7),
+                f"-".rjust(area_len),
+                area_str.format(sub_bbox).rjust(area_len),
+                f"-".rjust(7)))
 
     print()
 #}}}
 
-def show_header(path_len: int, area_len: int, title: str='Instance', is_logic_detail: bool=False):
+def show_header(path_len: int, area_len: int, title: str='Instance', is_logic_sep: bool=False):
     """Show header"""  #{{{
-    if is_logic_detail:
+    if is_logic_sep:
         print("{}  {}  {}  {}  {}  {}  {}".format(title.ljust(path_len),
                                                  'Absolute'.ljust(area_len),
                                                  'Percent'.ljust(7),
@@ -746,9 +771,9 @@ def show_header(path_len: int, area_len: int, title: str='Instance', is_logic_de
                                               'BBox'.ljust(7)))
 #}}}
 
-def show_divider(path_len: int, area_len: int, is_logic_detail: bool=False):
+def show_divider(path_len: int, area_len: int, is_logic_sep: bool=False):
     """Show header"""  #{{{
-    if is_logic_detail:
+    if is_logic_sep:
         print("{}  {}  {}  {}  {}  {}  {}".format('-' * path_len,
                                                   '-' * area_len,
                                                   '-' * 7,
@@ -776,8 +801,10 @@ def main():
     subparsers = parser.add_subparsers(dest='proc_mode', help="Select one of process modes.")
 
     parser.add_argument('--dump', dest='dump_fn', metavar='<file>', help="dump the list of leaf nodes")
-    parser.add_argument('-l', dest='is_show_level', action='store_true', help="show hierarchical level")
-    parser.add_argument('-d', dest='is_logic_detail', action='store_true', help="show combi/non-combi area separately")
+    parser.add_argument('--dp', dest='dec_pl', metavar='<num>', type=int, default=4, help="number of decimal places of area")
+    parser.add_argument('--ts', dest='is_show_ts', action='store_true', help="show thousands separators")
+    parser.add_argument('--lv', dest='is_show_level', action='store_true', help="show hierarchical level")
+    parser.add_argument('--ls', dest='is_logic_sep', action='store_true', help="show combi/non-combi area separately")
 
     path_gparser = parser.add_mutually_exclusive_group()
     path_gparser.add_argument('-t', dest='is_tree_view', action='store_true', 
@@ -810,14 +837,26 @@ def main():
     if args.proc_mode == None:
         parser.parse_args(['-h'])
 
-    table_attr = TableAttribute(is_show_level=args.is_show_level,
-                                is_logic_detail=args.is_logic_detail,
-                                is_tree_view=args.is_tree_view, 
-                                is_bname_view=args.is_bname_view,
-                                is_ext_pathcol=args.is_ext_pathcol)
+    table_attr = TableAttribute(
+                    dec_pl=args.dec_pl,
+                    is_show_ts=args.is_show_ts,
+                    is_show_level=args.is_show_level,
+                    is_logic_sep=args.is_logic_sep,
+                    is_tree_view=args.is_tree_view, 
+                    is_bname_view=args.is_bname_view,
+                    is_ext_pathcol=args.is_ext_pathcol)
 
     if args.is_tree_view or args.proc_mode == 'adv' and args.trace_type is not None:
         table_attr.is_full_trace = True
+
+    global area_str, area_str_bk
+
+    if args.is_show_ts:
+        area_str = "{:,." + str(args.dec_pl) + "f}"
+        area_str_bk = "{}{:,." + str(args.dec_pl) + "f}{}"
+    else:
+        area_str = "{:." + str(args.dec_pl) + "f}"
+        area_str_bk = "{}{:." + str(args.dec_pl) + "f}{}"
 
     ## Main process
 
@@ -828,13 +867,18 @@ def main():
     total_logic_area = top_node.total_area - total_bbox_area
     total_logic_percent = total_logic_area / top_node.total_area
     total_bbox_percednt = total_bbox_area / top_node.total_area
-    area_len = int(math.log10(math.ceil(top_node.total_area))) + 6
+
+    area_len = int(math.log10(math.ceil(top_node.total_area))) + 2 + args.dec_pl
+    if args.is_show_ts:
+        area_len += int(math.log(top_node.total_area) / math.log(1000))
 
     print()
     print(f" Top Summary ".center(32, '='))
-    print("  total: {} ({:>6.1%})".format(f"{top_node.total_area:.4f}".rjust(area_len), 1.0))
-    print("  logic: {} ({:>6.1%})".format(f"{total_logic_area:.4f}".rjust(area_len), total_logic_percent))
-    print("   bbox: {} ({:>6.1%})".format(f"{total_bbox_area:.4f}".rjust(area_len), total_bbox_percednt))
+    print("  total: {} ({:>6.1%})".format(area_str.format(top_node.total_area).rjust(area_len), 1.0))
+    print("  logic: {} ({:>6.1%})".format(area_str.format(total_logic_area).rjust(area_len), 
+                                          total_logic_percent))
+    print("   bbox: {} ({:>6.1%})".format(area_str.format(total_bbox_area).rjust(area_len), 
+                                          total_bbox_percednt))
     print("=" * 32)
 
     if args.proc_mode == 'norm':
