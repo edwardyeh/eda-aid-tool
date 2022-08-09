@@ -38,3 +38,10 @@ v0.5.0:
 v0.5.1:
 
     1. Update sample codes for 'dc_area_ana'.
+
+v0.6.0:
+
+    Update 'dc_area_ana':
+        1. Support area print with thousand seperators.
+        2. Support decimal places change for area print.
+
