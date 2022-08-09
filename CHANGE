@@ -35,3 +35,6 @@ v0.5.0:
     2. Fix group sum issue.
     3. Support full path display in the normal mode.
 
+v0.5.1:
+
+    1. Update sample codes for 'dc_area_ana'.
