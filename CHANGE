@@ -45,3 +45,8 @@ v0.6.0:
         1. Support area print with thousand seperators.
         2. Support decimal places change for area print.
 
+v0.7.0:
+
+    Update 'dc_area_ana':
+        1. Support convert ratio and unit change.
+
