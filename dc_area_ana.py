@@ -29,6 +29,7 @@ level_list = []
 sum_dict = {}
 area_str = ""
 area_str_bk = ""
+area_unit = 1
 
 ### Class Defintion ###
 
@@ -57,16 +58,18 @@ class Node:
 @dataclass
 class TableAttribute:
 #{{{
-    dec_pl:         int  = 4
-    is_show_ts:     bool = False
-    is_show_level:  bool = False
-    is_logic_sep:   bool = False
-    is_tree_view:   bool = False
-    is_bname_view:  bool = False
-    is_ext_pathcol: bool = False
-    is_trace_bbox:  bool = False
-    is_full_trace:  bool = False
-    path_col_size:  int  = DEFAULT_PATH_COL_SIZE
+    unit_str:       str   = ""
+    ratio:          float = 1.0
+    dec_place:      int   = 4
+    is_show_ts:     bool  = False
+    is_show_level:  bool  = False
+    is_logic_sep:   bool  = False
+    is_tree_view:   bool  = False
+    is_bname_view:  bool  = False
+    is_ext_pathcol: bool  = False
+    is_trace_bbox:  bool  = False
+    is_full_trace:  bool  = False
+    path_col_size:  int   = DEFAULT_PATH_COL_SIZE
 #}}}
 
 @dataclass
@@ -106,7 +109,7 @@ def load_area(area_fp, is_full_dominant: bool, table_attr: TableAttribute) -> in
                 if len(toks) == 0:  # total area
                     line = f.readline()
                     toks = line.split()
-                total_area = float(toks[0])
+                total_area = float(toks[0]) * table_attr.ratio / area_unit
                 del toks[0]
 
                 if len(toks) == 0:  # total percent
@@ -117,19 +120,19 @@ def load_area(area_fp, is_full_dominant: bool, table_attr: TableAttribute) -> in
                 if len(toks) == 0:  # combination area
                     line = f.readline()
                     toks = line.split()
-                comb_area = float(toks[0])
+                comb_area = float(toks[0]) * table_attr.ratio / area_unit
                 del toks[0]
 
                 if len(toks) == 0:  # sequence area
                     line = f.readline()
                     toks = line.split()
-                seq_area = float(toks[0])
+                seq_area = float(toks[0]) * table_attr.ratio / area_unit
                 del toks[0]
 
                 if len(toks) == 0:  # bbox area
                     line = f.readline()
                     toks = line.split()
-                bbox_area = float(toks[0])
+                bbox_area = float(toks[0]) * table_attr.ratio / area_unit
                 del toks[0]
 
                 total_bbox_area += bbox_area
@@ -508,7 +511,8 @@ def show_hier_area(root_node: Node, table_attr: TableAttribute):
             if is_first_cell:
                 is_first_cell = False
 
-                area_len = int(math.log10(math.ceil(node.total_area))) + 2 + table_attr.dec_pl
+                area_len = int(math.log10(math.ceil(node.total_area))) + 2 + table_attr.dec_place
+                area_len += len(table_attr.unit_str)
                 if table_attr.is_show_ts:
                     area_len += int(math.log(node.total_area) / math.log(1000))
                 if table_attr.is_trace_bbox:
@@ -687,7 +691,7 @@ def show_bbox_area(root_node: Node, table_attr: TableAttribute):
             if is_first_cell:
                 is_first_cell = False
 
-                area_len = int(math.log10(math.ceil(node.total_area))) + 2 + table_attr.dec_pl
+                area_len = int(math.log10(math.ceil(node.total_area))) + 2 + table_attr.dec_place
                 if table_attr.is_show_ts:
                     area_len += int(math.log(node.total_area) / math.log(1000))
                 if area_len < DEFAULT_AREA_COL_SIZE:
@@ -801,10 +805,14 @@ def main():
     subparsers = parser.add_subparsers(dest='proc_mode', help="Select one of process modes.")
 
     parser.add_argument('--dump', dest='dump_fn', metavar='<file>', help="dump the list of leaf nodes")
-    parser.add_argument('--dp', dest='dec_pl', metavar='<num>', type=int, default=4, help="number of decimal places of area")
+    parser.add_argument('--ra', dest='ratio', metavar='<float>', type=float, default=1.0, help="convert ratio")
+    parser.add_argument('--dp', dest='dec_place', metavar='<int>', type=int, default=4, help="number of decimal places of area")
     parser.add_argument('--ts', dest='is_show_ts', action='store_true', help="show thousands separators")
     parser.add_argument('--lv', dest='is_show_level', action='store_true', help="show hierarchical level")
     parser.add_argument('--ls', dest='is_logic_sep', action='store_true', help="show combi/non-combi area separately")
+
+    parser.add_argument('-u', dest='unit', metavar='unit', choices=['k', 'K', 'w', 'W', 'm', 'M', 'b', 'B'],
+                                    help="unit (choices: [kKwWmMbB])") 
 
     path_gparser = parser.add_mutually_exclusive_group()
     path_gparser.add_argument('-t', dest='is_tree_view', action='store_true', 
@@ -838,7 +846,8 @@ def main():
         parser.parse_args(['-h'])
 
     table_attr = TableAttribute(
-                    dec_pl=args.dec_pl,
+                    ratio=args.ratio,
+                    dec_place=args.dec_place,
                     is_show_ts=args.is_show_ts,
                     is_show_level=args.is_show_level,
                     is_logic_sep=args.is_logic_sep,
@@ -849,14 +858,35 @@ def main():
     if args.is_tree_view or args.proc_mode == 'adv' and args.trace_type is not None:
         table_attr.is_full_trace = True
 
+    global area_unit
+
+    if args.unit is not None:
+        table_attr.unit_str = args.unit
+        unit = args.unit.lower()
+        if unit == 'k':
+            unit_str = "1 thousand"
+            area_unit = 1000
+        elif unit == 'w':
+            unit_str = "10 thousand"
+            area_unit = 10000
+        elif unit == 'm':
+            unit_str = "1 million"
+            area_unit = 1000000
+        elif unit == 'b':
+            unit_str = "1 billion"
+            area_unit = 1000000000
+    else:
+        unit_str = "1"
+        area_unit = 1
+
     global area_str, area_str_bk
 
     if args.is_show_ts:
-        area_str = "{:,." + str(args.dec_pl) + "f}"
-        area_str_bk = "{}{:,." + str(args.dec_pl) + "f}{}"
+        area_str = "{:,." + str(args.dec_place) + "f}" + table_attr.unit_str
+        area_str_bk = "{}{:,." + str(args.dec_place) + "f}" + table_attr.unit_str + "{}"
     else:
-        area_str = "{:." + str(args.dec_pl) + "f}"
-        area_str_bk = "{}{:." + str(args.dec_pl) + "f}{}"
+        area_str = "{:." + str(args.dec_place) + "f}" + table_attr.unit_str
+        area_str_bk = "{}{:." + str(args.dec_place) + "f}" + table_attr.unit_str + "{}"
 
     ## Main process
 
@@ -868,7 +898,7 @@ def main():
     total_logic_percent = total_logic_area / top_node.total_area
     total_bbox_percednt = total_bbox_area / top_node.total_area
 
-    area_len = int(math.log10(math.ceil(top_node.total_area))) + 2 + args.dec_pl
+    area_len = int(math.log10(math.ceil(top_node.total_area))) + 2 + args.dec_place
     if args.is_show_ts:
         area_len += int(math.log(top_node.total_area) / math.log(1000))
 
@@ -880,6 +910,7 @@ def main():
     print("   bbox: {} ({:>6.1%})".format(area_str.format(total_bbox_area).rjust(area_len), 
                                           total_bbox_percednt))
     print("=" * 32)
+    print(f"\nratio: {str(args.ratio)}  unit: {unit_str}")
 
     if args.proc_mode == 'norm':
         show_hier_area(top_node, table_attr)
