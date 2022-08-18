@@ -84,12 +84,13 @@ class SumGroup:
 
 ### Sub Function ###
 
-def load_area(area_fp, is_full_dominant: bool, table_attr: TableAttribute) -> int:  
+def load_area(area_fp, proc_mode: str, table_attr: TableAttribute) -> int:  
     """Load area report"""  #{{{
     ## return: total_bbox_area
     global top_node
     global node_dict
     fsm = max_path_len = total_bbox_area = 0
+    is_full_dominant = (proc_mode == 'norm')
 
     with open(area_fp) as f:
         line = f.readline()
@@ -163,8 +164,9 @@ def load_area(area_fp, is_full_dominant: bool, table_attr: TableAttribute) -> in
                 else:
                     path_len = DEFAULT_PATH_COL_SIZE
 
-                if path_len > max_path_len:
-                    max_path_len = path_len
+                if proc_mode != 'bbox' or node.bbox_area != 0:
+                    if path_len > max_path_len:
+                        max_path_len = path_len
 
             elif fsm == 1:
                 if line.strip().startswith("---"):
@@ -193,7 +195,7 @@ def load_cfg(cfg_fp, is_full_dominant: bool, table_attr: TableAttribute):
                     continue
 
                 if toks[0].startswith('grp'):
-                    line, _ = line.split('#')
+                    line, *_ = line.split('#')
                     group, name = line.split(':')
                     group_id = 0 if group.strip() == 'grp' else int(group.strip()[3:])
                     name = name.strip('\"\'\n ')
@@ -804,12 +806,12 @@ def main():
 
     subparsers = parser.add_subparsers(dest='proc_mode', help="Select one of process modes.")
 
-    parser.add_argument('--dump', dest='dump_fn', metavar='<file>', help="dump the list of leaf nodes")
-    parser.add_argument('--ra', dest='ratio', metavar='<float>', type=float, default=1.0, help="convert ratio")
-    parser.add_argument('--dp', dest='dec_place', metavar='<int>', type=int, default=4, help="number of decimal places of area")
-    parser.add_argument('--ts', dest='is_show_ts', action='store_true', help="show thousands separators")
-    parser.add_argument('--lv', dest='is_show_level', action='store_true', help="show hierarchical level")
-    parser.add_argument('--ls', dest='is_logic_sep', action='store_true', help="show combi/non-combi area separately")
+    parser.add_argument('-dump', dest='dump_fn', metavar='<file>', help="dump the list of leaf nodes")
+    parser.add_argument('-ra', dest='ratio', metavar='<float>', type=float, default=1.0, help="convert ratio")
+    parser.add_argument('-dp', dest='dec_place', metavar='<int>', type=int, default=4, help="number of decimal places of area")
+    parser.add_argument('-ts', dest='is_show_ts', action='store_true', help="show thousands separators")
+    parser.add_argument('-lv', dest='is_show_level', action='store_true', help="show hierarchical level")
+    parser.add_argument('-ls', dest='is_logic_sep', action='store_true', help="show combi/non-combi area separately")
 
     parser.add_argument('-u', dest='unit', metavar='unit', choices=['k', 'K', 'w', 'W', 'm', 'M', 'b', 'B'],
                                     help="unit (choices: [kKwWmMbB])") 
@@ -892,7 +894,7 @@ def main():
 
     global top_node
 
-    total_bbox_area = load_area(args.rpt_fn, args.proc_mode=='norm', table_attr)
+    total_bbox_area = load_area(args.rpt_fn, args.proc_mode, table_attr)
 
     total_logic_area = top_node.total_area - total_bbox_area
     total_logic_percent = total_logic_area / top_node.total_area
