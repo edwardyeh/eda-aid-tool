@@ -50,3 +50,8 @@ v0.7.0:
     Update 'dc_area_ana':
         1. Support convert ratio and unit change.
 
+v0.8.0:
+
+    Refactor 'dc_area_ana' and add new features:
+        1. Support area display with scientific notation mode.
+        2. Support sub trace root in the advance mode.
