@@ -5,37 +5,41 @@ Hierarchical area distribution
 Hierarchical cell               Absolute   Percent  Combi-    Noncombi-   Black-
                                 Total      Total    national  national    boxes       Design
 ------------------------------  ---------  -------  --------  ----------  ----------  ---------------------
-engine_top                      6134.0467    100.0    1.2315     10.4500      0.0000  NNN
-proc_ctrl                         71.1231      1.2   40.1233     30.9998      0.0000  NNN
-proc_dp                          803.3598     13.1   10.1201      5.1123      0.0000  NNN
+engine_top                      6439.9579    100.0    1.2315     10.4500      0.0000  NNN
+proc_ctrl                         71.1231      1.1   40.1233     30.9998      0.0000  NNN
+proc_dp                          803.3598     12.5   10.1201      5.1123      0.0000  NNN
 proc_dp/proc_pipe_ctrl           100.1111      1.6   50.1111     50.0000      0.0000  NNN
-proc_dp/proc_core                688.0163     11.2   20.1000     10.5123      0.0000  NNN
-proc_dp/proc_core/proc_p1        153.6391      2.5  100.4545     50.1333      0.0000  NNN
+proc_dp/proc_core                688.0163     10.7   20.1000     10.5123      0.0000  NNN
+proc_dp/proc_core/proc_p1        153.6391      2.4  100.4545     50.1333      0.0000  NNN
 proc_dp/proc_core/proc_p1/clk_gate_p1a_reg
                                    1.0512      0.0    0.0000      1.0512      0.0000  NNN
 proc_dp/proc_core/proc_p1/clk_gate_p1b_reg
                                    2.0001      0.0    0.0000      2.0001      0.0000  NNN
-proc_dp/proc_core/proc_p2        503.7649      8.2  400.5555    100.1212      0.0000  NNN
+proc_dp/proc_core/proc_p2        503.7649      7.8  400.5555    100.1212      0.0000  NNN
 proc_dp/proc_core/proc_p2/clk_gate_p2a_reg
                                    1.1311      0.0    0.0000      1.1311      0.0000  NNN
 proc_dp/proc_core/proc_p2/clk_gate_p2b_reg
                                    1.9571      0.0    0.0000      1.9571      0.0000  NNN
-lbuf_mgr                        5247.8823     85.6   10.1515     30.0778      0.0000  NNN
-lbuf_mgr/lbuf_ctrl               253.7636      4.1   99.1111    151.9877      0.0000  NNN
+lbuf_mgr                        5548.7935     86.2   10.1515     30.0778      0.0000  NNN
+lbuf_mgr/lbuf_ctrl               554.6748      8.6   99.1111    151.9877      0.0000  NNN
 lbuf_mgr/lbuf_ctrl/clk_gate_lb_fsm_1_reg
                                    1.1234      0.0    0.0000      1.1234      0.0000  NNN
 lbuf_mgr/lbuf_ctrl/clk_gate_lb_fsm_2_reg
                                    1.5414      0.0    0.0000      1.5414      0.0000  NNN
-lbuf_mgr/lbuf_core              4953.8894     80.8   20.1234     30.1111      0.0000  NNN
-lbuf_mgr/lbuf_core/dff_fifo      300.6526      4.9  100.5511    200.1015      0.0000  NNN
+lbuf_mgr/lbuf_ctrl/core          300.9112      4.7    0.0000      0.0000      0.0000  NNN
+lbuf_mgr/lbuf_ctrl/core/func_a   100.1234      1.6   50.0000     50.1234      0.0000  NNN
+lbuf_mgr/lbuf_ctrl/core/func_b   200.7878      3.1  150.0000     50.7878      0.0000  NNN
+lbuf_mgr/lbuf_core              4953.8894     76.9   20.1234     30.1111      0.0000  NNN
+lbuf_mgr/lbuf_core/dff_fifo      300.6526      4.7  100.5511    200.1015      0.0000  NNN
 lbuf_mgr/lbuf_core/clk_gate_lbc1_reg
                                    0.9877      0.0    0.0000      0.9877      0.0000  NNN
 lbuf_mgr/lbuf_core/clk_gate_lbc2_reg
                                    1.0001      0.0    0.0000      1.0001      0.0000  NNN
-lbuf_mgr/lbuf_core/sram1_SP512x64
-                                1400.5701     22.8    0.0000      0.0000   1400.5701  NNN
-lbuf_mgr/lbuf_core/sram2_SP512x64
-                                3200.4444     52.2    0.0000      0.0000   3200.4444  NNN
+lbuf_mgr/lbuf_core/sram_top     4601.0145     71.4    0.0000      0.0000      0.0000  NNN
+lbuf_mgr/lbuf_core/sram_top/sram1_SP512x64
+                                1400.5701     21.7    0.0000      0.0000   1400.5701  NNN
+lbuf_mgr/lbuf_core/sram_top/sram2_SP512x64
+                                3200.4444     49.7    0.0000      0.0000   3200.4444  NNN
 
 ------------------------------  ---------  -------  --------  ----------  ----------  ---------------------
 Total                                                 x.xxxx      x.xxxx      x.xxxx
