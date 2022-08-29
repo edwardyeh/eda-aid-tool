@@ -72,6 +72,7 @@ class TableAttr:
     unit:          UnitAttr
     dec_place:     int
     is_show_ts:    bool
+    is_brief:      bool
     is_logic_sep:  bool
     is_reorder:    bool
     is_show_level: bool
@@ -325,27 +326,31 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttr) -> int:
             node.is_sub_root = True
             root_list.append(node)
         elif cmd == 'inf':
-            max_lv = trace_sub_node(node, 'inf', table_attr)
+            max_lv = trace_sub_node(node, 'inf', cmd_list[idx:], table_attr)
         elif cmd[0] == 'l':
-            max_lv = trace_sub_node(node, cmd[1:], table_attr)
+            max_lv = trace_sub_node(node, cmd[1:], cmd_list[idx:], table_attr)
         else:
             raise SyntaxError('error command')
 
     return max_lv
 #}}}
 
-def trace_sub_node(cur_node: Node, trace_lv: str, table_attr: TableAttr) -> int:
+def trace_sub_node(cur_node: Node, trace_lv: str, cmd_list: list, table_attr: TableAttr) -> int:
     """Trace sub nodes"""  #{{{
     ## return: max_lv
     global level_list
     scan_lv = math.inf if trace_lv == 'inf' else cur_node.level + int(trace_lv)
     max_lv = len(level_list) - 1
+    scan_stack = []
 
-    scan_stack = [cur_node]
+    if cur_node.level < scan_lv:
+        cur_node.scans = cur_node.childs
+        scan_stack.extend(cur_node.childs)
 
     while len(scan_stack):
         node = scan_stack.pop()
         node.is_show = True
+        parse_cmd(node, cmd_list, table_attr)
 
         if max_lv < node.level:
             level_list.extend([set() for i in range(node.level - max_lv)])
@@ -459,9 +464,9 @@ def show_hier_area(root_list: list, table_attr: TableAttr):
         area_len = DEFAULT_AREA_COL_SIZE 
 
     print()
-    show_divider(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
-    show_header(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
-    show_divider(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
+    show_divider(path_len, area_len, is_brief=table_attr.is_brief, is_logic_sep=table_attr.is_logic_sep)
+    show_header(path_len, area_len, is_brief=table_attr.is_brief, is_logic_sep=table_attr.is_logic_sep)
+    show_divider(path_len, area_len, is_brief=table_attr.is_brief, is_logic_sep=table_attr.is_logic_sep)
 
     area_fs = table_attr.area_fs
     unit_val = table_attr.unit.value
@@ -575,7 +580,24 @@ def show_hier_area(root_list: list, table_attr: TableAttr):
                 else:
                     bk = [''] * 3
 
-                if table_attr.is_logic_sep:
+                if table_attr.is_brief:
+                    if node.is_show:
+                        area_list = node_total
+                        unit_cnt = 1
+
+                        if unit_type == 2:
+                            while area_list >= unit_val:
+                                area_list /= unit_val
+                                unit_cnt += 1
+
+                        print("  {}  {} {}".format(
+                                area_fs.format(area_list, unit_tag*unit_cnt, ['']*2).rjust(area_len),
+                                f"{total_percent:.1%}".rjust(7),
+                                star))
+                    else:
+                        print("  {}  {}".format(f"-".rjust(area_len),
+                                                f"-".rjust(7)))
+                elif table_attr.is_logic_sep:
                     if node.is_show:
                         area_list = [node_total, node_comb, node_seq, node_bbox]
                         unit_cnt = [1] * 4
@@ -633,16 +655,30 @@ def show_hier_area(root_list: list, table_attr: TableAttr):
 
     if len(sum_dict) != 0:
         print()
-        show_divider(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
-        show_header(path_len, area_len, title='Group', is_logic_sep=table_attr.is_logic_sep)
-        show_divider(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
+        show_divider(path_len, area_len, is_brief=table_attr.is_brief, is_logic_sep=table_attr.is_logic_sep)
+        show_header(path_len, area_len, title='Group', is_brief=table_attr.is_brief, is_logic_sep=table_attr.is_logic_sep)
+        show_divider(path_len, area_len, is_brief=table_attr.is_brief, is_logic_sep=table_attr.is_logic_sep)
 
         group_len = 1 if max_gid <= 0 else int(math.log10(max_gid)) + 1
         bk = ([' '] if table_attr.is_sub_sum else ['']) * 2
         for gid, sum_group in sorted(sum_dict.items()):
             sum_bbox_percent = 0 if sum_group.total_area == 0 else sum_group.bbox_area / sum_group.total_area
             sum_total_percent = sum_group.total_area / root_node.total_area
-            if table_attr.is_logic_sep:
+            if table_attr.is_brief:
+                area_list = sum_group.total_area
+                unit_cnt = 1
+
+                if unit_type == 2:
+                    while area_list >= unit_val:
+                        area_list /= unit_val
+                        unit_cnt += 1
+
+                print("{}{}  {}  {}".format(
+                        f"{gid}: ".rjust(group_len+2),
+                        f"{sum_group.name}".ljust(path_len-group_len-2),
+                        area_fs.format(area_list, unit_tag*unit_cnt, ['']*2).rjust(area_len),
+                        f"{sum_total_percent:.1%}".rjust(7)))
+            elif table_attr.is_logic_sep:
                 area_list = [sum_group.total_area, sum_group.comb_area, sum_group.seq_area, 
                              sum_group.bbox_area]
                 unit_cnt = [1] * 4
@@ -683,7 +719,7 @@ def show_hier_area(root_list: list, table_attr: TableAttr):
                         f"{sum_bbox_percent:.1%}".rjust(7)))
 
     else:
-        show_divider(path_len, area_len, is_logic_sep=table_attr.is_logic_sep)
+        show_divider(path_len, area_len, is_brief=table_attr.is_brief, is_logic_sep=table_attr.is_logic_sep)
 
     print()
 #}}}
@@ -854,57 +890,53 @@ def show_bbox_area(root_node: Node, table_attr: TableAttr):
     print()
 #}}}
 
-def show_header(path_len: int, area_len: int, title: str='Instance', is_logic_sep: bool=False):
+def show_header(path_len: int, area_len: int, title: str='Instance', 
+        is_brief: bool=False, is_logic_sep: bool=False):
     """Show header"""  #{{{
-    if is_logic_sep:
-        print("{}  {}  {}  {}  {}  {}  {}".format(title.ljust(path_len),
-                                                 'Absolute'.ljust(area_len),
-                                                 'Percent'.ljust(7),
-                                                 'Combi-'.ljust(area_len),
-                                                 'Noncombi-'.ljust(area_len),
-                                                 'Black-'.ljust(area_len),
-                                                 'Percent'.ljust(7)))
-
-        print("{}  {}  {}  {}  {}  {}  {}".format(''.ljust(path_len),
-                                                  'Total'.ljust(area_len),
-                                                  'Total'.ljust(7),
-                                                  'national'.ljust(area_len),
-                                                  'national'.ljust(area_len),
-                                                  'Boxes'.ljust(area_len),
-                                                  'BBox'.ljust(7)))
+    print("{}  ".format(title.ljust(path_len)), end='')
+    print("{}  ".format('Absolute'.ljust(area_len)), end='')
+    if is_brief:
+        print("{}".format('Percent'.ljust(7)))
     else:
-        print("{}  {}  {}  {}  {}  {}".format(title.ljust(path_len),
-                                              'Absolute'.ljust(area_len),
-                                              'Percent'.ljust(7),
-                                              'Logic'.ljust(area_len),
-                                              'Black-'.ljust(area_len),
-                                              'Percent'.ljust(7)))
+        print("{}  ".format('Percent'.ljust(7)), end='')
+        if is_logic_sep:
+            print("{}  ".format('Combi-'.ljust(area_len)), end='')
+            print("{}  ".format('Noncombi-'.ljust(area_len)), end='')
+        else:
+            print("{}  ".format('Logic'.ljust(area_len)), end='')
+        print("{}  ".format('Black-'.ljust(area_len)), end='')
+        print("{}".format('Percent'.ljust(7)))
 
-        print("{}  {}  {}  {}  {}  {}".format(''.ljust(path_len),
-                                              'Total'.ljust(area_len),
-                                              'Total'.ljust(7),
-                                              'Area'.ljust(area_len),
-                                              'Boxes'.ljust(area_len),
-                                              'BBox'.ljust(7)))
+    print("{}  ".format(''.ljust(path_len)), end='')
+    print("{}  ".format('Total'.ljust(area_len)), end='')
+    if is_brief:
+        print("{}".format('Total'.ljust(7)))
+    else:
+        print("{}  ".format('Total'.ljust(7)), end='')
+        if is_logic_sep:
+            print("{}  ".format('national'.ljust(area_len)), end='')
+            print("{}  ".format('national'.ljust(area_len)), end='')
+        else:
+            print("{}  ".format('Area'.ljust(area_len)), end='')
+        print("{}  ".format('Boxes'.ljust(area_len)), end='')
+        print("{}  ".format('BBox'.ljust(7)))
 #}}}
 
-def show_divider(path_len: int, area_len: int, is_logic_sep: bool=False):
+def show_divider(path_len: int, area_len: int, 
+        is_brief: bool=False, is_logic_sep: bool=False):
     """Show header"""  #{{{
-    if is_logic_sep:
-        print("{}  {}  {}  {}  {}  {}  {}".format('-' * path_len,
-                                                  '-' * area_len,
-                                                  '-' * 7,
-                                                  '-' * area_len,
-                                                  '-' * area_len,
-                                                  '-' * area_len,
-                                                  '-' * 7))
+    print("{}  ".format('-' * path_len), end='')
+    print("{}  ".format('-' * area_len), end='')
+    if is_brief:
+        print("{}".format('-' * 7))
     else:
-        print("{}  {}  {}  {}  {}  {}".format('-' * path_len,
-                                              '-' * area_len,
-                                              '-' * 7,
-                                              '-' * area_len,
-                                              '-' * area_len,
-                                              '-' * 7))
+        print("{}  ".format('-' * 7), end='')
+        if not is_brief:
+            if is_logic_sep:
+                print("{}  ".format('-' * area_len), end='')
+            print("{}  ".format('-' * area_len), end='')
+            print("{}  ".format('-' * area_len), end='')
+            print("{}".format('-' * 7))
 #}}}
 
 ### Main Function ###
@@ -935,8 +967,13 @@ def main():
                                     help="number of decimal places of area")
     parser.add_argument('-ts', dest='is_show_ts', action='store_true', 
                                     help="show thousands separators")
-    parser.add_argument('-ls', dest='is_logic_sep', action='store_true', 
+
+    area_gparser = parser.add_mutually_exclusive_group()
+    area_gparser.add_argument('-br', dest='is_brief', action='store_true', 
+                                    help="only show total area/percent value")
+    area_gparser.add_argument('-ls', dest='is_logic_sep', action='store_true', 
                                     help="show combi/non-combi area separately")
+
     parser.add_argument('-ro', dest='is_reorder', action='store_true', 
                                     help="area reorder (large first)")
 
@@ -1009,6 +1046,7 @@ def main():
                     unit=unit,
                     dec_place=args.dec_place,
                     is_show_ts=args.is_show_ts,
+                    is_brief=args.is_brief,
                     is_logic_sep=args.is_logic_sep,
                     is_reorder=args.is_reorder,
                     is_show_level=args.is_show_level,
