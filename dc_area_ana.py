@@ -29,6 +29,20 @@ sum_dict = {}
 level_list = []
 root_list = []
 
+hide_op = {
+        '>' : lambda a, b: a > b,
+        '<' : lambda a, b: a < b,
+        '==': lambda a, b: a == b,
+        '>=': lambda a, b: a >= b,
+        '<=': lambda a, b: a <= b
+        }
+
+hide_cmp = {
+        'at': lambda node, op, val: hide_op[op](node.total_area, val),
+        'pt': lambda node, op, val: hide_op[op](node.total_area/top_node.total_area, val)
+        }
+
+
 ### Class Defintion ###
 
 class Node:
@@ -301,13 +315,13 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttr) -> int:
             break
 
         if cmd.startswith('add') or cmd.startswith('sub') :
-            sum_toks = cmd.split(':')
-            gid = 0 if len(sum_toks[0]) == 3 else int(sum_toks[0][3:])
-            node.gid = gid if sum_toks[0][0:3] == 'add' else -gid - 1
+            toks = cmd.split(':')
+            gid = 0 if len(toks[0]) == 3 else int(toks[0][3:])
+            node.gid = gid if toks[0][0:3] == 'add' else -gid - 1
             if gid not in sum_dict:
                 sum_dict[gid] = SumGroup(f'Group {gid}')
-            if len(sum_toks) > 1:
-                name = sum_toks[1]
+            if len(toks) > 1:
+                name = toks[1]
                 if name.startswith('\"'):
                     while not name.endswith('\"'):
                         name += f" {cmd_list[idx]}"
@@ -317,11 +331,39 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttr) -> int:
                         name += f" {cmd_list[idx]}"
                         idx += 1
                 sum_dict[gid].name = name.strip('\"\'\n ')
+        elif cmd.startswith('hide'):
+            toks = cmd.split(':')
+            try:
+                if toks[0] != 'hide':
+                    raise SyntaxError("error command")
+                elif len(toks) == 1:
+                    node.is_hide = True
+                else:
+                    pat = toks[1]
+                    if pat.startswith('\"'):
+                        while not pat.endswith('\"'):
+                            pat += f" {cmd_list[idx]}"
+                            idx += 1
+                    elif pat.startswith('\''):
+                        while not pat.endswith('\''):
+                            pat += f" {cmd_list[idx]}"
+                            idx += 1
+                    pat = pat.strip('\"\'\n ')
+
+                    try:
+                        ma = re.fullmatch("(\w+)\s*([><=]+)\s*(\w+)", pat)
+                        if ma is None or len(ma_grp:=ma.groups()) != 3:
+                            raise SyntaxError
+                        else:
+                            node.is_hide = hide_cmp[ma_grp[0]](node, ma_grp[1], float(ma_grp[2]))
+                    except Exception as e:
+                        print("ERR: error command syntax (cmd: hide)")
+                        raise e
+            except Exception as e:
+                raise e
         elif cmd == 'sum':
             sub_area_sum(node)
             table_attr.is_sub_sum = True
-        elif cmd == 'hide':
-            node.is_hide = True
         elif cmd == 'sr':
             node.is_sub_root = True
             root_list.append(node)
@@ -330,7 +372,7 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttr) -> int:
         elif cmd[0] == 'l':
             max_lv = trace_sub_node(node, cmd[1:], cmd_list[idx:], table_attr)
         else:
-            raise SyntaxError('error command')
+            raise SyntaxError("error command")
 
     return max_lv
 #}}}
@@ -454,8 +496,12 @@ def show_hier_area(root_list: list, table_attr: TableAttr):
     if path_len < DEFAULT_PATH_COL_SIZE:
         path_len = DEFAULT_PATH_COL_SIZE
 
-    area_len = int(math.log10(math.ceil(max_area))) + 2 + table_attr.dec_place
-    area_len += len(table_attr.unit.tag)
+    if max_area == 0:
+        area_len = 0
+    else:
+        area_len = int(math.log10(math.ceil(max_area))) + 2 + table_attr.dec_place
+        area_len += len(table_attr.unit.tag)
+
     if table_attr.is_show_ts:
         area_len += int(math.log(max_area) / math.log(1000))
     if table_attr.is_sub_sum:
