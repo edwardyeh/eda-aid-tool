@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 
 ### Global Parameter ###  
 
+#{{{
 DEFAULT_PATH_COL_SIZE = 32
 DEFAULT_AREA_COL_SIZE = 9
 ISYM = f"{0x251c:c}{0x2500:c}"
@@ -41,7 +42,7 @@ hide_cmp = {
         'at': lambda node, op, val: hide_op[op](node.total_area, val),
         'pt': lambda node, op, val: hide_op[op](node.total_area/top_node.total_area, val)
         }
-
+#}}}
 
 ### Class Defintion ###
 
@@ -504,7 +505,7 @@ def show_hier_area(root_list: list, table_attr: TableAttr):
 
     if table_attr.is_show_ts:
         area_len += int(math.log(max_area) / math.log(1000))
-    if table_attr.is_sub_sum:
+    if table_attr.is_sub_sum and not table_attr.is_brief:
         area_len += 2
     if area_len < DEFAULT_AREA_COL_SIZE:
         area_len = DEFAULT_AREA_COL_SIZE 
@@ -876,7 +877,7 @@ def show_bbox_area(root_node: Node, table_attr: TableAttr):
         if table_attr.is_show_level:
             path_name = f"({node.level:2d}) " + path_name
 
-        if not node.is_show and table_attr.trace_root == 'sub':
+        if not node.is_show and table_attr.trace_root == 'leaf':
             pass
         else:
             if len(path_name) > path_len:
@@ -916,22 +917,22 @@ def show_bbox_area(root_node: Node, table_attr: TableAttr):
 
     show_divider(path_len, area_len)
 
-    if sub_bbox != 0:
-        sub_total_percent = sub_bbox / root_node.total_area
-        unit_cnt = 1
+    # if sub_bbox != 0:
+    #     sub_total_percent = sub_bbox / root_node.total_area
+    #     unit_cnt = 1
 
-        if unit_type == 2:
-            while sub_bbox >= unit_val:
-                sub_bbox /= unit_val
-                unit_cnt += 1
+    #     if unit_type == 2:
+    #         while sub_bbox >= unit_val:
+    #             sub_bbox /= unit_val
+    #             unit_cnt += 1
 
-        print("{}  {}  {}  {}  {}  {}".format(
-                f"Black-box Total".ljust(path_len),
-                f"-".rjust(area_len),
-                f"{sub_total_percent:.1%}".rjust(7),
-                f"-".rjust(area_len),
-                area_fs.format(sub_bbox, unit_tag*unit_cnt, ['']*2).rjust(area_len),
-                f"-".rjust(7)))
+    #     print("{}  {}  {}  {}  {}  {}".format(
+    #             f"Black-box Total".ljust(path_len),
+    #             f"-".rjust(area_len),
+    #             f"{sub_total_percent:.1%}".rjust(7),
+    #             f"-".rjust(area_len),
+    #             area_fs.format(sub_bbox, unit_tag*unit_cnt, ['']*2).rjust(area_len),
+    #             f"-".rjust(7)))
 
     print()
 #}}}
@@ -1148,10 +1149,13 @@ def main():
     print(f"\nratio: {str(table_attr.ratio)}  unit: {unit_info}")
 
     if args.proc_mode == 'norm':
-        show_hier_area(top_node, table_attr)
+        show_hier_area([top_node], table_attr)
 
     elif args.proc_mode == 'adv':
         load_cfg(args.cfg_fn, table_attr)
+
+        if table_attr.is_sub_sum:
+            print("\n() : Sub-module Area Summation")
 
         if table_attr.trace_root == 'sub':
             show_hier_area(root_list, table_attr)
