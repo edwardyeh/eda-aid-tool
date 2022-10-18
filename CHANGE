@@ -68,4 +68,10 @@ v0.10.0:
 
 v0.10.1:
 
-    dc_area_ana: fix trivial bugs
+    dc_area_ana: fix trivial bugs.
+
+v0.11.0:
+
+    dc_area_ana: 
+        1. Support compare mode.
+        2. Customize the minimum instance column length.
