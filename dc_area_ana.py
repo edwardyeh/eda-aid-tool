@@ -1501,8 +1501,13 @@ def main():
     else:
         trace_root = 'top' if args.is_tree_view else 'leaf'
 
+    if args.is_show_ts:
+        area_fs = "{2[0]}{0:,." + str(args.dec_place) + "f}{1}{2[1]}"
+    else:
+        area_fs = "{2[0]}{0:." + str(args.dec_place) + "f}{1}{2[1]}"
+
     table_attr = TableAttr(
-                    area_fs=("{2[0]}{0:." + str(args.dec_place) + "f}{1}{2[1]}"),
+                    area_fs=area_fs,
                     ratio=args.ratio,
                     unit=unit,
                     dec_place=args.dec_place,
