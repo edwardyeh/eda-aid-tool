@@ -75,3 +75,9 @@ v0.11.0:
     dc_area_ana: 
         1. Support compare mode.
         2. Customize the minimum instance column length.
+
+v0.12.0:
+
+    dc_area_ana:
+        1. Fix thousands separators option fail.
+        2. Support replace instance path by customize tag.

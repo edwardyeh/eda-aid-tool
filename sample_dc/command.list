@@ -12,6 +12,8 @@ default_path_len:<num>      # set instance path column size
 <inst_name> sum             # leaf trace and sum the areas from the specific instance
 <inst_name> hide            # hide the instance from the area display
 
+tag:<inst_name> <tag_name>  # replace instance path by tag name (only for path/inst view)
+
 [condition hide]
 
 <inst_name> hide:"<condition>"

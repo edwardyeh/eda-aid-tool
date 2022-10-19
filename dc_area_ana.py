@@ -19,7 +19,7 @@ from dataclasses import dataclass, field
 ### Global Parameter ###  
 
 #{{{
-VERSION = '0.11.0'
+VERSION = '0.12.0'
 DEFAULT_PATH_COL_SIZE = 32
 DEFAULT_AREA_COL_SIZE = 9
 ISYM = f"{0x251c:c}{0x2500:c}"
@@ -45,6 +45,7 @@ hide_cmp = {
 design_list = []
 level_list = []
 root_list = []
+tag_dict = {}
 sum_dict = {}
 #}}}
 
@@ -258,7 +259,7 @@ def load_cfg(cfg_fp, design: Design, table_attr: TableAttr):
                 if toks[0][0] == '#':
                     continue
 
-                if toks[0].startswith('grp'):
+                if toks[0].startswith('grp:'):
                     line, *_ = line.split('#')
                     group, name = line.split(':')
                     gid = 0 if group.strip() == 'grp' else int(group.strip()[3:])
@@ -269,14 +270,14 @@ def load_cfg(cfg_fp, design: Design, table_attr: TableAttr):
                         sum_dict[gid].name = name
                     continue
 
-                if toks[0].startswith('default_path_len'):
+                if toks[0].startswith('default_path_len:'):
                     line, *_ = line.split('#')
                     _, path_len = line.split(':')
                     path_len = int(path_len)
                     table_attr.path_col_size = path_len if path_len > 10 else 10
                     continue
 
-                if toks[0].startswith('design_name'):
+                if toks[0].startswith('design_name:'):
                     line, *_ = line.split('#')
                     _, name_list = line.split(':')
                     for item in name_list.strip().split():
@@ -285,6 +286,12 @@ def load_cfg(cfg_fp, design: Design, table_attr: TableAttr):
                             table_attr.design_name[int(idx)] = name
                         except Exception:
                             pass
+                    continue
+
+                if toks[0].startswith('tag:'):
+                    line, *_ = line.split('#')
+                    inst_name, tag_name = line.split(':')[1].split()
+                    tag_dict[inst_name] = tag_name
                     continue
 
                 ## Load node from configuration
@@ -525,6 +532,11 @@ def show_hier_area(root_list: list, design: Design, table_attr: TableAttr):
                 else:
                     path_len = len(node.dname) + len(node.bname) + 1
 
+                if len(tag_dict) != 0 and table_attr.view_type != 'tree':
+                    inst_path = node.bname if node.level < 2 else '/'.join((node.dname, node.bname))
+                    if inst_path in tag_dict:
+                        path_len = len(tag_dict[inst_path])
+
                 if path_len > max_path_len:
                     max_path_len = path_len
 
@@ -643,6 +655,11 @@ def show_hier_area(root_list: list, design: Design, table_attr: TableAttr):
                 path_name = node.bname
             else:
                 path_name = '/'.join((node.dname, node.bname))
+
+            if len(tag_dict) != 0 and table_attr.view_type != 'tree':
+                inst_path = node.bname if node.level < 2 else '/'.join((node.dname, node.bname))
+                if inst_path in tag_dict:
+                    path_name = tag_dict[inst_path]
 
             if table_attr.is_show_level:
                 path_name = f"({node.level:2d}) " + path_name
@@ -1013,6 +1030,11 @@ def show_cmp_area(root_list: list, design_list: list, table_attr: TableAttr):
                 else:
                     path_len = len(node.dname) + len(node.bname) + 1
 
+                if len(tag_dict) != 0 and table_attr.view_type != 'tree':
+                    inst_path = node.bname if node.level < 2 else '/'.join((node.dname, node.bname))
+                    if inst_path in tag_dict:
+                        path_len = len(tag_dict[inst_path])
+
                 if path_len > max_path_len:
                     max_path_len = path_len
 
@@ -1122,6 +1144,11 @@ def show_cmp_area(root_list: list, design_list: list, table_attr: TableAttr):
                 path_name = node.bname
             else:
                 path_name = '/'.join((node.dname, node.bname))
+
+            if len(tag_dict) != 0 and table_attr.view_type != 'tree':
+                inst_path = node.bname if node.level < 2 else '/'.join((node.dname, node.bname))
+                if inst_path in tag_dict:
+                    path_name = tag_dict[inst_path]
 
             if table_attr.is_show_level:
                 path_name = f"({node.level:2d}) " + path_name
