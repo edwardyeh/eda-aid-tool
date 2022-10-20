@@ -1200,12 +1200,18 @@ def show_cmp_area(root_list: list, design_list: list, table_attr: TableAttr):
 
                         if table_attr.cmp_type == 2 and idx != 0:
                             if table_attr.is_cmp_pr:
-                                print("  ({})".format(
-                                        f"{bk[0]}{abs(total_diff):.1%}".rjust(area_len-2)), end='')
+                                if (round(total_diff, 1) == 0.0):
+                                    print("  ({})".format(''.rjust(area_len-2)), end='')
+                                else:
+                                    print("  ({})".format(
+                                            f"{bk[0]}{abs(total_diff):.1%}".rjust(area_len-2)), end='')
                             else:
-                                print("  ({})".format(
-                                        area_fs.format(abs(total_diff), 
-                                                       unit_tag_g*unit_cnt_d, bk).rjust(area_len-2)), end='')
+                                if (round(total_diff, table_attr.dec_place) == 0.0):
+                                    print("  ({})".format(''.rjust(area_len-2)), end='')
+                                else:
+                                    print("  ({})".format(
+                                            area_fs.format(abs(total_diff), 
+                                                           unit_tag_g*unit_cnt_d, bk).rjust(area_len-2)), end='')
 
                         print("  {}".format(
                                 area_fs.format(total_area, unit_tag_g*unit_cnt_a, ['']*2).rjust(area_len)),
@@ -1213,15 +1219,28 @@ def show_cmp_area(root_list: list, design_list: list, table_attr: TableAttr):
 
                         if table_attr.cmp_type == 3:
                             if table_attr.is_cmp_pr:
-                                print("  ({})".format(
-                                        f"{bk[0]}{abs(total_diff):.1%}".rjust(area_len-2)), end='')
+                                if (round(total_diff, 1) == 0.0):
+                                    print("  ({})".format(''.rjust(area_len-2)), end='')
+                                else:
+                                    print("  ({})".format(
+                                            f"{bk[0]}{abs(total_diff):.1%}".rjust(area_len-2)), end='')
                             else:
-                                print("  ({})".format(
-                                        area_fs.format(abs(total_diff), 
-                                                       unit_tag_g*unit_cnt_d, bk).rjust(area_len-2)), end='')
+                                if (round(total_diff, table_attr.dec_place) == 0.0):
+                                    print("  ({})".format(''.rjust(area_len-2)), end='')
+                                else:
+                                    print("  ({})".format(
+                                            area_fs.format(abs(total_diff), 
+                                                           unit_tag_g*unit_cnt_d, bk).rjust(area_len-2)), end='')
+
                     print(f" {star}")
                 else:
-                    for i in design_count:
+                    col_cnt = design_count
+                    if table_attr.cmp_type == 2:
+                        col_cnt = col_cnt * 2 - 1
+                    elif table_attr.cmp_type == 3:
+                        col_cnt *= 2
+
+                    for i in range(col_cnt):
                         print("  {}".format(f"-".rjust(area_len)), end='')
                     print()
 
@@ -1620,7 +1639,7 @@ def main():
     else:
         load_cfg(args.cfg_fn, design, table_attr)
 
-        if table_attr.is_sub_sum:
+        if table_attr.is_sub_sum and args.proc_mode != 'cmp':
             print("\n() : Sub-module Area Summation")
 
         if table_attr.trace_root == 'sub':
