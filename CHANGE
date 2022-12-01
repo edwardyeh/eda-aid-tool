@@ -81,3 +81,16 @@ v0.12.0:
     dc_area_ana:
         1. Fix thousands separators option fail.
         2. Support replace instance path by customize tag.
+
+v0.13.0:
+
+    dc_area_ana:
+        1. (adv mode) support multi-reports cotent merge.
+
+v0.14.0:
+
+    dc_area_ana:
+        1. trivial update.
+    pt_rpt_ana:
+        1. New tool add.
+

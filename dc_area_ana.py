@@ -19,10 +19,11 @@ from dataclasses import dataclass, field
 import pandas as pd
 import numpy as np
 
+from .utils.general import VERSION
+
 ### Global Parameter ###  
 
 #{{{
-VERSION = '0.13.0'
 DEFAULT_PATH_COL_SIZE = 32
 DEFAULT_AREA_COL_SIZE = 9
 ISYM = f"{0x251c:c}{0x2500:c}"      # fork symbol
@@ -1470,9 +1471,12 @@ def show_header(header_lens: list, header_list: list):
         print("{}  ".format(head.split('/')[0].ljust(header_lens[i])), end='')
     print()
 
-    for i, head in enumerate(header_list):
-        print("{}  ".format(head.split('/')[1].ljust(header_lens[i])), end='')
-    print()
+    try:
+        for i, head in enumerate(header_list):
+            print("{}  ".format(head.split('/')[1].ljust(header_lens[i])), end='')
+        print()
+    except:
+        pass
 #}}}
 
 def area_norm(value: float, unit: UnitAttr, area_fs: str, bk=None, is_hide=False):
