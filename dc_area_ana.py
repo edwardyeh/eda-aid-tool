@@ -16,37 +16,33 @@ import sys
 import textwrap
 from dataclasses import dataclass, field
 
+import pandas as pd
+import numpy as np
+
 ### Global Parameter ###  
 
 #{{{
-VERSION = '0.12.0'
+VERSION = '0.13.0'
 DEFAULT_PATH_COL_SIZE = 32
 DEFAULT_AREA_COL_SIZE = 9
-ISYM = f"{0x251c:c}{0x2500:c}"
-ESYM = f"{0x2514:c}{0x2500:c}"
-BSYM = f"{0x2502:c} "
+ISYM = f"{0x251c:c}{0x2500:c}"      # fork symbol
+ESYM = f"{0x2514:c}{0x2500:c}"      # end symbol
+BSYM = f"{0x2502:c} "               # through symbol
 
 hide_op = {
-        '>' : lambda a, b: a > b,
-        '<' : lambda a, b: a < b,
-        '==': lambda a, b: a == b,
-        '>=': lambda a, b: a >= b,
-        '<=': lambda a, b: a <= b
-        }
+    '>' : lambda a, b: a > b,
+    '<' : lambda a, b: a < b,
+    '==': lambda a, b: a == b,
+    '>=': lambda a, b: a >= b,
+    '<=': lambda a, b: a <= b
+}
 
 # at: area total
 # pt: percent total
 hide_cmp = {
-        'at': lambda node, op, val: hide_op[op](node.total_area, val),
-        'pt': lambda node, op, val: hide_op[op](node.total_percent, val)
-        }
-
-
-design_list = []
-level_list = []
-root_list = []
-tag_dict = {}
-sum_dict = {}
+    'at': lambda node, op, val: hide_op[op](node.total_area, val),
+    'pt': lambda node, op, val: hide_op[op](node.total_percent, val)
+}
 #}}}
 
 ### Class Defintion ###
@@ -54,9 +50,10 @@ sum_dict = {}
 @dataclass (slots=True)
 class UnitAttr:
 #{{{
+    type:  int   = 0
     value: float = 1
     tag:   str   = ''
-    type:  int   = 0
+    info:  str   = '1'
 #}}}
 
 @dataclass(slots=True)
@@ -74,6 +71,8 @@ class TableAttr:
     is_nosplit:    bool
     view_type:     str
     trace_root:    str
+    proc_mode:     str
+    vtop_name:     str
     is_verbose:    bool = False
     is_sub_sum:    bool = field(init=False, default=False)
     path_col_size: int  = DEFAULT_PATH_COL_SIZE
@@ -97,7 +96,7 @@ class SumGroup:
 class Node:
 #{{{
     def __init__(self, dname: str, bname: str, level: int, 
-                 total_area: float, comb_area: float, seq_area: float, bbox_area: float,
+                 total_area: float=0.0, comb_area: float=0.0, seq_area: float=0.0, bbox_area: float=0.0,
                  parent=None, childs=None, scans=None):
         self.dname      = dname
         self.bname      = bname
@@ -113,35 +112,51 @@ class Node:
         self.total_percent = -1
         self.is_show       = False
         self.is_hide       = False
-        self.is_sub_root   = False
-        self.gid           = None
+        self.is_sub_sum    = False
         self.sub_comb_area = None
         self.sub_seq_area  = None
         self.sub_bbox_area = None
+        self.gid           = None
+        self.is_sub_root   = False
+        self.sr_name       = None
+        self.tag_name      = None
+        self.inst_name     = None
 #}}}
 
 class Design:
 #{{{
-    # def __init__(self, name: str):
-    def __init__(self):
-        # self.name = name
+    def __init__(self, top_node=None):
         self.total_area = 0
-        self.bbox_area = 0
-        self.path_len = 0
-        self.top_node = None
-        self.node_dict = {}
-        self.diff_dict = {}
+        self.comb_area  = 0
+        self.seq_area   = 0
+        self.bbox_area  = 0
+        self.max_lv     = 0
+        self.top_node   = top_node
+        self.node_dict  = {}
+        self.diff_dict  = {}
+        self.root_list  = []
+        self.level_list = []
+#}}}
+
+class DesignDB:
+#{{{
+    h1 = ('name', 'total', 'comb', 'seq', 'bbox', 'attr')
+    h2 = ('did', 'rid', 'level', 'hide', 'sub_sum', 'path_name')
+
+    def __init__(self):
+        self.virtual_top = Design(top_node='virtual_top') 
+        self.design_list = []
+        self.group_table = pd.DataFrame(columns=self.h1)
+        self.area_table = pd.DataFrame(columns=(self.h1 + self.h2))
 #}}}
 
 ### Sub Function ###
 
-def load_area(area_fps, proc_mode: str, table_attr: TableAttr):  
+def load_area(area_fps, table_attr: TableAttr) -> list:  
     """Load area report"""  #{{{
-    global design_list
-
+    design_list = []
     area_ratio = table_attr.ratio
     area_unit = table_attr.unit.value
-    is_verbose = table_attr.is_verbose
 
     if type(area_fps) is not list:
         area_fps = [area_fps]
@@ -151,7 +166,8 @@ def load_area(area_fps, proc_mode: str, table_attr: TableAttr):
         design_list.append(design:=Design())
         node_dict = design.node_dict
         top_node = None
-        fsm = max_path_len = total_bbox_area = 0
+        fsm = ds_max_lv = 0
+        ds_comb_area = ds_seq_area = ds_bbox_area = 0
 
         with open(area_fp) as f:
             line = f.readline()
@@ -159,8 +175,10 @@ def load_area(area_fps, proc_mode: str, table_attr: TableAttr):
                 if fsm == 2 and len(toks:=line.split()):
                     if toks[0].startswith("---"):
                         design.total_area = top_node.total_area
-                        design.bbox_area = total_bbox_area
-                        design.path_len = max_path_len 
+                        design.comb_area = ds_comb_area
+                        design.seq_area = ds_seq_area
+                        design.bbox_area = ds_bbox_area
+                        design.max_lv = ds_max_lv
                         design.top_node = top_node
                         break
 
@@ -200,7 +218,9 @@ def load_area(area_fps, proc_mode: str, table_attr: TableAttr):
                     bbox_area = float(toks[0]) * area_ratio / area_unit
                     del toks[0]
 
-                    total_bbox_area += bbox_area
+                    ds_comb_area += comb_area
+                    ds_seq_area += seq_area
+                    ds_bbox_area += bbox_area
 
                     if top_node is None:
                         top_node = node = Node(dname, bname, 0, total_area, comb_area, seq_area, bbox_area)
@@ -218,19 +238,14 @@ def load_area(area_fps, proc_mode: str, table_attr: TableAttr):
 
                     node_dict[path] = node
 
-                    if is_verbose:
-                        node.is_show = True
+                    if node.level > ds_max_lv:
+                        ds_max_lv = node.level
+
+                    if table_attr.proc_mode == 'norm':
                         node.scans = node.childs
 
-                    if table_attr.view_type == 'tree':
-                        path_len = len(node.bname) + node.level * 2
-                    elif table_attr.view_type == 'inst':
-                        path_len = len(node.bname)
-                    else:
-                        path_len = len(node.dname) + len(node.bname) + 1
-
-                    if path_len > max_path_len:
-                        max_path_len = path_len
+                    if table_attr.proc_mode == 'norm' or table_attr.is_verbose:
+                        node.is_show = True
 
                 elif fsm == 1:
                     if line.strip().startswith("---"):
@@ -241,127 +256,148 @@ def load_area(area_fps, proc_mode: str, table_attr: TableAttr):
                         fsm = 1
 
                 line = f.readline()
+
+    return design_list
 #}}}
 
-def load_cfg(cfg_fp, design: Design, table_attr: TableAttr):
+def load_cfg(cfg_fp, design_db: DesignDB, table_attr: TableAttr):
     """Load configuration"""  #{{{
-    global level_list, sum_dict
 
-    node_dict = design.node_dict
-    max_lv = -1
+    design_list = design_db.design_list
+    group_table = design_db.group_table
+
+    regexp_dplen  = re.compile(r'^default_path_length:\s{0,80}(?P<size>\d{1,3})')
+    regexp_dsname = re.compile(r'^design_name:\s{0,80}(?P<pat>[^#]+)')
+    regexp_grp    = re.compile(r'^grp(?P<id>\d{1,2})?:\s{0,80}(?P<pat>[^#]+)')
+    regexp_tag    = re.compile(r'^tag(?P<id>\d)?:\s{0,80}(?P<pat>[^#]+)')
+    regexp_inst   = re.compile(r'^inst(?P<id>\d)?:\s{0,80}(?P<pat>[^#]+)')
+    regexp_re     = re.compile(r'^re(?P<id>\d)?:\s{0,80}(?P<pat>[^#]+)')
+    regexp_node   = re.compile(r'^(?:(?P<id>\d):)?(?P<pat>[^#]+)')
 
     with open(cfg_fp) as f:
         line_no = 0
         for line in f.readlines():
             line_no += 1
-            toks = line.split()
-            if len(toks):
-                if toks[0][0] == '#':
+            if len(line:=line.strip()):
+                if line[0] == '#':
                     continue
 
-                if toks[0].startswith('grp:'):
-                    line, *_ = line.split('#')
-                    group, name = line.split(':')
-                    gid = 0 if group.strip() == 'grp' else int(group.strip()[3:])
-                    name = name.strip('\"\'\n ')
-                    if gid not in sum_dict:
-                        sum_dict[gid] = SumGroup(name)
-                    else:
-                        sum_dict[gid].name = name
-                    continue
+                try:
+                    if (m:=regexp_dplen.match(line)):
+                        path_len = int(m.group('size'))
+                        table_attr.path_col_size = path_len if path_len > 10 else 10
+                        continue
 
-                if toks[0].startswith('default_path_len:'):
-                    line, *_ = line.split('#')
-                    _, path_len = line.split(':')
-                    path_len = int(path_len)
-                    table_attr.path_col_size = path_len if path_len > 10 else 10
-                    continue
+                    if (m:=regexp_dsname.match(line)):
+                        for pattern in m.group('pat').split():
+                            did, name = pattern.split('-')
+                            table_attr.design_name[int(did)] = name
+                        continue
 
-                if toks[0].startswith('design_name:'):
-                    line, *_ = line.split('#')
-                    _, name_list = line.split(':')
-                    for item in name_list.strip().split():
-                        idx, name = item.split('-')
-                        try:
-                            table_attr.design_name[int(idx)] = name
-                        except Exception:
-                            pass
-                    continue
+                    if (m:=regexp_grp.match(line)):
+                        gid = int(m.group('id')) if m.group('id') else 0
+                        name = m.group('pat').strip('\"\'\n ')
+                        if gid not in group_table.index:
+                            group_table.loc[gid] = [0] * group_table.shape[1]
+                        group_table['name'][gid] = name
+                        continue
 
-                if toks[0].startswith('tag:'):
-                    line, *_ = line.split('#')
-                    inst_name, tag_name = line.split(':')[1].split()
-                    tag_dict[inst_name] = tag_name
-                    continue
+                    if (m:=regexp_tag.match(line)):
+                        path, tag = m.group('pat').split()
+                        if (did:=m.group('id')):
+                            design_list[int(did)].node_dict[path].tag_name = tag
+                        else:
+                            for design in design_list:
+                                try:
+                                    design.node_dict[path].tag_name = tag
+                                except:
+                                    pass
+                        continue
 
-                ## Load node from configuration
+                    if (m:=regexp_inst.match(line)):
+                        path, inst = m.group('pat').split()
+                        if (did:=m.group('id')):
+                            design_list[int(did)].node_dict[path].inst_name = inst
+                        else:
+                            for design in design_list:
+                                try:
+                                    design.node_dict[path].inst_name = inst
+                                except:
+                                    pass
+                        continue
 
-                node_list = []
-                cmd_list = []
+                    ## Load node from configuration ##
 
-                if toks[0].startswith('re:'):
-                    _, pattern, *cmds = re.split("re:\s*|\s", line)
-                    regex = re.compile(pattern)
-                    for path in node_dict.keys():
-                        if regex.match(path) is not None:
-                            node_list.append(node_dict[path])
-                    cmd_list.extend(cmds)
-                else:
-                    try:
-                        node_list.append(node_dict[toks[0]])
-                    except KeyError as e:
-                        print(f"\nCONFIG_ERROR: cell not found ({toks[0]}).\n")
-                        exit(1)
-                    cmd_list.extend(toks[1:])
+                    if (m:=regexp_re.match(line)):
+                        pattern, *cmd_list = m.group('pat').split()
+                        regexp = re.compile(pattern)
 
-                for node in node_list:
-                    try:
-                        node.is_show = True
+                        if (did:=m.group('id')):
+                            start_id = int(did)
+                            end_id = start_id + 1
+                        else:
+                            start_id = 0
+                            end_id = len(design_list) 
 
-                        if max_lv < node.level:
-                            level_list.extend([set() for i in range(node.level - max_lv)])
-                            max_lv = node.level
+                        for did in range(start_id, end_id):
+                            node_dict = design_list[did].node_dict
+                            level_list = design_list[did].level_list
+                            for path in node_dict.keys():
+                                if regexp.match(path):
+                                    node = node_dict[path]
+                                    node.is_show = True
+                                    max_lv = len(level_list) - 1
+                                    if max_lv < node.level:
+                                        level_list.extend([set() for i in range(node.level - max_lv)])
+                                    level_list[node.level].add(node)
+                                    parse_cmd(node, cmd_list, design_list[did], group_table, table_attr) 
+                        continue
 
-                        level_list[node.level].add(node)
-                    except Exception as e:
-                        print("-" * 60)
-                        print("ConfigParseError: (line: {})".format(line_no))
-                        print("unexisted path in the list.")
-                        print("-" * 60)
-                        raise e
+                    if (m:=regexp_node.match(line)):
+                        path, *cmd_list = m.group('pat').split()
 
-                    ## Load command from configuration
+                        if (did:=m.group('id')):
+                            start_id = int(did)
+                            end_id = start_id + 1
+                        else:
+                            start_id = 0
+                            end_id = len(design_list) 
 
-                    try:
-                        sub_max_lv = parse_cmd(node, cmd_list, table_attr)
-                    except Exception as e:
-                        print("-" * 60)
-                        print("ConfigParseError: (line: {})".format(line_no))
-                        print("error command.")
-                        print("-" * 60)
-                        raise e
+                        for did in range(start_id, end_id):
+                            node_dict = design_list[did].node_dict
+                            level_list = design_list[did].level_list
+                            if (node:=node_dict.get(path)):
+                                node.is_show = True
+                                max_lv = len(level_list) - 1
+                                if max_lv < node.level:
+                                    level_list.extend([set() for i in range(node.level - max_lv)])
+                                level_list[node.level].add(node)
+                                parse_cmd(node, cmd_list, design_list[did], group_table, table_attr) 
+                        continue
 
-                    if sub_max_lv > max_lv:
-                        max_lv = sub_max_lv
+                except Exception as e:
+                    print(f"\nLOAD_CONFIG: syntax error (line:{line_no}).\n")
+                    raise e
 
-    ## Backward scan link
+    if group_table.shape[0] > 0:
+        table_attr.is_sub_sum = True
 
-    for level in range(max_lv, 0, -1):
-        for node in level_list[level]:
-            if node.parent is not None:
-                if table_attr.is_verbose:
-                    node.parent.is_show = True
-                node.parent.scans.add(node)
-                level_list[level-1].add(node.parent)
+    ## backward scan link ##
+
+    for design in design_list:
+        level_list = design.level_list
+        for level in range(len(level_list)-1, 0, -1):
+            for node in level_list[level]:
+                if node.parent is not None:
+                    node.parent.scans.add(node)
+                    level_list[level-1].add(node.parent)
 #}}}
 
-def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttr) -> int:
+def parse_cmd(node: Node, cmd_list: list, design: Design, group_table: pd.DataFrame, 
+                table_attr: TableAttr):
     """Parsing command"""  #{{{
-    ## return: max_lv
-    global root_list, sum_dict
-
-    idx = max_lv = 0
     end_cond = len(cmd_list)
+    idx = 0
 
     while idx < end_cond:
         cmd = cmd_list[idx]
@@ -369,32 +405,15 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttr) -> int:
 
         if cmd == '':
             continue
-        if cmd[0] == '#':
-            break
 
-        if cmd.startswith('add') or cmd.startswith('sub') :
-            toks = cmd.split(':')
-            gid = 0 if len(toks[0]) == 3 else int(toks[0][3:])
-            node.gid = gid if toks[0][0:3] == 'add' else -gid - 1
-            if gid not in sum_dict:
-                sum_dict[gid] = SumGroup(f'Group {gid}')
-            if len(toks) > 1:
-                name = toks[1]
-                if name.startswith('\"'):
-                    while not name.endswith('\"'):
-                        name += f" {cmd_list[idx]}"
-                        idx += 1
-                elif name.startswith('\''):
-                    while not name.endswith('\''):
-                        name += f" {cmd_list[idx]}"
-                        idx += 1
-                sum_dict[gid].name = name.strip('\"\'\n ')
+        if cmd == 'sum':
+            sub_area_sum(node)
+            table_attr.is_sub_sum = node.is_sub_sum = True
+
         elif cmd.startswith('hide'):
             toks = cmd.split(':')
             try:
-                if toks[0] != 'hide':
-                    raise SyntaxError("error command")
-                elif len(toks) == 1:
+                if len(toks) == 1:
                     node.is_hide = True
                 else:
                     pat = toks[1]
@@ -409,36 +428,58 @@ def parse_cmd(node: Node, cmd_list: list, table_attr: TableAttr) -> int:
                     pat = pat.strip('\"\'\n ')
 
                     try:
-                        ma = re.fullmatch("(\w+)\s*([><=]+)\s*(\w+)", pat)
+                        ma = re.fullmatch("(\w{2})\s{0,10}([><=]{1,2})\s{0,10}(\w+)", pat)
                         if ma is None or len(ma_grp:=ma.groups()) != 3:
                             raise SyntaxError
                         else:
                             node.is_hide = hide_cmp[ma_grp[0]](node, ma_grp[1], float(ma_grp[2]))
                     except Exception as e:
-                        print("ERR: error command syntax (cmd: hide)")
+                        print("\nPARSE_CMD: error command syntax (cmd: hide)\n")
                         raise e
             except Exception as e:
                 raise e
-        elif cmd == 'sum':
-            sub_area_sum(node)
-            table_attr.is_sub_sum = True
-        elif cmd == 'sr':
-            node.is_sub_root = True
-            root_list.append(node)
-        elif cmd == 'inf':
-            max_lv = trace_sub_node(node, 'inf', cmd_list[idx:], table_attr)
-        elif cmd[0] == 'l':
-            max_lv = trace_sub_node(node, cmd[1:], cmd_list[idx:], table_attr)
-        else:
-            raise SyntaxError("error command")
 
-    return max_lv
+        elif cmd.startswith('sr'):
+            node.is_sub_root = True
+            design.root_list.append(node)
+            toks = cmd.split(':')
+            if len(toks) > 1:
+                node.sr_name = toks[1].strip()
+
+        elif cmd.startswith('add') or cmd.startswith('sub') :
+            toks = cmd.split(':')
+            gid = 0 if len(toks[0]) == 3 else int(toks[0][3:])
+            node.gid = gid if toks[0][0:3] == 'add' else -gid - 1
+            if gid not in group_table.index:
+                group_table.loc[gid] = [0] * group_table.shape[1]
+                group_table['name'][gid] = f'Group {gid}'
+            if len(toks) > 1:
+                name = toks[1]
+                if name.startswith('\"'):
+                    while not name.endswith('\"'):
+                        name += f" {cmd_list[idx]}"
+                        idx += 1
+                elif name.startswith('\''):
+                    while not name.endswith('\''):
+                        name += f" {cmd_list[idx]}"
+                        idx += 1
+                group_table['name'][gid] = name.strip('\"\'\n ')
+
+        elif cmd == 'inf':
+            trace_sub_node(node, 'inf', cmd_list[idx:], design, group_table, table_attr)
+
+        elif cmd[0] == 'l':
+            trace_sub_node(node, cmd[1:], cmd_list[idx:], design, group_table, table_attr)
+
+        else:
+            print("\nPARSE_CMD: error command\n")
+            raise SyntaxError
 #}}}
 
-def trace_sub_node(cur_node: Node, trace_lv: str, cmd_list: list, table_attr: TableAttr) -> int:
+def trace_sub_node(cur_node: Node, trace_lv: str, cmd_list: list, design: Design, 
+                    group_table: pd.DataFrame, table_attr: TableAttr):
     """Trace sub nodes"""  #{{{
-    ## return: max_lv
-    global level_list
+    level_list = design.level_list
     scan_lv = math.inf if trace_lv == 'inf' else cur_node.level + int(trace_lv)
     max_lv = len(level_list) - 1
     scan_stack = []
@@ -450,7 +491,7 @@ def trace_sub_node(cur_node: Node, trace_lv: str, cmd_list: list, table_attr: Ta
     while len(scan_stack):
         node = scan_stack.pop()
         node.is_show = True
-        parse_cmd(node, cmd_list, table_attr)
+        parse_cmd(node, cmd_list, design, group_table, table_attr)
 
         if max_lv < node.level:
             level_list.extend([set() for i in range(node.level - max_lv)])
@@ -461,8 +502,6 @@ def trace_sub_node(cur_node: Node, trace_lv: str, cmd_list: list, table_attr: Ta
         if node.level < scan_lv:
             node.scans = node.childs
             scan_stack.extend(node.childs)
-
-    return max_lv
 #}}}
 
 def sub_area_sum(cur_node: Node):
@@ -482,149 +521,455 @@ def sub_area_sum(cur_node: Node):
     cur_node.sub_bbox_area = sub_bbox_area
 #}}}
 
-def show_hier_area(root_list: list, design: Design, table_attr: TableAttr):
+def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
     """Show hierarchical area"""  #{{{
 
-    ## Group sum and remove hide node
+    ## create group table and remove hide node ##
 
-    global level_list
-    max_path_len = max_area = 0
-    max_gid = -1
+    virtual_top = design_db.virtual_top
+    group_table = design_db.group_table
+    path_lv = 0
 
-    for level in range(len(level_list)-1, -1, -1):
-        for node in level_list[level]:
-            if node.gid is not None:
-                if node.sub_bbox_area is not None:
-                    node_comb = node.sub_comb_area
-                    node_seq  = node.sub_seq_area
-                    node_bbox = node.sub_bbox_area
-                else:
-                    node_comb = node.comb_area
-                    node_seq  = node.seq_area
-                    node_bbox = node.bbox_area
+    for design in virtual_top.root_list:
+        for level in range((last_lv := len(design.level_list)-1), -1, -1):
+            for node in design.level_list[level]:
+                if node.gid is not None:
+                    if node.sub_bbox_area is None:
+                        sub_area_sum(node)
 
-                if node.gid >= 0:
-                    sum_group = sum_dict[(gid := node.gid)]
-                    sum_group.total_area += node.total_area
-                    sum_group.comb_area  += node_comb
-                    sum_group.seq_area   += node_seq
-                    sum_group.bbox_area  += node_bbox
-                else:
-                    sum_group = sum_dict[(gid := abs(node.gid+1))]
-                    sum_group.total_area -= node.total_area
-                    sum_group.comb_area  -= node_comb
-                    sum_group.seq_area   -= node_seq
-                    sum_group.bbox_area  -= node_bbox
+                    if node.gid >= 0:
+                        group_table.loc[node.gid, 'total':'bbox'] += (
+                            node.total_area,
+                            node.sub_comb_area,
+                            node.sub_seq_area,
+                            node.sub_bbox_area)
+                    else:
+                        group_table.loc[abs(node.gid+1), 'total':'bbox'] -= (
+                            node.total_area,
+                            node.sub_comb_area,
+                            node.sub_seq_area,
+                            node.sub_bbox_area)
 
-                if gid > max_gid:
-                    max_gid = gid
+                if node.is_hide or not node.is_show:
+                    if len(node.scans) == 0 and node.parent is not None:
+                        node.parent.scans.remove(node)
+                    else:
+                        node.is_show = False
 
-            if node.is_hide or not node.is_show:
-                if len(node.scans) == 0 and node.parent is not None:
-                    node.parent.scans.remove(node)
-                else:
-                    node.is_show = False
-            else:
+        if last_lv > path_lv:
+            path_lv = last_lv
+
+    if table_attr.proc_mode == 'norm':
+        path_lv = virtual_top.max_lv
+
+    lv_digi = len(str(path_lv))
+
+    ## create area table ##
+
+    area_table = design_db.area_table
+    is_multi = (len(virtual_top.root_list) - 1) > 0
+    is_virtual_en = is_multi and table_attr.trace_root != 'sub'
+
+    if table_attr.is_show_level:
+        path_name = '({}) {}'.format('T'.rjust(lv_digi), virtual_top.top_node)
+    else:
+        path_name = f'{virtual_top.top_node}'
+
+    if is_virtual_en:
+        area_table.loc[area_table.shape[0]] = {
+            'name'      : 'virtual_top',
+            'total'     : virtual_top.total_area,
+            'comb'      : virtual_top.comb_area,
+            'seq'       : virtual_top.seq_area,
+            'bbox'      : virtual_top.bbox_area,
+            'attr'      : '',
+            'hide'      : False,
+            'sub_sum'   : True,
+            'path_name' : path_name
+        }
+
+        last_did = -1
+        for did, design in enumerate(virtual_top.root_list):
+            if design.top_node.is_show or len(design.top_node.scans) > 0:
+                last_did = did
+
+    for did, design in enumerate(virtual_top.root_list):
+        if table_attr.trace_root == 'sub':
+            root_list = design.root_list
+        else:
+            root_list = [design.top_node]
+
+        for rid, root_node in enumerate(root_list):
+            if not root_node.is_show and len(root_node.scans) == 0:
+                continue
+
+            scan_stack = [root_node]
+            sym_list = []
+            while len(scan_stack):
+                node = scan_stack.pop()
                 if table_attr.view_type == 'tree':
-                    path_len = len(node.bname) + node.level * 2
+                    try:
+                        if node is root_node:
+                            if is_virtual_en:
+                                if did == last_did:
+                                    sym = f"{ESYM}{did}:"
+                                    sym_list.append("  ")
+                                else:
+                                    sym = f"{ISYM}{did}:"
+                                    sym_list.append(BSYM)
+                            else:
+                                sym = ""
+                        elif scan_stack[-1].level < node.level:
+                            sym = "".join(sym_list + [ESYM])
+                            if len(node.scans):
+                                sym_list.append("  ")
+                            else:
+                                sym_list = sym_list[:scan_stack[-1].level - node.level]
+                        else:
+                            for idx in range(len(scan_stack)-1, -1, -1):
+                                next_node = scan_stack[idx]
+                                if next_node.level == node.level and not next_node.is_hide:
+                                    sym = "".join(sym_list + [ISYM]) 
+                                    break
+                                elif next_node.level < node.level:
+                                    sym = "".join(sym_list + [ESYM])
+                                    break
+                            else:
+                                sym = "".join(sym_list + [ESYM])
+
+                            if len(node.scans):
+                                sym_list.append(BSYM)
+                    except Exception:
+                        sym = "".join(sym_list + [ESYM])
+                        if len(node.scans):
+                            sym_list.append("  ")
+
+                    if table_attr.trace_root == 'sub' and node.sr_name is not None:
+                        path_name = "".join((sym, node.sr_name))
+                    elif node.inst_name is None:
+                        path_name = "".join((sym, node.bname))
+                    else:
+                        path_name = "".join((sym, node.inst_name))
                 elif table_attr.view_type == 'inst':
-                    path_len = len(node.bname)
+                    if table_attr.trace_root == 'sub' and node.sr_name is not None:
+                        path_name = node.sr_name
+                    elif node.tag_name is not None:
+                        path_name = node.tag_name
+                    else:
+                        if node.inst_name is not None:
+                            path_name = node.inst_name
+                        else:
+                            path_name = node.bname
+
+                        if is_multi:
+                            path_name = f"{did}:{path_name}"
                 else:
-                    path_len = len(node.dname) + len(node.bname) + 1
+                    if table_attr.trace_root == 'sub' and node.sr_name is not None:
+                        path_name = node.sr_name
+                    elif node.tag_name is not None:
+                        path_name = node.tag_name
+                    else:
+                        bname  = node.bname if node.inst_name is None else node.inst_name
+                        path_name = bname if node.level < 2 else f"{node.dname}/{bname}"
+                        if is_multi:
+                            if node.level > 0:
+                                path_name = f"{root_node.bname}/{path_name}"
+                            path_name = f"{did}:{path_name}"
 
-                if len(tag_dict) != 0 and table_attr.view_type != 'tree':
-                    inst_path = node.bname if node.level < 2 else '/'.join((node.dname, node.bname))
-                    if inst_path in tag_dict:
-                        path_len = len(tag_dict[inst_path])
+                if table_attr.is_show_level:
+                    path_name = '({}) {}'.format(str(node.level).rjust(lv_digi), path_name)
 
-                if path_len > max_path_len:
-                    max_path_len = path_len
+                if (gid := node.gid) is not None:
+                    if gid >= 0:
+                        attr = " *{}+".format(gid)
+                    else:
+                        attr = " *{}-".format(abs(gid+1))
+                else:
+                    attr = ""
 
-                if node.total_area > max_area:
-                    max_area = node.total_area
+                area_table.loc[area_table.shape[0]] = {
+                    'name'      : ','.join([node.dname, node.bname]),
+                    'total'     : node.total_area,
+                    'comb'      : node.sub_comb_area if node.is_sub_sum else node.comb_area,
+                    'seq'       : node.sub_seq_area if node.is_sub_sum else node.seq_area,
+                    'bbox'      : node.sub_bbox_area if node.is_sub_sum else node.bbox_area,
+                    'attr'      : attr,
+                    'did'       : did,
+                    'rid'       : rid if node == root_node else np.NaN,
+                    'level'     : node.level,
+                    'hide'      : not node.is_show,
+                    'sub_sum'   : node.is_sub_sum,
+                    'path_name' : path_name
+                }
 
-    if len(level_list) == 0:  # norm mode
-        max_path_len = design.path_len
-        max_area = design.total_area
+                if table_attr.is_reorder:
+                    scan_stack.extend(sorted(node.scans, key=lambda x:x.total_area))
+                else:
+                    scan_stack.extend(sorted(node.scans, key=lambda x:x.bname, reverse=True))
 
-    ## Show area report
+    ## show area report ##
 
-    path_len = max_path_len + 5 if table_attr.is_show_level else max_path_len
+    unit = table_attr.unit
+    area_fs = table_attr.area_fs
+
+    area_t = virtual_top.total_area
+    area_l = virtual_top.comb_area + virtual_top.seq_area
+    area_b = virtual_top.bbox_area
+
+    area_len_t = len(str(math.ceil(area_t))) + 1 + table_attr.dec_place + len(unit.tag)
+
+    if table_attr.is_show_ts:
+        area_len_t += int(math.log(area_t) / math.log(1000))
+
+    area_str_t = area_norm(area_t, unit, area_fs).rjust(area_len_t)
+    area_str_l = area_norm(area_l, unit, area_fs).rjust(area_len_t)
+    area_str_b = area_norm(area_b, unit, area_fs).rjust(area_len_t)
+
+    print()
+    print(f" Top Summary ".center(32, '='))
+    print("  total: {} ({:>6.1%})".format(area_str_t, 1.0))
+    print("  logic: {} ({:>6.1%})".format(area_str_l, area_l / area_t))
+    print("   bbox: {} ({:>6.1%})".format(area_str_b, area_b / area_t))
+    print("=" * 32)
+
+    if table_attr.is_sub_sum:
+        print("\n() : Sub-tree Area Summation")
+
+    print(f"\nratio: {str(table_attr.ratio)}  unit: {unit.info}\n")
 
     if table_attr.view_type == 'path' and not table_attr.is_nosplit:
         path_len = table_attr.path_col_size
-    elif path_len < table_attr.path_col_size:
-        path_len = table_attr.path_col_size
-
-    if len(sum_dict):
-        for gid, group in sum_dict.items():
-            gid_len = 0 if gid == 0 else int(math.log10(gid))
-            grp_len = len(group.name) + gid_len + 3
-            if path_len < grp_len:
-                path_len = grp_len
-
-    if max_area == 0:
-        area_len = 0
     else:
-        area_len = int(math.log10(math.ceil(max_area))) + 2 + table_attr.dec_place
-        area_len += len(table_attr.unit.tag)
+        path_len = area_table['path_name'].apply(len).max()
+        if path_len < table_attr.path_col_size:
+            path_len = table_attr.path_col_size
+
+    if group_table.shape[0] > 0:
+        name_len = group_table['name'].apply(len)
+        grp_len = len(str(name_len.idxmax())) + 2 + name_len.max()
+        if grp_len > path_len:
+            path_len = grp_len
+
+    max_abs_area = area_table['total'].max()
+    area_len = len(str(math.ceil(max_abs_area)))
+
+    if group_table.shape[0] > 0:
+        area_g = group_table['total'].max()
+        area_ln_g = len(str(math.ceil(area_g)))
+        if area_ln_g > area_len:
+            max_abs_area = abs(area_g)
+            area_len = area_ln_g
+
+        area_g = group_table['total'].min()
+        area_ln_g = len(str(math.ceil(area_g)))
+        if area_ln_g > area_len:
+            max_abs_area = abs(area_g)
+            area_len = area_ln_g
+
+    area_len += 1 + table_attr.dec_place
+    area_len += len(unit.tag)
 
     if table_attr.is_show_ts:
-        area_len += int(math.log(max_area) / math.log(1000))
+        area_len += int(math.log(max_abs_area) / math.log(1000))
     if table_attr.is_sub_sum and not table_attr.is_brief:
         area_len += 2
     if area_len < DEFAULT_AREA_COL_SIZE:
         area_len = DEFAULT_AREA_COL_SIZE 
 
-    print()
-    show_divider(path_len, area_len, table_attr)
-    show_header(path_len, area_len, table_attr)
-    show_divider(path_len, area_len, table_attr)
+    header_lens = [path_len, area_len, 7]
+    header_list = ['Instance/', 'Absolute/Total', 'Percent/Total']
 
-    area_fs = table_attr.area_fs
-    unit_val = table_attr.unit.value
-    unit_tag = table_attr.unit.tag
-    unit_type = table_attr.unit.type
+    if table_attr.is_brief:
+        pass
+    elif table_attr.is_logic_sep:
+        header_lens += [area_len] * 3 + [7]
+        header_list += ['Combi-/national', 'Noncombi-/national', 'Black-/Boxes', 'Percent/Boxes']
+    else:
+        header_lens += [area_len] * 2 + [7]
+        header_list += ['Logic/Area', 'Black-/Boxes', 'Percent/Boxes']
 
-    for root_idx, root_node in enumerate(root_list):
-        if root_idx > 0:
+    show_divider(header_lens)
+    show_header(header_lens, header_list)
+    show_divider(header_lens)
+
+    for idx in range(area_table.shape[0]):
+        area_row = area_table.loc[idx, :]
+
+        if table_attr.trace_root == 'sub':
+            if area_row['did'] > 0 and area_row['rid'] == 0:
+                print()
+            elif not math.isnan(area_row['rid']) and area_row['rid'] > 0:
+                print()
+
+        if table_attr.trace_root == 'sub':
+            if not math.isnan(area_row['rid']):
+                root_total = area_row['total']
+            percent_t = area_row['total'] / root_total
+        else:
+            percent_t = area_row['total'] / virtual_top.total_area
+
+        if (hier_area := area_row['comb':'bbox'].sum()):
+            percent_b = area_row['bbox'] / hier_area
+        else:
+            percent_b = 0
+
+        is_hide = area_row['hide']
+
+        if is_hide and table_attr.trace_root == 'leaf':
+            pass
+        else:
+            if area_row['sub_sum']:
+                bk = ['(', ')']
+            else:
+                bk = [' ' if table_attr.is_sub_sum else ''] * 2
+
+            if len(area_row['path_name']) > path_len:
+                data_row = [area_row['path_name'] + '\n'.ljust(path_len+1)]
+            else:
+                data_row = [area_row['path_name'].ljust(path_len)]
+
+            data_row.append(area_norm(area_row['total'], unit, area_fs, None, is_hide).rjust(area_len))
+            data_row.append(area_norm(percent_t, unit, "{2}{0:.1%}{3}", None, is_hide).rjust(7))
+
+            if not table_attr.is_brief: 
+                if table_attr.is_logic_sep:
+                    data_row.append(area_norm(area_row['comb'], unit, area_fs, bk, is_hide).rjust(area_len))
+                    data_row.append(area_norm(area_row['seq'], unit, area_fs, bk, is_hide).rjust(area_len))
+                else:
+                    value = area_row['comb':'seq'].sum()
+                    data_row.append(area_norm(value, unit, area_fs, bk, is_hide).rjust(area_len))
+
+                data_row.append(area_norm(area_row['bbox'], unit, area_fs, bk, is_hide).rjust(area_len))
+                data_row.append(area_norm(percent_b, unit, "{2}{0:.1%}{3}", None, is_hide).rjust(7))
+
+            data_row.append(area_row['attr'])
+
+            for str_ in data_row:
+                print(str_, end='  ')
             print()
 
-        scan_stack = [root_node]
-        sym_list = []
+    if group_table.shape[0] > 0:
+        print()
+        header_list[0] = 'Summation Group/'
+        show_divider(header_lens)
+        show_header(header_lens, header_list)
+        show_divider(header_lens)
 
+        grp_len = len(str(group_table.index.max()))
+        bk = ['(', ')']
+
+        for idx in range(group_table.shape[0]):
+            area_row = group_table.iloc[idx, :]
+
+            percent_t = area_row['total'] / virtual_top.total_area
+
+            if (hier_area := area_row['comb':'bbox'].sum()):
+                percent_b = area_row['bbox'] / hier_area
+            else:
+                percent_b = 0
+
+            path_name = "{}: {}".format(str(area_row.name).rjust(grp_len), area_row['name'])
+
+            if len(path_name) > path_len:
+                data_row = [path_name + '\n'.ljust(path_len+1)]
+            else:
+                data_row = [path_name.ljust(path_len)]
+
+            data_row.append(area_norm(area_row['total'], unit, area_fs, None, is_hide).rjust(area_len))
+            data_row.append(area_norm(percent_t, unit, "{2}{0:.1%}{3}", None, is_hide).rjust(7))
+
+            if not table_attr.is_brief: 
+                if table_attr.is_logic_sep:
+                    data_row.append(area_norm(area_row['comb'], unit, area_fs, bk, is_hide).rjust(area_len))
+                    data_row.append(area_norm(area_row['seq'], unit, area_fs, bk, is_hide).rjust(area_len))
+                else:
+                    value = area_row['comb':'seq'].sum()
+                    data_row.append(area_norm(value, unit, area_fs, bk, is_hide).rjust(area_len))
+
+                data_row.append(area_norm(area_row['bbox'], unit, area_fs, bk, is_hide).rjust(area_len))
+                data_row.append(area_norm(percent_b, unit, "{2}{0:.1%}{3}", None, is_hide).rjust(7))
+
+            for str_ in data_row:
+                print(str_, end='  ')
+            print()
+    else:
+        show_divider(header_lens)
+
+    print()
+#}}}
+
+def show_bbox_area(design_db: DesignDB, table_attr: TableAttr):
+    """Scan and show all black-box area"""  #{{{
+
+    ## backward trace from nodes with bbox
+
+    virtual_top = design_db.virtual_top
+    path_lv = 0
+
+    is_multi = (last_did := len(virtual_top.root_list) - 1) > 0
+
+    for design in virtual_top.root_list:
+        for node in design.node_dict.values():
+            if node is design.top_node and not is_multi:
+                node.is_show = True
+                node.sub_bbox_area = design.bbox_area
+                node.is_sub_sum = True
+            elif node.bbox_area != 0:
+                node.is_show = True
+                if node.level > path_lv:
+                    path_lv = node.level
+
+                while True:
+                    try:
+                        node.parent.scans.add(node)
+                        if len(node.parent.scans) > 1:
+                            break
+                        node = node.parent
+                    except Exception:
+                        break
+
+    lv_digi = len(str(path_lv))
+    table_attr.is_sub_sum = True
+
+    ## create area table ##
+
+    area_table = design_db.area_table
+
+    if table_attr.is_show_level:
+        path_name = '({}) {}'.format('T'.rjust(lv_digi), virtual_top.top_node)
+    else:
+        path_name = f'{virtual_top.top_node}'
+
+    if is_multi:
+        area_table.loc[area_table.shape[0]] = {
+            'name'      : 'virtual_top',
+            'total'     : virtual_top.total_area,
+            'comb'      : virtual_top.comb_area,
+            'seq'       : virtual_top.seq_area,
+            'bbox'      : virtual_top.bbox_area,
+            'attr'      : '',
+            'hide'      : False,
+            'sub_sum'   : True,
+            'path_name' : path_name
+        }
+
+    for did, design in enumerate(virtual_top.root_list):
+        scan_stack = [root_node := design.top_node]
+        sym_list = []
         while len(scan_stack):
             node = scan_stack.pop()
-            if node.sub_bbox_area is not None:
-                node_comb = node.sub_comb_area
-                node_seq  = node.sub_seq_area
-                node_bbox = node.sub_bbox_area
-            else:
-                node_comb = node.comb_area
-                node_seq  = node.seq_area
-                node_bbox = node.bbox_area
-
-            node_total = node.total_area
-            node_logic = node_comb  + node_seq
-            node_area  = node_logic + node_bbox
-
-            if table_attr.trace_root == 'sub':
-                total_percent = node.total_area / root_node.total_area
-            else:
-                total_percent = node.total_percent
-
-            try:
-                bbox_percent = node_bbox / node_area
-            except ZeroDivisionError as e:
-                if node_bbox == 0:
-                    bbox_percent = 0
-                else:
-                    raise e
-
             if table_attr.view_type == 'tree':
                 try:
                     if node is root_node:
-                        sym = ""
+                        if is_multi:
+                            if did == last_did:
+                                sym = f"{ESYM}{did}:"
+                                sym_list.append("  ")
+                            else:
+                                sym = f"{ISYM}{did}:"
+                                sym_list.append(BSYM)
+                        else:
+                            sym = ""
                     elif scan_stack[-1].level < node.level:
                         sym = "".join(sym_list + [ESYM])
                         if len(node.scans):
@@ -651,334 +996,125 @@ def show_hier_area(root_list: list, design: Design, table_attr: TableAttr):
                         sym_list.append("  ")
 
                 path_name = "".join((sym, node.bname))
-            elif node.level < 2 or table_attr.view_type == 'inst':
+            elif table_attr.view_type == 'inst':
                 path_name = node.bname
+                if is_multi:
+                    path_name = f"{did}:{path_name}"
             else:
-                path_name = '/'.join((node.dname, node.bname))
-
-            if len(tag_dict) != 0 and table_attr.view_type != 'tree':
-                inst_path = node.bname if node.level < 2 else '/'.join((node.dname, node.bname))
-                if inst_path in tag_dict:
-                    path_name = tag_dict[inst_path]
+                if node.tag_name is not None:
+                    path_name = node.tag_name
+                else:
+                    path_name = node.bname if node.level < 2 else f"{node.dname}/{node.bname}"
+                    if is_multi:
+                        if node.level > 0:
+                            path_name = f"{root_node.bname}/{path_name}"
+                        path_name = f"{did}:{path_name}"
 
             if table_attr.is_show_level:
-                path_name = f"({node.level:2d}) " + path_name
+                path_name = '({}) {}'.format(str(node.level).rjust(lv_digi), path_name)
 
-            if node.gid is not None:
-                if node.gid >= 0:
-                    star = ' *{}+'.format(gid := node.gid)
-                else:
-                    star = ' *{}-'.format(gid := abs(node.gid+1))
-
-                if gid > max_gid:
-                    max_gid = gid
-            else:
-                star = ''
-
-            if not node.is_show and table_attr.trace_root == 'leaf':
-                pass
-            else:
-                if len(path_name) > path_len:
-                    print(f"{path_name.ljust(path_len)}")
-                    print(f"{' ' * path_len}", end='')
-                else:
-                    print(f"{path_name.ljust(path_len)}", end='')
-
-                if node.sub_bbox_area is not None:
-                    bk = ['(', ')', ' ']
-                elif table_attr.is_sub_sum:
-                    bk = [' '] * 3
-                else:
-                    bk = [''] * 3
-
-                if table_attr.is_brief:
-                    if node.is_show:
-                        area_list = node_total
-                        unit_cnt = 1
-
-                        if unit_type == 2:
-                            while area_list >= unit_val:
-                                area_list /= unit_val
-                                unit_cnt += 1
-
-                        print("  {}  {} {}".format(
-                                area_fs.format(area_list, unit_tag*unit_cnt, ['']*2).rjust(area_len),
-                                f"{total_percent:.1%}".rjust(7),
-                                star))
-                    else:
-                        print("  {}  {}".format(f"-".rjust(area_len),
-                                                f"-".rjust(7)))
-                elif table_attr.is_logic_sep:
-                    if node.is_show:
-                        area_list = [node_total, node_comb, node_seq, node_bbox]
-                        unit_cnt = [1] * 4
-
-                        if unit_type == 2:
-                            for i in range(0, 4):
-                                while area_list[i] >= unit_val:
-                                    area_list[i] /= unit_val
-                                    unit_cnt[i] += 1
-
-                        print("  {}  {}  {}  {}  {}  {} {}".format(
-                                area_fs.format(area_list[0], unit_tag*unit_cnt[0], ['']*2).rjust(area_len),
-                                f"{total_percent:.1%}".rjust(7),
-                                area_fs.format(area_list[1], unit_tag*unit_cnt[1], bk).rjust(area_len),
-                                area_fs.format(area_list[2], unit_tag*unit_cnt[2], bk).rjust(area_len),
-                                area_fs.format(area_list[3], unit_tag*unit_cnt[3], bk).rjust(area_len),
-                                f"{bbox_percent:.1%}".rjust(7),
-                                star))
-                    else:
-                        print("  {}  {}  {}  {}  {}  {}".format(f"-".rjust(area_len),
-                                                                f"-".rjust(7),
-                                                                f"-{bk[2]}".rjust(area_len),
-                                                                f"-{bk[2]}".rjust(area_len),
-                                                                f"-{bk[2]}".rjust(area_len),
-                                                                f"-".rjust(7)))
-                elif node.is_show:
-                    area_list = [node_total, node_logic, node_bbox]
-                    unit_cnt = [1] * 3
-
-                    if unit_type == 2:
-                        for i in range(0, 3):
-                            while area_list[i] >= unit_val:
-                                area_list[i] /= unit_val
-                                unit_cnt[i] += 1
-
-                    print("  {}  {}  {}  {}  {} {}".format(
-                            area_fs.format(area_list[0], unit_tag*unit_cnt[0], ['']*2).rjust(area_len),
-                            f"{total_percent:.1%}".rjust(7),
-                            area_fs.format(area_list[1], unit_tag*unit_cnt[1], bk).rjust(area_len),
-                            area_fs.format(area_list[2], unit_tag*unit_cnt[2], bk).rjust(area_len),
-                            f"{bbox_percent:.1%}".rjust(7),
-                            star))
-                else:
-                    print("  {}  {}  {}  {}  {}".format(f"-".rjust(area_len),
-                                                        f"-".rjust(7),
-                                                        f"-{bk[2]}".rjust(area_len),
-                                                        f"-{bk[2]}".rjust(area_len),
-                                                        f"-".rjust(7)))
+            area_table.loc[area_table.shape[0]] = {
+                'name'      : ','.join([node.dname, node.bname]),
+                'total'     : node.total_area,
+                'comb'      : node.sub_comb_area if node.is_sub_sum else node.comb_area,
+                'seq'       : node.sub_seq_area if node.is_sub_sum else node.seq_area,
+                'bbox'      : node.sub_bbox_area if node.is_sub_sum else node.bbox_area,
+                'attr'      : '',
+                'did'       : did,
+                'level'     : node.level,
+                'hide'      : not node.is_show,
+                'sub_sum'   : node.is_sub_sum,
+                'path_name' : path_name
+            }
 
             if table_attr.is_reorder:
                 scan_stack.extend(sorted(node.scans, key=lambda x:x.total_area))
             else:
                 scan_stack.extend(sorted(node.scans, key=lambda x:x.bname, reverse=True))
 
-    if len(sum_dict) != 0:
-        print()
-        show_divider(path_len, area_len, table_attr)
-        show_header(path_len, area_len, table_attr, title='Group')
-        show_divider(path_len, area_len, table_attr)
+    ## show area report ##
 
-        group_len = 1 if max_gid <= 0 else int(math.log10(max_gid)) + 1
-        bk = ([' '] if table_attr.is_sub_sum else ['']) * 2
+    unit = table_attr.unit
+    area_fs = table_attr.area_fs
 
-        for gid, sum_group in sorted(sum_dict.items()):
-            sum_bbox_percent = 0 if sum_group.total_area == 0 else sum_group.bbox_area / sum_group.total_area
-            sum_total_percent = sum_group.total_area / root_node.total_area
+    area_t = virtual_top.total_area
+    area_l = virtual_top.comb_area + virtual_top.seq_area
+    area_b = virtual_top.bbox_area
 
-            if table_attr.is_brief:
-                area_list = sum_group.total_area
-                unit_cnt = 1
-                if unit_type == 2:
-                    while area_list >= unit_val:
-                        area_list /= unit_val
-                        unit_cnt += 1
+    area_len_t = len(str(math.ceil(area_t))) + 1 + table_attr.dec_place + len(unit.tag)
 
-                print("{}{}  {}  {}".format(
-                        f"{gid}: ".rjust(group_len+2),
-                        f"{sum_group.name}".ljust(path_len-group_len-2),
-                        area_fs.format(area_list, unit_tag*unit_cnt, ['']*2).rjust(area_len),
-                        f"{sum_total_percent:.1%}".rjust(7)))
-            elif table_attr.is_logic_sep:
-                area_list = [sum_group.total_area, sum_group.comb_area, sum_group.seq_area, 
-                             sum_group.bbox_area]
-                unit_cnt = [1] * 4
+    if table_attr.is_show_ts:
+        area_len_t += int(math.log(area_t) / math.log(1000))
 
-                if unit_type == 2:
-                    for i in range(0, 4):
-                        while area_list[i] >= unit_val:
-                            area_list[i] /= unit_val
-                            unit_cnt[i] += 1
-
-                print("{}{}  {}  {}  {}  {}  {}  {}".format(
-                        f"{gid}: ".rjust(group_len+2),
-                        f"{sum_group.name}".ljust(path_len-group_len-2),
-                        area_fs.format(area_list[0], unit_tag*unit_cnt[0], ['']*2).rjust(area_len),
-                        f"{sum_total_percent:.1%}".rjust(7),
-                        area_fs.format(area_list[1], unit_tag*unit_cnt[1], bk).rjust(area_len),
-                        area_fs.format(area_list[2], unit_tag*unit_cnt[2], bk).rjust(area_len),
-                        area_fs.format(area_list[3], unit_tag*unit_cnt[3], bk).rjust(area_len),
-                        f"{sum_bbox_percent:.1%}".rjust(7)))
-            else:
-                logic_area = sum_group.comb_area + sum_group.seq_area
-                area_list = [sum_group.total_area, logic_area, sum_group.bbox_area]
-                unit_cnt = [1] * 3
-
-                if unit_type == 2:
-                    for i in range(0, 3):
-                        while area_list[i] >= unit_val:
-                            area_list[i] /= unit_val
-                            unit_cnt[i] += 1
-
-                print("{}{}  {}  {}  {}  {}  {}".format(
-                        f"{gid}: ".rjust(group_len+2),
-                        f"{sum_group.name}".ljust(path_len-group_len-2),
-                        area_fs.format(area_list[0], unit_tag*unit_cnt[0], ['']*2).rjust(area_len),
-                        f"{sum_total_percent:.1%}".rjust(7),
-                        area_fs.format(area_list[1], unit_tag*unit_cnt[1], bk).rjust(area_len),
-                        area_fs.format(area_list[2], unit_tag*unit_cnt[2], bk).rjust(area_len),
-                        f"{sum_bbox_percent:.1%}".rjust(7)))
-
-    else:
-        show_divider(path_len, area_len, table_attr)
+    area_str_t = area_norm(area_t, unit, area_fs).rjust(area_len_t)
+    area_str_l = area_norm(area_l, unit, area_fs).rjust(area_len_t)
+    area_str_b = area_norm(area_b, unit, area_fs).rjust(area_len_t)
 
     print()
-#}}}
+    print(f" Top Summary ".center(32, '='))
+    print("  total: {} ({:>6.1%})".format(area_str_t, 1.0))
+    print("  logic: {} ({:>6.1%})".format(area_str_l, area_l / area_t))
+    print("   bbox: {} ({:>6.1%})".format(area_str_b, area_b / area_t))
+    print("=" * 32)
 
-def show_bbox_area(design: Design, table_attr: TableAttr):
-    """Scan and show all black-box area"""  #{{{
-    top_node = design.top_node
-    node_dict = design.node_dict
-    max_path_len = max_area = sub_bbox = 0
+    if table_attr.is_sub_sum:
+        print("\n() : Sub-tree Area Summation")
 
-    ## Backward trace from black-box node
-
-    for node in node_dict.values():
-        if node.bbox_area != 0:
-            node.is_show = True
-
-            if table_attr.view_type == 'tree':
-                path_len = len(node.bname) + node.level * 2
-            elif table_attr.view_type == 'inst':
-                path_len = len(node.bname)
-            else:
-                path_len = len(node.dname) + len(node.bname) + 1
-
-            if path_len > max_path_len:
-                max_path_len = path_len
-
-            if node.bbox_area > max_area:
-                max_area = node.bbox_area
-
-            while True:
-                try:
-                    node.parent.scans.add(node)
-                    if len(node.parent.scans) > 1:
-                        break
-                    node = node.parent
-                except Exception:
-                    break
-
-    ## Show area report
-
-    path_len = max_path_len + 5 if table_attr.is_show_level else max_path_len
+    print(f"\nratio: {str(table_attr.ratio)}  unit: {unit.info}\n")
 
     if table_attr.view_type == 'path' and not table_attr.is_nosplit:
         path_len = table_attr.path_col_size
-    elif max_path_len < table_attr.path_col_size:
-        path_len = table_attr.path_col_size
+    else:
+        path_len = area_table['path_name'].apply(len).max()
+        if path_len < table_attr.path_col_size:
+            path_len = table_attr.path_col_size
 
-    area_len = int(math.log10(math.ceil(max_area))) + 2 + table_attr.dec_place
-    area_len += len(table_attr.unit.tag)
+    max_area = area_table['bbox'].max()
+    area_len = len(str(math.ceil(max_area))) + 1 + table_attr.dec_place
+    area_len += len(unit.tag)
 
     if table_attr.is_show_ts:
         area_len += int(math.log(max_area) / math.log(1000))
+    if table_attr.is_sub_sum and not table_attr.is_brief:
+        area_len += 2
     if area_len < DEFAULT_AREA_COL_SIZE:
         area_len = DEFAULT_AREA_COL_SIZE 
 
-    print()
-    show_divider(path_len, area_len, table_attr)
-    show_header(path_len, area_len, table_attr)
-    show_divider(path_len, area_len, table_attr)
+    header_lens = [path_len, area_len, 7]
+    header_list = ['Instance/', 'Black-/Boxes', 'Percent/Boxes']
 
-    area_fs = table_attr.area_fs
-    unit_tag = table_attr.unit.tag
-    unit_val = table_attr.unit.value
-    unit_tag = table_attr.unit.tag
-    unit_type = table_attr.unit.type
+    show_divider(header_lens)
+    show_header(header_lens, header_list)
+    show_divider(header_lens)
 
-    scan_stack = [top_node]
-    sym_list = []
+    for idx in range(area_table.shape[0]):
+        area_row = area_table.loc[idx, :]
 
-    while len(scan_stack):
-        node = scan_stack.pop()
-        total_percent = node.bbox_area / top_node.total_area
-
-        if table_attr.view_type == 'tree':
-            try:
-                if node is top_node:
-                    sym = ""
-
-                elif scan_stack[-1].level == node.level:
-                    sym = "".join(sym_list + [ISYM]) 
-
-                    if len(node.scans):
-                        sym_list.append(BSYM)
-
-                elif scan_stack[-1].level < node.level:
-                    sym = "".join(sym_list + [ESYM])
-
-                    if len(node.scans):
-                        sym_list.append("  ")
-                    else:
-                        sym_list = sym_list[:scan_stack[-1].level - node.level]
-
-            except Exception:
-                sym = "".join(sym_list + [ESYM])
-
-                if len(node.scans):
-                    sym_list.append("  ")
-
-            path_name = "".join((sym, node.bname))
-
+        if (hier_area := area_row['comb':'bbox'].sum()):
+            percent_b = area_row['bbox'] / hier_area
         else:
-            if node.level < 2 or table_attr.view_type == 'inst':
-                path_name = node.bname
-            else:
-                path_name = '/'.join((node.dname, node.bname))
+            percent_b = 0
 
-        if table_attr.is_show_level:
-            path_name = f"({node.level:2d}) " + path_name
+        is_hide = area_row['hide']
 
-        if not node.is_show and table_attr.trace_root == 'leaf':
-            pass
+        if area_row['sub_sum']:
+            bk = ['(', ')']
         else:
-            if len(path_name) > path_len:
-                print(f"{path_name.ljust(path_len)}")
-                print(f"{' ' * path_len}", end='')
-            else:
-                print(f"{path_name.ljust(path_len)}", end='')
+            bk = [' ' if table_attr.is_sub_sum else ''] * 2
 
-            sub_bbox += node.bbox_area
-
-            if node.is_show:
-                bbox_area = node.bbox_area
-                unit_cnt = 1
-
-                if unit_type == 2:
-                    while bbox_area >= unit_val:
-                        bbox_area /= unit_val
-                        unit_cnt += 1
-
-                print("  {}  {}  {}  {}  {}".format(
-                        f"-".rjust(area_len),
-                        f"{total_percent:.1%}".rjust(7),
-                        f"-".rjust(area_len),
-                        area_fs.format(bbox_area, unit_tag*unit_cnt, ['']*2).rjust(area_len),
-                        f"-".rjust(7)))
-            else:
-                print("  {}  {}  {}  {}  {}".format(f"-".rjust(area_len),
-                                                    f"-".rjust(7),
-                                                    f"-".rjust(area_len),
-                                                    f"-".rjust(area_len),
-                                                    f"-".rjust(7)))
-
-        if table_attr.is_reorder:
-            scan_stack.extend(sorted(node.scans, key=lambda x:x.total_area))
+        if len(area_row['path_name']) > path_len:
+            data_row = [area_row['path_name'] + '\n'.ljust(path_len+1)]
         else:
-            scan_stack.extend(sorted(node.scans, key=lambda x:x.bname, reverse=True))
+            data_row = [area_row['path_name'].ljust(path_len)]
 
-    show_divider(path_len, area_len, table_attr)
+        data_row.append(area_norm(area_row['bbox'], unit, area_fs, bk, is_hide).rjust(area_len))
+        data_row.append(area_norm(percent_b, unit, "{1}{0:.1%}{2}", None, is_hide).rjust(7))
+
+        for str_ in data_row:
+            print(str_, end='  ')
+        print()
+
+    show_divider(header_lens)
     print()
 #}}}
 
@@ -1321,100 +1457,38 @@ def show_cmp_area(root_list: list, design_list: list, table_attr: TableAttr):
     print()
 #}}}
 
-def show_header(path_len: int, area_len: int, table_attr: TableAttr, title: str='Instance'):
-    """Show header"""  #{{{
-
-    print("{}  ".format(title.ljust(path_len)), end='')
-
-    if table_attr.cmp_type == 1:
-        for name in table_attr.design_name:
-            print("{}  ".format(name.ljust(area_len)), end='')
-        print()
-    elif table_attr.cmp_type == 2:
-        design_count = len(table_attr.design_name)
-        print("{}  ".format(table_attr.design_name[0].ljust(area_len)), end='')
-        for idx in range(1, design_count):
-            print("{}  ".format(table_attr.design_name[idx].ljust(area_len)), end='')
-            print("{}  ".format(table_attr.design_name[idx].ljust(area_len)), end='')
-        print()
-
-        print("{}  ".format(''.ljust(path_len)), end='')
-        for idx in range(0, design_count-1):
-            name = '- ' + table_attr.design_name[idx]
-            print("{}  ".format(''.ljust(area_len)), end='')
-            print("{}  ".format(name.ljust(area_len)), end='')
-        print("{}  ".format(''.ljust(area_len)))
-    elif table_attr.cmp_type == 3:
-        design_count = len(table_attr.design_name)
-        for idx in range(design_count):
-            print("{}  ".format(table_attr.design_name[idx].ljust(area_len)), end='')
-            print("{}  ".format(table_attr.design_name[idx].ljust(area_len)), end='')
-        print()
-
-        print("{}  ".format(''.ljust(path_len)), end='')
-        for idx in range(design_count):
-            name = '- ' + table_attr.design_name[table_attr.base_design]
-            print("{}  ".format(''.ljust(area_len)), end='')
-            print("{}  ".format(name.ljust(area_len)), end='')
-        print()
-    else:
-        print("{}  ".format('Absolute'.ljust(area_len)), end='')
-
-        if table_attr.is_brief:
-            print("{}".format('Percent'.ljust(7)))
-        else:
-            print("{}  ".format('Percent'.ljust(7)), end='')
-            if table_attr.is_logic_sep:
-                print("{}  ".format('Combi-'.ljust(area_len)), end='')
-                print("{}  ".format('Noncombi-'.ljust(area_len)), end='')
-            else:
-                print("{}  ".format('Logic'.ljust(area_len)), end='')
-            print("{}  ".format('Black-'.ljust(area_len)), end='')
-            print("{}".format('Percent'.ljust(7)))
-
-        print("{}  ".format(''.ljust(path_len)), end='')
-        print("{}  ".format('Total'.ljust(area_len)), end='')
-
-        if table_attr.is_brief:
-            print("{}".format('Total'.ljust(7)))
-        else:
-            print("{}  ".format('Total'.ljust(7)), end='')
-            if table_attr.is_logic_sep:
-                print("{}  ".format('national'.ljust(area_len)), end='')
-                print("{}  ".format('national'.ljust(area_len)), end='')
-            else:
-                print("{}  ".format('Area'.ljust(area_len)), end='')
-            print("{}  ".format('Boxes'.ljust(area_len)), end='')
-            print("{}  ".format('BBox'.ljust(7)))
+def show_divider(header_lens: list):
+    """Show divider"""  #{{{
+    for length in header_lens:
+        print('{}  '.format('-' * length), end='')
+    print()
 #}}}
 
-def show_divider(path_len: int, area_len: int, table_attr: TableAttr):
+def show_header(header_lens: list, header_list: list):
     """Show header"""  #{{{
+    for i, head in enumerate(header_list):
+        print("{}  ".format(head.split('/')[0].ljust(header_lens[i])), end='')
+    print()
 
-    print("{}  ".format('-' * path_len), end='')
+    for i, head in enumerate(header_list):
+        print("{}  ".format(head.split('/')[1].ljust(header_lens[i])), end='')
+    print()
+#}}}
 
-    if table_attr.cmp_type != 0:
-        if table_attr.cmp_type == 1:
-            design_count = len(table_attr.design_name)
-        elif table_attr.cmp_type == 2:
-            design_count = len(table_attr.design_name) * 2 - 1
-        else:
-            design_count = len(table_attr.design_name) * 2
-
-        for i in range(design_count):
-            print("{}  ".format('-' * area_len), end='')
-        print()
+def area_norm(value: float, unit: UnitAttr, area_fs: str, bk=None, is_hide=False):
+    """Return normalize area string"""  #{{{
+    if is_hide:
+        return "-" if bk is None else " - "
     else:
-        print("{}  ".format('-' * area_len), end='')
-        if table_attr.is_brief:
-            print("{}".format('-' * 7))
+        unit_cnt = 1 if unit.type != 0 else 0
+        if unit.type == 2:
+            while value >= unit.value:
+                value /= unit.value
+                unit_cnt += 1
+        if bk is None:
+            return area_fs.format(value, unit.tag * unit_cnt, '', '')
         else:
-            print("{}  ".format('-' * 7), end='')
-            if table_attr.is_logic_sep:
-                print("{}  ".format('-' * area_len), end='')
-            print("{}  ".format('-' * area_len), end='')
-            print("{}  ".format('-' * area_len), end='')
-            print("{}".format('-' * 7))
+            return area_fs.format(value, unit.tag * unit_cnt, bk[0], bk[1])
 #}}}
 
 ### Main Function ###
@@ -1469,15 +1543,19 @@ def create_argparse() -> argparse.ArgumentParser:
 
     # create the parser for normal mode
     parser_norm = subparsers.add_parser('norm', help='normal mode')
-    parser_norm.add_argument('rpt_fn', help="area report path") 
+    parser_norm.add_argument('-vn', dest='vtop_name', metavar='<str>', type=str, default='VIRTUAL_TOP', 
+                                    help="virtual top name for multi-design in")
+    parser_norm.add_argument('rpt_fn', nargs='+', help="area report path") 
 
     # create the parser for advance mode
     parser_adv = subparsers.add_parser('adv', help='advance mode')
     parser_adv.add_argument('cfg_fn', help="configuration file") 
-    parser_adv.add_argument('rpt_fn', help="area report path") 
+    parser_adv.add_argument('rpt_fn', nargs='+', help="area report path") 
 
-    parser_adv.add_argument('-tr', dest='trace_root', metavar='<type>', choices=['top', 'com', 'sub'],
-                                    help="""backward trace root [top|com|sub]""")
+    parser_adv.add_argument('-vn', dest='vtop_name', metavar='<str>', type=str, default='VIRTUAL_TOP', 
+                                    help="virtual top name for multi-design in")
+    parser_adv.add_argument('-tr', dest='trace_root', metavar='<type>', choices=['top', 'sub'],
+                                    help="""backward trace root [top|sub]""")
     parser_adv.add_argument('-v', dest='is_verbose', action='store_true',
                                     help="show area of all trace nodes")
 
@@ -1507,7 +1585,9 @@ def create_argparse() -> argparse.ArgumentParser:
 
     # create the parser for black-box scan mode
     parser_bbox = subparsers.add_parser('bbox', help='black-box scan mode')
-    parser_bbox.add_argument('rpt_fn', help="area report path") 
+    parser_bbox.add_argument('-vn', dest='vtop_name', metavar='<str>', type=str, default='VIRTUAL_TOP', 
+                                    help="virtual top name for multi-design in")
+    parser_bbox.add_argument('rpt_fn', nargs='+', help="area report path") 
 
     return parser
 #}}}
@@ -1529,18 +1609,16 @@ def main():
     match unit.tag.lower():
         case 'k':
             unit.value = pow(10, 3)
-            unit_info = "1 thousand"
+            unit.info = "1 thousand"
         case 'w':
             unit.value = pow(10, 4)
-            unit_info = "10 thousand"
+            unit.info = "10 thousand"
         case 'm':
             unit.value = pow(10, 6)
-            unit_info = "1 million"
+            unit.info = "1 million"
         case 'b':
             unit.value = pow(10, 9)
-            unit_info = "1 billion"
-        case _:
-            unit_info = "1"
+            unit.info = "1 billion"
 
     if args.proc_mode == 'adv' and args.trace_root is not None:
         trace_root = args.trace_root
@@ -1548,9 +1626,9 @@ def main():
         trace_root = 'top' if args.is_tree_view else 'leaf'
 
     if args.is_show_ts:
-        area_fs = "{2[0]}{0:,." + str(args.dec_place) + "f}{1}{2[1]}"
+        area_fs = "{2}{0:,." + str(args.dec_place) + "f}{1}{3}"
     else:
-        area_fs = "{2[0]}{0:." + str(args.dec_place) + "f}{1}{2[1]}"
+        area_fs = "{2}{0:." + str(args.dec_place) + "f}{1}{3}"
 
     table_attr = TableAttr(
                     area_fs=area_fs,
@@ -1564,11 +1642,13 @@ def main():
                     is_show_level=args.is_show_level,
                     is_nosplit=args.is_nosplit,
                     view_type=('tree' if args.is_tree_view else 'inst' if args.is_inst_view else 'path'),
-                    trace_root=trace_root)
+                    trace_root=trace_root,
+                    proc_mode=args.proc_mode,
+                    vtop_name=args.vtop_name)
 
-    if args.proc_mode == 'norm':
-        table_attr.is_verbose = True
-    elif args.proc_mode == 'adv':
+    design_db = DesignDB()
+
+    if args.proc_mode == 'adv':
         table_attr.is_verbose = args.is_verbose
     elif args.proc_mode == 'cmp':
         table_attr.is_verbose = args.is_verbose
@@ -1583,84 +1663,62 @@ def main():
 
     ## Main process
 
-    global root_list
+    design_db.virtual_top = (virtual_top := Design(top_node=table_attr.vtop_name))
+    design_db.design_list = (design_list := load_area(args.rpt_fn, table_attr))
 
-    load_area(args.rpt_fn, args.proc_mode, table_attr)
-    design = design_list[table_attr.base_design]
+    if table_attr.proc_mode == 'adv' or table_attr.proc_mode == 'cmp':
+        load_cfg(args.cfg_fn, design_db, table_attr)
 
-    if args.proc_mode == 'cmp':
-        print()
-        print("=" * 32)
-        print(f" Total Area Compare ".center(32, '='))
-        print("=" * 32)
+    if table_attr.proc_mode == 'cmp':
+        pass
     else:
-        area_t = design.total_area
-        area_b = design.bbox_area
-        area_l = area_t - area_b
+        if len(design_list) > 1 and table_attr.trace_root != 'sub':
+            table_attr.is_sub_sum = True    # for virtual top display
 
-        percent_l = area_l / area_t
-        percent_b = area_b / area_t
+        for design in design_list:
+            virtual_top.total_area += design.total_area
+            virtual_top.comb_area += design.comb_area
+            virtual_top.seq_area += design.seq_area
+            virtual_top.bbox_area += design.bbox_area
+            virtual_top.root_list.append(design)
 
-        area_len = int(math.log10(math.ceil(area_t))) + 2 + table_attr.dec_place
-        area_len += len(table_attr.unit.tag)
-        if table_attr.is_show_ts:
-            area_len += int(math.log(area_t) / math.log(1000))
+            if design.max_lv >= virtual_top.max_lv:
+                virtual_top.max_lv = design.max_lv
 
-        area_list = [area_t, area_l, area_b]
-        unit_val = table_attr.unit.value
-        unit_tag = table_attr.unit.tag
-        unit_cnt = [1 if table_attr.unit.type != 0 else 0] * 3
+    # design = design_list[table_attr.base_design]
 
-        if table_attr.unit.type == 2:
-            for i in range(0, 3):
-                while area_list[i] >= unit_val:
-                    area_list[i] /= unit_val 
-                    unit_cnt[i] += 1
+    # if args.proc_mode == 'cmp':
+    #     print()
+    #     print("=" * 32)
+    #     print(f" Total Area Compare ".center(32, '='))
+    #     print("=" * 32)
+    # else:
 
-        area_fs = "{:." + str(table_attr.dec_place) + "f}{}"
-        area_str_t = area_fs.format(area_list[0], unit_tag * unit_cnt[0]).rjust(area_len)
-        area_str_l = area_fs.format(area_list[1], unit_tag * unit_cnt[1]).rjust(area_len)
-        area_str_b = area_fs.format(area_list[2], unit_tag * unit_cnt[2]).rjust(area_len)
-
-        print()
-        print(f" Top Summary ".center(32, '='))
-        print("  total: {} ({:>6.1%})".format(area_str_t, 1.0))
-        print("  logic: {} ({:>6.1%})".format(area_str_l, percent_l))
-        print("   bbox: {} ({:>6.1%})".format(area_str_b, percent_b))
-        print("=" * 32)
-
-    print(f"\nratio: {str(table_attr.ratio)}  unit: {unit_info}")
-
-    if args.proc_mode == 'norm':
-        show_hier_area([design.top_node], design, table_attr)
-    elif args.proc_mode == 'bbox':
-        table_attr.is_logic_sep = False
-        show_bbox_area(design, table_attr)
+    if table_attr.proc_mode == 'norm' or table_attr.proc_mode == 'adv':
+        show_hier_area(design_db, table_attr)
+    elif table_attr.proc_mode == 'bbox':
+        show_bbox_area(design_db, table_attr)
     else:
-        load_cfg(args.cfg_fn, design, table_attr)
+        pass
+        # if table_attr.trace_root == 'sub':
+        #     if args.proc_mode == 'adv':
+        #         show_hier_area(root_list, design, table_attr)
+        #     else:
+        #         show_cmp_area(root_list, design_list, table_attr)
+        # else:
+        #     root_node = design.top_node
+        #     if table_attr.trace_root == 'com':
+        #         while True:
+        #             if root_node.is_show:
+        #                 break
+        #             if len(root_node.scans) > 1:
+        #                 break
+        #             root_node = tuple(root_node.scans)[0]
 
-        if table_attr.is_sub_sum and args.proc_mode != 'cmp':
-            print("\n() : Sub-module Area Summation")
-
-        if table_attr.trace_root == 'sub':
-            if args.proc_mode == 'adv':
-                show_hier_area(root_list, design, table_attr)
-            else:
-                show_cmp_area(root_list, design_list, table_attr)
-        else:
-            root_node = design.top_node
-            if table_attr.trace_root == 'com':
-                while True:
-                    if root_node.is_show:
-                        break
-                    if len(root_node.scans) > 1:
-                        break
-                    root_node = tuple(root_node.scans)[0]
-
-            if args.proc_mode == 'adv':
-                show_hier_area([root_node], design, table_attr)
-            else:
-                show_cmp_area([root_node], design_list, table_attr)
+        #     if args.proc_mode == 'adv':
+        #         show_hier_area([root_node], design, table_attr)
+        #     else:
+        #         show_cmp_area([root_node], design_list, table_attr)
 
     if args.dump_fn is not None:
         with open(args.dump_fn, 'w') as f:
