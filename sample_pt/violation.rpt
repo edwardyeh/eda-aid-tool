@@ -1,0 +1,96 @@
+******************************
+******************************
+********** Comment ***********
+******************************
+******************************
+
+
+ max_delay/setup ('clk1' group)
+
+                    Required        Actual
+ Endpoint           Path Delay      Path Delay          Slack
+ ------------------------------------------------------------
+ clk1_short_name1   6.6036          12.4733             -5.8697  (VIOLATED)
+ clk1_long_name1    
+                    11.6807         17.4380             -5.7573  (VIOLATED)
+ clk1_pass          17.4380         11.6807              5.7573
+ clk1_long_name2    
+                    11.6807         17.4380             -5.7573  (VIOLATED)
+ clk1_long_pass     
+                    11.6807         10.4380              1.2427  (VIOLATED)
+
+
+ max_delay/setup ('clk2' group)
+
+                    Required        Actual
+ Endpoint           Path Delay      Path Delay          Slack
+ ------------------------------------------------------------
+ clk2_short_name1   6.6036          13.4733             -6.8697  (VIOLATED)
+ clk2_long_name1    
+                    12.6807         18.4380             -5.7573  (VIOLATED)
+ clk2_pass          18.4380         11.6807              6.7573
+ clk2_long_name2    
+                    11.6807         15.4380             -3.7573  (VIOLATED)
+
+
+ max_capacitance
+
+                    Required        Actual
+ Pin                Capacitance     Capacitance         Slack
+ ------------------------------------------------------------
+ short_pin1         0.5326          1.5555              -1.0229  (VIOLATED)
+ long_pin1          
+                    0.4326          2.5555              -2.1229  (VIOLATED)
+ short_pin2         3.5326          1.5555               1.9771            
+ long_pin2          
+                    0.4326          1.1234              -0.6908  (VIOLATED)
+
+
+clock_tree_pulse_width 
+
+                    Required        Actual
+ Pin                min period      min period          Slack                   Clock
+ --------------------------------------------------------------------------------------
+ clk_period (high)  1.1813          0.5087              -0.6727  (VIOLATED)     cpu_clk
+ clk_period_2l (high)
+                    0.3717         -0.2594              -0.6311  (VIOLATED)     cpu_clk
+ clk_period_3l (high)
+                    0.2026          0.1609              -0.0417  
+                                                                 (VIOLATED)     cpu_clk
+ cpu_clk_pass  (high)
+                    0.2020          0.2611               0.0591                 cpu_clk
+ clk2_period (high) 
+                    0.2055          0.1667              -0.0389  (VIOLATED)     vpe_clk
+ clk2_period_2l (high)
+                    0.2050          0.1683              -0.0367  (VIOLATED)     vpe_clk
+ clk2_period (low)  
+                    1.1813          0.5087              -0.6727  (VIOLATED)     vpe_clk
+ clk2_period_3l (low)
+                    0.2026          0.1609              -0.0417  
+                                                                 (VIOLATED)     vpe_clk
+
+
+ sequential_clock_min_period
+
+                    Required        Actual
+ Pin                min period      min period          Slack                   Clock
+ --------------------------------------------------------------------------------------
+ clk_period (cpu_clk rise)  
+                    1.1813          0.5087              -0.6727  (VIOLATED)     cpu_clk
+ clk_period_2l (cpu_clk rise)
+                    0.3717         -0.2594              -0.6311  (VIOLATED)     cpu_clk
+ clk_period_3l (cpu_clk rise)
+                    0.2026          0.1609              -0.0417  
+                                                                 (VIOLATED)     cpu_clk
+ cpu_clk_pass  (cpu_clk rise)
+                    0.2020          0.2611               0.0591                 cpu_clk
+ clk2_period (vpe_clk rise) 
+                    0.2055          0.1667              -0.0389  (VIOLATED)     vpe_clk
+ clk2_period_2l (vpe_clk rise)
+                    0.2050          0.1683              -0.0367  (VIOLATED)     vpe_clk
+
+ clk2_period (vpe_clk fall)  
+                    1.1813          0.5087              -0.6727  (VIOLATED)     vpe_clk
+ clk2_period_3l (vpe_clk fall)
+                    0.2026          0.1609              -0.0417  
+                                                                 (VIOLATED)     vpe_clk
