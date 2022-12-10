@@ -26,6 +26,7 @@ from .utils.general import VERSION
 #{{{
 DEFAULT_PATH_COL_SIZE = 32
 DEFAULT_AREA_COL_SIZE = 9
+TABLE_INIT_ROWS = 128
 ISYM = f"{0x251c:c}{0x2500:c}"      # fork symbol
 ESYM = f"{0x2514:c}{0x2500:c}"      # end symbol
 BSYM = f"{0x2502:c} "               # through symbol
@@ -141,14 +142,14 @@ class Design:
 
 class DesignDB:
 #{{{
-    h1 = ('name', 'total', 'comb', 'seq', 'bbox', 'attr')
-    h2 = ('did', 'rid', 'level', 'hide', 'sub_sum', 'path_name')
+    grp_hd = ('name', 'total', 'comb', 'seq', 'bbox', 'attr')
+    area_hd = grp_hd + ('did', 'rid', 'level', 'hide', 'sub_sum', 'path_name')
 
     def __init__(self):
         self.virtual_top = Design(top_node='virtual_top') 
         self.design_list = []
-        self.group_table = pd.DataFrame(columns=self.h1)
-        self.area_table = pd.DataFrame(columns=(self.h1 + self.h2))
+        self.group_table = pd.DataFrame(columns=self.grp_hd)
+        self.area_table = None
 #}}}
 
 ### Sub Function ###
@@ -292,14 +293,17 @@ def load_cfg(cfg_fp, design_db: DesignDB, table_attr: TableAttr):
                     if (m:=regexp_dsname.match(line)):
                         for pattern in m.group('pat').split():
                             did, name = pattern.split('-')
-                            table_attr.design_name[int(did)] = name
+                            try:
+                                table_attr.design_name[int(did)] = name
+                            except IndexError:
+                                pass
                         continue
 
                     if (m:=regexp_grp.match(line)):
                         gid = int(m.group('id')) if m.group('id') else 0
                         name = m.group('pat').strip('\"\'\n ')
                         if gid not in group_table.index:
-                            group_table.loc[gid] = [0] * group_table.shape[1]
+                            group_table.loc[gid] = np.zeros(group_table.shape[1])
                         group_table['name'][gid] = name
                         continue
 
@@ -452,7 +456,7 @@ def parse_cmd(node: Node, cmd_list: list, design: Design, group_table: pd.DataFr
             gid = 0 if len(toks[0]) == 3 else int(toks[0][3:])
             node.gid = gid if toks[0][0:3] == 'add' else -gid - 1
             if gid not in group_table.index:
-                group_table.loc[gid] = [0] * group_table.shape[1]
+                group_table.loc[gid] = np.zeros(group_table.shape[1])
                 group_table['name'][gid] = f'Group {gid}'
             if len(toks) > 1:
                 name = toks[1]
@@ -567,7 +571,12 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
 
     ## create area table ##
 
-    area_table = design_db.area_table
+    area_hd = design_db.area_hd
+    area_table = pd.DataFrame(np.full((TABLE_INIT_ROWS, len(area_hd)), np.NaN), 
+                                columns=area_hd, dtype='object')
+
+    area_table_v = area_table.values
+
     is_multi = (len(virtual_top.root_list) - 1) > 0
     is_virtual_en = is_multi and table_attr.trace_root != 'sub'
 
@@ -577,7 +586,8 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
         path_name = f'{virtual_top.top_node}'
 
     if is_virtual_en:
-        area_table.loc[area_table.shape[0]] = {
+        row_cnt = 1
+        area_table.iloc[0] = {
             'name'      : 'virtual_top',
             'total'     : virtual_top.total_area,
             'comb'      : virtual_top.comb_area,
@@ -593,6 +603,10 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
         for did, design in enumerate(virtual_top.root_list):
             if design.top_node.is_show or len(design.top_node.scans) > 0:
                 last_did = did
+    else:
+        row_cnt = 0
+
+    row_mask = TABLE_INIT_ROWS - 1
 
     for did, design in enumerate(virtual_top.root_list):
         if table_attr.trace_root == 'sub':
@@ -678,7 +692,11 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
                             path_name = f"{did}:{path_name}"
 
                 if table_attr.is_show_level:
-                    path_name = '({}) {}'.format(str(node.level).rjust(lv_digi), path_name)
+                    if table_attr.trace_root == 'sub':
+                        level = node.level - root_node.level
+                    else:
+                        level = node.level
+                    path_name = '({}) {}'.format(str(level).rjust(lv_digi), path_name)
 
                 if (gid := node.gid) is not None:
                     if gid >= 0:
@@ -688,25 +706,36 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
                 else:
                     attr = ""
 
-                area_table.loc[area_table.shape[0]] = {
-                    'name'      : ','.join([node.dname, node.bname]),
-                    'total'     : node.total_area,
-                    'comb'      : node.sub_comb_area if node.is_sub_sum else node.comb_area,
-                    'seq'       : node.sub_seq_area if node.is_sub_sum else node.seq_area,
-                    'bbox'      : node.sub_bbox_area if node.is_sub_sum else node.bbox_area,
-                    'attr'      : attr,
-                    'did'       : did,
-                    'rid'       : rid if node == root_node else np.NaN,
-                    'level'     : node.level,
-                    'hide'      : not node.is_show,
-                    'sub_sum'   : node.is_sub_sum,
-                    'path_name' : path_name
-                }
+                area_table_v[row_cnt] = (
+                    ','.join([node.dname, node.bname]),                         # name
+                    node.total_area,                                            # total
+                    node.sub_comb_area if node.is_sub_sum else node.comb_area,  # comb
+                    node.sub_seq_area if node.is_sub_sum else node.seq_area,    # seq
+                    node.sub_bbox_area if node.is_sub_sum else node.bbox_area,  # bbox
+                    attr,                                                       # attr
+                    did,                                                        # did
+                    rid if node == root_node else np.NaN,                       # rid
+                    node.level,                                                 # level
+                    not node.is_show,                                           # hide
+                    node.is_sub_sum,                                            # sub_sum
+                    path_name                                                   # path_name
+                )
+
+                row_cnt += 1
+                if (row_cnt & row_mask) == 0:
+                    new = pd.DataFrame(np.full((TABLE_INIT_ROWS, len(area_hd)), np.NaN), 
+                                        columns=area_hd, dtype='object')
+                    area_table = pd.concat([area_table, new], ignore_index=True)
+                    area_table_v = area_table.values
 
                 if table_attr.is_reorder:
                     scan_stack.extend(sorted(node.scans, key=lambda x:x.total_area))
                 else:
                     scan_stack.extend(sorted(node.scans, key=lambda x:x.bname, reverse=True))
+
+    if row_cnt < area_table.shape[0]:
+        area_table = area_table.drop(range(row_cnt, area_table.shape[0]))
+    design_db.area_table = area_table
 
     ## show area report ##
 
@@ -793,8 +822,10 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
     show_header(header_lens, header_list)
     show_divider(header_lens)
 
+    area_table_v = area_table.values
+
     for idx in range(area_table.shape[0]):
-        area_row = area_table.loc[idx, :]
+        area_row = dict(zip(area_hd, area_table_v[idx]))
 
         if table_attr.trace_root == 'sub':
             if area_row['did'] > 0 and area_row['rid'] == 0:
@@ -809,7 +840,9 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
         else:
             percent_t = area_row['total'] / virtual_top.total_area
 
-        if (hier_area := area_row['comb':'bbox'].sum()):
+        logic_area = area_row['comb'] + area_row['seq']
+
+        if (hier_area := logic_area + area_row['bbox']):
             percent_b = area_row['bbox'] / hier_area
         else:
             percent_b = 0
@@ -837,8 +870,7 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
                     data_row.append(area_norm(area_row['comb'], unit, area_fs, bk, is_hide).rjust(area_len))
                     data_row.append(area_norm(area_row['seq'], unit, area_fs, bk, is_hide).rjust(area_len))
                 else:
-                    value = area_row['comb':'seq'].sum()
-                    data_row.append(area_norm(value, unit, area_fs, bk, is_hide).rjust(area_len))
+                    data_row.append(area_norm(logic_area, unit, area_fs, bk, is_hide).rjust(area_len))
 
                 data_row.append(area_norm(area_row['bbox'], unit, area_fs, bk, is_hide).rjust(area_len))
                 data_row.append(area_norm(percent_b, unit, "{2}{0:.1%}{3}", None, is_hide).rjust(7))
@@ -864,7 +896,9 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
 
             percent_t = area_row['total'] / virtual_top.total_area
 
-            if (hier_area := area_row['comb':'bbox'].sum()):
+            logic_area = area_row['comb'] + area_row['seq']
+
+            if (hier_area := logic_area + area_row['bbox']):
                 percent_b = area_row['bbox'] / hier_area
             else:
                 percent_b = 0
@@ -884,8 +918,7 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
                     data_row.append(area_norm(area_row['comb'], unit, area_fs, bk, is_hide).rjust(area_len))
                     data_row.append(area_norm(area_row['seq'], unit, area_fs, bk, is_hide).rjust(area_len))
                 else:
-                    value = area_row['comb':'seq'].sum()
-                    data_row.append(area_norm(value, unit, area_fs, bk, is_hide).rjust(area_len))
+                    data_row.append(area_norm(logic_area, unit, area_fs, bk, is_hide).rjust(area_len))
 
                 data_row.append(area_norm(area_row['bbox'], unit, area_fs, bk, is_hide).rjust(area_len))
                 data_row.append(area_norm(percent_b, unit, "{2}{0:.1%}{3}", None, is_hide).rjust(7))
@@ -913,6 +946,8 @@ def show_bbox_area(design_db: DesignDB, table_attr: TableAttr):
         for node in design.node_dict.values():
             if node is design.top_node and not is_multi:
                 node.is_show = True
+                node.sub_comb_area = design.comb_area
+                node.sub_seq_area  = design.seq_area
                 node.sub_bbox_area = design.bbox_area
                 node.is_sub_sum = True
             elif node.bbox_area != 0:
@@ -934,7 +969,11 @@ def show_bbox_area(design_db: DesignDB, table_attr: TableAttr):
 
     ## create area table ##
 
-    area_table = design_db.area_table
+    area_hd = design_db.area_hd
+    area_table = pd.DataFrame(np.full((TABLE_INIT_ROWS, len(area_hd)), np.NaN), 
+                                columns=design_db.area_hd, dtype='object')
+
+    area_table_v = area_table.values
 
     if table_attr.is_show_level:
         path_name = '({}) {}'.format('T'.rjust(lv_digi), virtual_top.top_node)
@@ -942,7 +981,8 @@ def show_bbox_area(design_db: DesignDB, table_attr: TableAttr):
         path_name = f'{virtual_top.top_node}'
 
     if is_multi:
-        area_table.loc[area_table.shape[0]] = {
+        row_cnt = 1
+        area_table.iloc[0] = {
             'name'      : 'virtual_top',
             'total'     : virtual_top.total_area,
             'comb'      : virtual_top.comb_area,
@@ -953,6 +993,10 @@ def show_bbox_area(design_db: DesignDB, table_attr: TableAttr):
             'sub_sum'   : True,
             'path_name' : path_name
         }
+    else:
+        row_cnt = 0
+
+    row_mask = TABLE_INIT_ROWS - 1
 
     for did, design in enumerate(virtual_top.root_list):
         scan_stack = [root_node := design.top_node]
@@ -1014,24 +1058,36 @@ def show_bbox_area(design_db: DesignDB, table_attr: TableAttr):
             if table_attr.is_show_level:
                 path_name = '({}) {}'.format(str(node.level).rjust(lv_digi), path_name)
 
-            area_table.loc[area_table.shape[0]] = {
-                'name'      : ','.join([node.dname, node.bname]),
-                'total'     : node.total_area,
-                'comb'      : node.sub_comb_area if node.is_sub_sum else node.comb_area,
-                'seq'       : node.sub_seq_area if node.is_sub_sum else node.seq_area,
-                'bbox'      : node.sub_bbox_area if node.is_sub_sum else node.bbox_area,
-                'attr'      : '',
-                'did'       : did,
-                'level'     : node.level,
-                'hide'      : not node.is_show,
-                'sub_sum'   : node.is_sub_sum,
-                'path_name' : path_name
-            }
+            area_table_v[row_cnt] = (
+                ','.join([node.dname, node.bname]),                         # name
+                node.total_area,                                            # total
+                node.sub_comb_area if node.is_sub_sum else node.comb_area,  # comb
+                node.sub_seq_area if node.is_sub_sum else node.seq_area,    # seq
+                node.sub_bbox_area if node.is_sub_sum else node.bbox_area,  # bbox
+                '',                                                         # attr
+                did,                                                        # did
+                np.NaN,                                                     # rid
+                node.level,                                                 # level
+                not node.is_show,                                           # hide
+                node.is_sub_sum,                                            # sub_sum
+                path_name                                                   # path_name
+            )                                                                               
+
+            row_cnt += 1
+            if (row_cnt & row_mask) == 0:
+                new = pd.DataFrame(np.full((TABLE_INIT_ROWS, len(area_hd)), np.NaN), 
+                                    columns=area_hd, dtype='object')
+                area_table = pd.concat([area_table, new], ignore_index=True)
+                area_table_v = area_table.values
 
             if table_attr.is_reorder:
                 scan_stack.extend(sorted(node.scans, key=lambda x:x.total_area))
             else:
                 scan_stack.extend(sorted(node.scans, key=lambda x:x.bname, reverse=True))
+
+    if row_cnt < area_table.shape[0]:
+        area_table = area_table.drop(range(row_cnt, area_table.shape[0]))
+    design_db.area_table = area_table
 
     ## show area report ##
 
@@ -1088,10 +1144,12 @@ def show_bbox_area(design_db: DesignDB, table_attr: TableAttr):
     show_header(header_lens, header_list)
     show_divider(header_lens)
 
-    for idx in range(area_table.shape[0]):
-        area_row = area_table.loc[idx, :]
+    area_table_v = area_table.values
 
-        if (hier_area := area_row['comb':'bbox'].sum()):
+    for idx in range(area_table.shape[0]):
+        area_row = dict(zip(area_hd, area_table_v[idx]))
+
+        if (hier_area := area_row['comb'] + area_row['seq'] + area_row['bbox']):
             percent_b = area_row['bbox'] / hier_area
         else:
             percent_b = 0
@@ -1558,8 +1616,8 @@ def create_argparse() -> argparse.ArgumentParser:
 
     parser_adv.add_argument('-vn', dest='vtop_name', metavar='<str>', type=str, default='VIRTUAL_TOP', 
                                     help="virtual top name for multi-design in")
-    parser_adv.add_argument('-tr', dest='trace_root', metavar='<type>', choices=['top', 'sub'],
-                                    help="""backward trace root [top|sub]""")
+    parser_adv.add_argument('-sr', dest='is_sub_trace', action='store_true',
+                                    help="sub root backward trace")
     parser_adv.add_argument('-v', dest='is_verbose', action='store_true',
                                     help="show area of all trace nodes")
 
@@ -1624,8 +1682,8 @@ def main():
             unit.value = pow(10, 9)
             unit.info = "1 billion"
 
-    if args.proc_mode == 'adv' and args.trace_root is not None:
-        trace_root = args.trace_root
+    if args.proc_mode == 'adv' and args.is_sub_trace:
+        trace_root = 'sub'
     else:
         trace_root = 'top' if args.is_tree_view else 'leaf'
 
