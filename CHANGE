@@ -94,3 +94,7 @@ v0.14.0:
     pt_rpt_ana:
         1. New tool add.
 
+v0.15.0:
+
+    pt_rpt_ana: add report_timing brief mode.
+

@@ -8,6 +8,7 @@
 #
 import argparse
 import gzip
+import os
 import re
 
 import pandas as pd
@@ -45,7 +46,7 @@ vio_type_list = (
 
 ### Class Defintion ###
 
-### Sub Function ###
+### Function for 'report_cons_brief' ###
 
 def load_vio_rpt(rpt_fps) -> list:
     """Load PrimeTime Violation Report"""  #{{{
@@ -160,8 +161,8 @@ def load_vio_rpt(rpt_fps) -> list:
     return vio_tables
 #}}}
 
-def report_gvs(vio_tables: list):
-    """Report Violation Group Summary"""  #{{{
+def report_cons_brief(vio_tables: list):
+    """Brief Summary for command 'report_constraint'"""  #{{{
     header_just = ['l', 'r', 'r']
     header_lens = [DEFAULT_PATHGROUP_COL_SIZE, DEFAULT_AREA_COL_SIZE, DEFAULT_AREA_COL_SIZE]
     header_list = ['Path Group', 'WNS', 'NVP']
@@ -213,6 +214,49 @@ def print_table(vio_tables: list):
                 print(vio_grp_df, end='\n\n')
 #}}}
 
+### Function for 'report_time_brief' ###
+
+def report_time_brief(rpt_fp):
+    """Brief Summary for command 'report_timing'"""  #{{{
+
+    if os.path.splitext(rpt_fp)[1] == '.gz':
+        f = gzip.open(rpt_fp, mode='rt')
+    else:
+        f = open(rpt_fp)
+
+    ST, ED, GR, TY, SL = tuple(range(5))
+
+    path = {}
+    stage = START
+
+    print("Group  Type  Slack  Endpoint  Startpoint")
+    print("==================================================")
+
+    for line in f:
+        match stage:
+            case ST if line[:13] == "  Startpoint:":
+                path['start'] = line[14:-1]
+                stage = ED 
+            case ED if line[:11] == "  Endpoint:":
+                path['end'] = line[12:-1]
+                stage = GR
+            case GR if line[:13] == "  Path Group:":
+                path['group'] = line[14:-1]
+                stage = TY
+            case TY if line[:12] == "  Path Type:":
+                path['type'] = line.strip().split()[2]
+                stage = SL
+            case SL if line[:9] == "  slack (":
+                stage = ST
+                toks = line.strip().split()
+                if toks[1] != '(MET)':
+                    print(path['group'], path['type'], toks[-1], path['end'], path['start'])
+
+    f.close()
+#}}}
+
+### Common Function ###
+
 def show_header(just_type: list, header_lens: list, header_list: list):
     """Show header"""  #{{{
     for i, head in enumerate(header_list):
@@ -243,18 +287,22 @@ def create_argparse() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest='proc_mode', required=True, help="select one of process modes.")
     parser.add_argument('-version', action='version', version=VERSION)
-    parser.add_argument('-flt_type', dest='filter_type', metavar='<and|or>', default='and', 
-                                    choices=['and', 'or'], help="filter type")
-    parser.add_argument('-gt', dest='gt', metavar='<value>', type=float, help="filter operator (x > value)")
-    parser.add_argument('-lt', dest='lt', metavar='<value>', type=float, help="filter operator (x < value)")
-    parser.add_argument('-ge', dest='ge', metavar='<value>', type=float, help="filter operator (x >= value)")
-    parser.add_argument('-le', dest='le', metavar='<value>', type=float, help="filter operator (x <= value)")
-    parser.add_argument('-eq', dest='eq', metavar='<value>', type=float, help="filter operator (x == value)")
+    # parser.add_argument('-flt_type', dest='filter_type', metavar='<and|or>', default='and', 
+    #                                 choices=['and', 'or'], help="filter type")
+    # parser.add_argument('-gt', dest='gt', metavar='<value>', type=float, help="filter operator (x > value)")
+    # parser.add_argument('-lt', dest='lt', metavar='<value>', type=float, help="filter operator (x < value)")
+    # parser.add_argument('-ge', dest='ge', metavar='<value>', type=float, help="filter operator (x >= value)")
+    # parser.add_argument('-le', dest='le', metavar='<value>', type=float, help="filter operator (x <= value)")
+    # parser.add_argument('-eq', dest='eq', metavar='<value>', type=float, help="filter operator (x == value)")
 
-    # violation group summary
-    parser_norm = subparsers.add_parser('gvs', help='group violation summary from constraint violation report')
-    parser_norm.add_argument('rpt_fn', help="area report path 1 (base)") 
-    parser_norm.add_argument('rpt_fn2', nargs='?', help="area report path 2 (diff with base)") 
+    # report_constraint brief
+    parser_cons = subparsers.add_parser('cons', help='report_constraint brief')
+    parser_cons.add_argument('rpt_fn', help="report path 1 (base)") 
+    parser_cons.add_argument('rpt_fn2', nargs='?', help="report path 2 (diff with base)") 
+
+    # report_timing brief
+    parser_time = subparsers.add_parser('time', help='report_timing brief')
+    parser_time.add_argument('rpt_fn', help="report_path") 
 
     return parser
 #}}}
@@ -265,10 +313,12 @@ def main():
     parser = create_argparse()
     args = parser.parse_args()
 
-    if args.proc_mode == 'gvs':
+    if args.proc_mode == 'cons':
         rpt_fps = [args.rpt_fn, args.rpt_fn2] if args.rpt_fn2 else [args.rpt_fn]
         vio_tables = load_vio_rpt(rpt_fps)
-        report_gvs(vio_tables)
+        report_cons_brief(vio_tables)
+    elif args.proc_mode == 'time':
+        report_time_brief(args.rpt_fn)
 #}}}
 
 if __name__ == '__main__':
