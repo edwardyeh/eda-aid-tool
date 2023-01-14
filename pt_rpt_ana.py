@@ -16,208 +16,149 @@ import numpy as np
 
 from .utils.general import VERSION
 
-### Global Parameter ###  
+### Function for 'report_constraint' ###
 
-#{{{
-DEFAULT_PATHGROUP_COL_SIZE = 32
-DEFAULT_AREA_COL_SIZE = 9
+def report_cons_summary(rpt_fps):
+    """Summary for 'report_constraint'"""  #{{{
 
-vio_header = ('instance', 'required', 'actual', 'slack')
-vio_header_len = len(vio_header)
+    vio_types = (
+        'max_delay/setup', 'min_delay/hold', 
+        'recovery', 'removal', 'clock_gating_setup', 'clock_gating_hold', 
+        'max_capacitance', 'min_capacitance', 'max_transition', 'min_transition',
+        'clock_tree_pulse_width', 'sequential_tree_pulse_width', 'sequential_clock_min_period',
+    )
 
-clk_vio_chk_list = (
-        'clock_tree_pulse_width', 
-        'sequential_tree_pulse_width', 
-        'sequential_clock_min_period'
-)
+    group_vio = ('max_delay/setup', 'min_delay/hold')
+    pulse_width_vio = ('clock_tree_pulse_width', 'sequential_tree_pulse_width')
+    clk_period_vio = ('sequential_clock_min_period')
 
-vio_type_list = (
-        'max_delay/setup', 
-        'min_delay/hold', 
-        'max_capacitance', 
-        'min_capacitance', 
-        'max_transition', 
-        'min_transition', 
-        'recovery', 
-        'clock_gating_setup' 
-) + clk_vio_chk_list
+    IDLE, POS, REC1, REC2, REC3 = tuple(range(5))
 
-#}}}
+    is_multi = len(rpt_fps) > 1
+    summary = {}
+    stage = IDLE
 
-### Class Defintion ###
+    for fid, rpt_fp in enumerate(rpt_fps):
+        if os.path.splitext(rpt_fp)[1] == '.gz':
+            f = gzip.open(rpt_fp, mode='rt')
+        else:
+            f = open(rpt_fp)
 
-### Function for 'report_cons_brief' ###
-
-def load_vio_rpt(rpt_fps) -> list:
-    """Load PrimeTime Violation Report"""  #{{{
-
-    ## Return Structure:
-    ##   vio_tables = [
-    ##     vio_report1 = {
-    ##       'vio_type1' : {'group11': <DataFrame>,
-    ##                      'group12': <DataFrame>, ...},
-    ##       'vio_type2' : {'group21': <DataFrame>,
-    ##                      'group22': <DataFrame>, ...},
-    ##       ...
-    ##     },
-    ##     vio_report2 = {
-    ##       'vio_type1' : {'group11': <DataFrame>,
-    ##                      'group12': <DataFrame>, ...},
-    ##       'vio_type2' : {'group21': <DataFrame>,
-    ##                      'group22': <DataFrame>, ...},
-    ##       ...
-    ##     }
-    ##   ]
-
-    regexp_grp = re.compile(r"\('(\w+)' group\)")
-
-    vio_tables = []
-
-    if type(rpt_fps) is not list:
-        rpt_fps = [rpt_fps]
-
-    for rpt_fp in rpt_fps:
-        with open(rpt_fp) as f:
-            col_cnt = 0
-            loc_en = parse_en = False
-            vio_chk_en = clk_chk_en = False
-            is_drop = is_cont = False
-            vio_tables.append(vio_rpt_dt := {})
-
-            line = f.readline()
-            while line:
-                if len(words := line.strip().split()):
-                    if words[0] in vio_type_list:
-                        vio_typ_dt = vio_rpt_dt.setdefault((vio_typ_name := words[0]), {})
-                        try:
-                            words = words[1:]
-                            value = words[0]
-                            while not value.endswith(')'):
-                                words = words[1:]
-                                value += f" {words[0]}"
-                            group_name = regexp_grp.match(value)[1]
-                        except:
-                            group_name = 'default'
-                        vio_grp_df = vio_typ_dt.setdefault(group_name, pd.DataFrame(columns=vio_header))
-                        loc_en = True
-                    elif loc_en:
-                        if words[0].startswith('---'):
-                            loc_en = False
-                            parse_en = True
-                    elif parse_en:
-                        while len(words):
-                            col_name = vio_header[col_cnt]
-                            if col_name == 'instance':
-                                if vio_typ_name in clk_vio_chk_list: 
-                                    words = words[1:]
-                                    value = words[0]
-                                    while not value.endswith(')'):
-                                        words = words[1:]
-                                        value += f" {words[0]}"
-                                    data_row = {col_name: value[1:-1].split()[-1]}
-                                    words = words[1:]
-                                else:
-                                    data_row = {col_name: words[0]}
-                                    words = words[1:]
-                            elif vio_chk_en:
-                                vio_chk_en = False
-                                if words[0].startswith('(VIOLATED'):
-                                    while not words[0].endswith(')'):
-                                        words = words[1:]
-                                    words = words[1:]
-                                else:
-                                    is_drop = True
-                                    if clk_chk_en:
-                                        clk_chk_en = False
-                                    else:
-                                        is_cont = True
-                            elif clk_chk_en:
-                                clk_chk_en = False
-                                data_row[vio_header[0]] = f"{words[0]} ({data_row[vio_header[0]]})"
-                            else:
-                                data_row[col_name] = (value := float(words[0]))
-                                words = words[1:]
-                                if col_name == 'slack':
-                                    vio_chk_en = True
-                                    if vio_typ_name in clk_vio_chk_list: 
-                                        clk_chk_en = True
-
-                            if not vio_chk_en and not clk_chk_en:
-                                col_cnt += 1
-
-                            if col_cnt == vio_header_len:
-                                col_cnt = 0
-                                if is_drop:
-                                    is_drop = False
-                                    if is_cont:
-                                        is_cont = False
-                                        continue
-                                    else:
-                                        break
-                                else:
-                                    vio_grp_df.loc[vio_grp_df.shape[0]] = data_row
-                                    break
-                line = f.readline()
-    return vio_tables
-#}}}
-
-def report_cons_brief(vio_tables: list):
-    """Brief Summary for command 'report_constraint'"""  #{{{
-    header_just = ['l', 'r', 'r']
-    header_lens = [DEFAULT_PATHGROUP_COL_SIZE, DEFAULT_AREA_COL_SIZE, DEFAULT_AREA_COL_SIZE]
-    header_list = ['Path Group', 'WNS', 'NVP']
-    divider_size = sum(header_lens) + 2
-    gvs_tables = {}
-
-    is_multi = len(vio_tables) > 1
-
-    for vio_typ_name, vio_typ_dict in vio_tables[0].items():
-        gvs_df = gvs_tables.setdefault(vio_typ_name, pd.DataFrame(columns=['name', 'wns', 'nvp']))
-        for vio_grp_name, vio_grp_df in vio_typ_dict.items():
-            name = vio_grp_name + (' <-' if is_multi else '')
-            wns = vio_grp_df['slack'].min()
-            nvp = vio_grp_df.shape[0]
-            gvs_df.loc[vio_grp_name] = [name, wns, nvp]
-
-    if is_multi:
-        for vio_typ_name, vio_typ_dict in vio_tables[1].items():
-            gvs_df = gvs_tables.setdefault(vio_typ_name, pd.DataFrame(columns=['name', 'wns', 'nvp']))
-            for vio_grp_name, vio_grp_df in vio_typ_dict.items():
-                wns = vio_grp_df['slack'].min()
-                nvp = vio_grp_df.shape[0]
-                if vio_grp_name in gvs_df.index:
-                    gvs_df.loc[vio_grp_name, 'name'] = vio_grp_name
-                    gvs_df.loc[vio_grp_name, 'wns':'nvp'] = [wns, nvp] - gvs_df.loc[vio_grp_name, 'wns':'nvp']
+        for line in f:
+            toks = line.split()
+            if stage == IDLE and len(toks) and toks[0] in vio_types:
+                stage, vtype, wns, tns, nvp = POS, toks[0], 0.0, 0.0, 0
+                vgroup = toks[1][2:-1] if vtype in group_vio else vtype
+                item = []
+            elif stage == POS and len(toks) and toks[0].startswith('---'):
+                if vtype in clk_period_vio:
+                    stage = REC3
+                    vtype_dict = summary.setdefault(vtype, {})
+                    vgroup = 'none'
+                elif vtype in pulse_width_vio:
+                    stage = REC2
+                    vtype_dict = summary.setdefault(vtype, {})
+                    vgroup = 'none'
                 else:
-                    name = vio_grp_name + ' ->'
-                    gvs_df.loc[vio_grp_name] = [name, wns, nvp]
+                    stage = REC1
+                    vgroup_list = summary.setdefault(vtype, {}).setdefault(vgroup, [])
+            elif stage == REC1:
+                if len(toks):
+                    item.extend(toks)
+                    if len(item) == 5:
+                        tns += (value := float(item[3]))
+                        nvp += 1
+                        if value < wns:
+                            wns = value
+                        item = []
+                else:
+                    vgroup_list.append([wns, tns, nvp])
+                    stage = IDLE
+            elif stage == REC2:
+                if len(toks):
+                    item.extend(toks)
+                    if len(item) == 7:
+                        cur_group = '{}:{}'.format(item[6], item[1][1:-1])
+                        if vgroup != cur_group:
+                            vgroup_list = vtype_dict.setdefault((vgroup := cur_group), [])
+                            try:
+                                vgroup_value = vgroup_list[fid]
+                            except:
+                                vgroup_list.append(vgroup_value := [0.0, 0.0, 0])
+                        
+                        vgroup_value[1] += (value := float(item[4]))
+                        vgroup_value[2] += 1
+                        if value < vgroup_value[0]:
+                            vgroup_value[0] = value
+                        item = []
+                else:
+                    stage = IDLE
+            elif stage == REC3:
+                if len(toks):
+                    item.extend(toks)
+                    if len(item) == 8:
+                        cur_group = '{}:{}'.format(item[7], item[2][:-1])
+                        if vgroup != cur_group:
+                            vgroup_list = vtype_dict.setdefault((vgroup := cur_group), [])
+                            try:
+                                vgroup_value = vgroup_list[fid]
+                            except:
+                                vgroup_list.append(vgroup_value := [0.0, 0.0, 0])
+                        
+                        vgroup_value[1] += (value := float(item[5]))
+                        vgroup_value[2] += 1
+                        if value < vgroup_value[0]:
+                            vgroup_value[0] = value
+                        item = []
+                else:
+                    stage = IDLE
 
-    for vio_typ_name, gvs_df in gvs_tables.items():
-        print(f"\n--- {vio_typ_name}")
-        print('=' * divider_size)
-        show_header(header_just, header_lens, header_list)
-        print('=' * divider_size)
-        for i in range(gvs_df.shape[0]):
-            show_header(header_just, header_lens, list(gvs_df.iloc[i].apply(str)))
+        f.close()
 
-    print()
+    if True:
+        print()
+        for vtype, vtype_dict in summary.items():
+            eq_cnt = 98
+
+            print("==== {}".format(vtype))
+            if is_multi:
+                eq_cnt += 80
+                print("  {:=^58}+{:=^39}+{:=^39}+{:=^39}+".format('', ' Left ', ' Right ', ' Diff '))
+                print("  {:58}".format('Group'), end='')
+                print("| {:16}{:16}{:6}".format('WNS', 'TNS', 'NVP'), end='')
+                print("| {:16}{:16}{:6}".format('WNS', 'TNS', 'NVP'), end='')
+                print("| {:16}{:16}{:6}".format('WNS', 'TNS', 'NVP'), end='')
+                print("|")
+                print('  ', '=' * eq_cnt, '+', sep='')
+
+                for vgroup, vgroup_list in vtype_dict.items():
+                    print("  {:58}".format(vgroup), end='')
+                    for values in vgroup_list:
+                        print("| {0[0]:< 16.4f}{0[1]:< 16.4f}{0[2]:<6}".format(values), end='')
+
+                    if is_multi:
+                        diff_values = [vgroup_list[0][0] - vgroup_list[1][0]]
+                        diff_values.append(vgroup_list[0][1] - vgroup_list[1][1])
+                        diff_values.append(vgroup_list[0][2] - vgroup_list[1][2])
+                        print("| {0[0]:<+16.4f}{0[1]:<+16.4f}{0[2]:<+6}|".format(diff_values), end='')
+                    print()
+            else:
+                print("  {:58}  {:16}{:16}{:6}".format('Group', 'WNS', 'TNS', 'NVP'))
+                print('  ', '=' * eq_cnt, sep='')
+
+                for vgroup, vgroup_list in vtype_dict.items():
+                    print("  {:58}".format(vgroup), end='')
+                    for values in vgroup_list:
+                        print("  {0[0]:< 16.4f}{0[1]:< 16.4f}{0[2]:<6}".format(values), end='')
+                    print()
+
+            print()
 #}}}
 
-def print_table(vio_tables: list):
-    """Print Table"""  #{{{
-    for rid, vio_rpt_dt in enumerate(vio_tables):
-        print(f"report id: {rid}")
-        for vio_typ_name, vio_typ_dt in vio_rpt_dt.items():
-            print(f"vio_type: {vio_typ_name}")
-            for vio_grp_name, vio_grp_df in vio_typ_dt.items():
-                print(f"group name: {vio_grp_name}")
-                print(vio_grp_df, end='\n\n')
-#}}}
-
-### Function for 'report_time_brief' ###
+### Function for 'report_time' ###
 
 def report_time_brief(rpt_fp):
-    """Brief Summary for command 'report_timing'"""  #{{{
+    """Brief Report for 'report_timing'"""  #{{{
 
     if os.path.splitext(rpt_fp)[1] == '.gz':
         f = gzip.open(rpt_fp, mode='rt')
@@ -233,24 +174,23 @@ def report_time_brief(rpt_fp):
     print("==================================================")
 
     for line in f:
-        match stage:
-            case ST if line[:13] == "  Startpoint:":
-                path['start'] = line[14:-1]
-                stage = ED 
-            case ED if line[:11] == "  Endpoint:":
-                path['end'] = line[12:-1]
-                stage = GR
-            case GR if line[:13] == "  Path Group:":
-                path['group'] = line[14:-1]
-                stage = TY
-            case TY if line[:12] == "  Path Type:":
-                path['type'] = line.strip().split()[2]
-                stage = SL
-            case SL if line[:9] == "  slack (":
-                stage = ST
-                toks = line.strip().split()
-                if toks[1] != '(MET)':
-                    print(path['group'], path['type'], toks[-1], path['end'], path['start'])
+        if stage == ST and line[:13] == "  Startpoint:":
+            path['start'] = line[14:-1]
+            stage = ED 
+        elif stage == ED and line[:11] == "  Endpoint:":
+            path['end'] = line[12:-1]
+            stage = GR
+        elif stage == GR and line[:13] == "  Path Group:":
+            path['group'] = line[14:-1]
+            stage = TY
+        elif stage == TY and line[:12] == "  Path Type:":
+            path['type'] = line.split()[2]
+            stage = SL
+        elif stage == SL and line[:9] == "  slack (":
+            stage = ST
+            toks = line.split()
+            if toks[1] != '(MET)':
+                print(path['group'], path['type'], toks[-1], path['end'], path['start'])
 
     f.close()
 #}}}
@@ -296,12 +236,14 @@ def create_argparse() -> argparse.ArgumentParser:
     # parser.add_argument('-eq', dest='eq', metavar='<value>', type=float, help="filter operator (x == value)")
 
     # report_constraint brief
-    parser_cons = subparsers.add_parser('cons', help='report_constraint brief')
-    parser_cons.add_argument('rpt_fn', help="report path 1 (base)") 
-    parser_cons.add_argument('rpt_fn2', nargs='?', help="report path 2 (diff with base)") 
+    parser_cons = subparsers.add_parser('cons', help="Summary of report_constraint\n" + 
+                                                     "  --command: 'report_cons -all_vio -path end'\n ")
+    parser_cons.add_argument('rpt_fn', help="report path (left or base)") 
+    parser_cons.add_argument('rpt_fn2', nargs='?', help="report path (right for compare)") 
 
     # report_timing brief
-    parser_time = subparsers.add_parser('time', help='report_timing brief')
+    parser_time = subparsers.add_parser('time', help="Brief report of report_timing\n" +
+                                                     "  --command: 'report_timing'")
     parser_time.add_argument('rpt_fn', help="report_path") 
 
     return parser
@@ -315,8 +257,7 @@ def main():
 
     if args.proc_mode == 'cons':
         rpt_fps = [args.rpt_fn, args.rpt_fn2] if args.rpt_fn2 else [args.rpt_fn]
-        vio_tables = load_vio_rpt(rpt_fps)
-        report_cons_brief(vio_tables)
+        report_cons_summary(rpt_fps)
     elif args.proc_mode == 'time':
         report_time_brief(args.rpt_fn)
 #}}}
