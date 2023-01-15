@@ -166,16 +166,17 @@ def report_time_brief(rpt_fp):
         f = open(rpt_fp)
 
     ST, ED, GR, TY, SL = tuple(range(5))
-
-    path = {}
-    stage = START
+    stage, path = ST, {}
 
     print("Group  Type  Slack  Endpoint  Startpoint")
     print("==================================================")
 
+    ln_no = 0
     for line in f:
+        ln_no += 1
         if stage == ST and line[:13] == "  Startpoint:":
             path['start'] = line[14:-1]
+            path['no'] = ln_no
             stage = ED 
         elif stage == ED and line[:11] == "  Endpoint:":
             path['end'] = line[12:-1]
@@ -190,7 +191,8 @@ def report_time_brief(rpt_fp):
             stage = ST
             toks = line.split()
             if toks[1] != '(MET)':
-                print(path['group'], path['type'], toks[-1], path['end'], path['start'])
+                print(path['group'], path['type'], toks[-1], path['end'], path['start'], end='')
+                print(" line:{}".format(path['no']))
 
     f.close()
 #}}}

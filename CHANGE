@@ -96,5 +96,7 @@ v0.14.0:
 
 v0.15.0:
 
-    pt_rpt_ana: add report_timing brief mode.
+    pt_rpt_ana: 
+        1. Add 'time mode'.
+        2. Re-design 'cons mode'.
 
