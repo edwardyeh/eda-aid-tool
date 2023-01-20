@@ -52,21 +52,19 @@ def report_cons_summary(rpt_fps):
                 item = []
             elif stage == POS and len(toks) and toks[0].startswith('---'):
                 if vtype in clk_period_vio:
-                    stage = REC3
                     vtype_dict = summary.setdefault(vtype, {})
-                    vgroup = 'none'
+                    stage, vgroup, stype_id = REC2, 'none', 2
                 elif vtype in pulse_width_vio:
-                    stage = REC2
                     vtype_dict = summary.setdefault(vtype, {})
-                    vgroup = 'none'
+                    stage, vgroup, stype_id = REC2, 'none', 1
                 else:
                     stage = REC1
                     vgroup_list = summary.setdefault(vtype, {}).setdefault(vgroup, [])
             elif stage == REC1:
                 if len(toks):
                     item.extend(toks)
-                    if len(item) == 5:
-                        tns += (value := float(item[3]))
+                    if toks[-1] == '(VIOLATED)':
+                        tns += (value := float(item[-2]))
                         nvp += 1
                         if value < wns:
                             wns = value
@@ -77,8 +75,8 @@ def report_cons_summary(rpt_fps):
             elif stage == REC2:
                 if len(toks):
                     item.extend(toks)
-                    if len(item) == 7:
-                        cur_group = '{}:{}'.format(item[6], item[1][1:-1])
+                    if toks[-2] == '(VIOLATED)':
+                        cur_group = '{}:{}'.format(item[-1], item[stype_id][1:-1])
                         if vgroup != cur_group:
                             vgroup_list = vtype_dict.setdefault((vgroup := cur_group), [])
                             try:
@@ -86,26 +84,7 @@ def report_cons_summary(rpt_fps):
                             except:
                                 vgroup_list.append(vgroup_value := [0.0, 0.0, 0])
                         
-                        vgroup_value[1] += (value := float(item[4]))
-                        vgroup_value[2] += 1
-                        if value < vgroup_value[0]:
-                            vgroup_value[0] = value
-                        item = []
-                else:
-                    stage = IDLE
-            elif stage == REC3:
-                if len(toks):
-                    item.extend(toks)
-                    if len(item) == 8:
-                        cur_group = '{}:{}'.format(item[7], item[2][:-1])
-                        if vgroup != cur_group:
-                            vgroup_list = vtype_dict.setdefault((vgroup := cur_group), [])
-                            try:
-                                vgroup_value = vgroup_list[fid]
-                            except:
-                                vgroup_list.append(vgroup_value := [0.0, 0.0, 0])
-                        
-                        vgroup_value[1] += (value := float(item[5]))
+                        vgroup_value[1] += (value := float(item[-3]))
                         vgroup_value[2] += 1
                         if value < vgroup_value[0]:
                             vgroup_value[0] = value
