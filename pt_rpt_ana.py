@@ -16,9 +16,20 @@ import numpy as np
 
 from .utils.general import VERSION
 
+### Common Function ###  {{{
+
+val_op = {
+    'ge': lambda a, b: a >= b,
+    'le': lambda a, b: a <= b,
+    'gt': lambda a, b: a > b,
+    'lt': lambda a, b: a < b
+}
+
+#}}}
+
 ### Function for 'report_constraint' ###
 
-def report_cons_summary(rpt_fps):
+def report_cons_summary(rpt_fps: list, value_clamp: dict):
     """Summary for 'report_constraint'"""  #{{{
 
     vio_types = (
@@ -64,10 +75,17 @@ def report_cons_summary(rpt_fps):
                 if len(toks):
                     item.extend(toks)
                     if toks[-1] == '(VIOLATED)':
-                        tns += (value := float(item[-2]))
-                        nvp += 1
-                        if value < wns:
-                            wns = value
+                        is_active, slack = True, float(item[-2])
+                        for op, val in value_clamp.items():
+                            if not val_op[op](slack, val):
+                                is_active = False
+                                break
+
+                        if is_active:
+                            tns += slack 
+                            nvp += 1
+                            if slack < wns:
+                                wns = slack
                         item = []
                 else:
                     vgroup_list.append([wns, tns, nvp])
@@ -83,11 +101,18 @@ def report_cons_summary(rpt_fps):
                                 vgroup_value = vgroup_list[fid]
                             except:
                                 vgroup_list.append(vgroup_value := [0.0, 0.0, 0])
+
+                        is_active, slack = True, float(item[-3])
+                        for op, val in value_clamp.items():
+                            if not val_op[op](slack, val):
+                                is_active = False
+                                break
                         
-                        vgroup_value[1] += (value := float(item[-3]))
-                        vgroup_value[2] += 1
-                        if value < vgroup_value[0]:
-                            vgroup_value[0] = value
+                        if is_active:
+                            vgroup_value[1] += slack
+                            vgroup_value[2] += 1
+                            if slack < vgroup_value[0]:
+                                vgroup_value[0] = slack
                         item = []
                 else:
                     stage = IDLE
@@ -176,28 +201,6 @@ def report_time_brief(rpt_fp):
     f.close()
 #}}}
 
-### Common Function ###
-
-def show_header(just_type: list, header_lens: list, header_list: list):
-    """Show header"""  #{{{
-    for i, head in enumerate(header_list):
-        if just_type[i] == 'l':
-            print("{}".format(head.split('/')[0].ljust(header_lens[i])), end='')
-        else:
-            print("{}".format(head.split('/')[0].rjust(header_lens[i])), end='')
-    print()
-
-    try:
-        for i, head in enumerate(header_list):
-            if just_type[i] == 'l':
-                print("{}".format(head.split('/')[1].ljust(header_lens[i])), end='')
-            else:
-                print("{}".format(head.split('/')[1].rjust(header_lens[i])), end='')
-        print()
-    except:
-        pass
-#}}}
-
 ### Main Function ###
 
 def create_argparse() -> argparse.ArgumentParser:
@@ -208,13 +211,10 @@ def create_argparse() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest='proc_mode', required=True, help="select one of process modes.")
     parser.add_argument('-version', action='version', version=VERSION)
-    # parser.add_argument('-flt_type', dest='filter_type', metavar='<and|or>', default='and', 
-    #                                 choices=['and', 'or'], help="filter type")
-    # parser.add_argument('-gt', dest='gt', metavar='<value>', type=float, help="filter operator (x > value)")
-    # parser.add_argument('-lt', dest='lt', metavar='<value>', type=float, help="filter operator (x < value)")
-    # parser.add_argument('-ge', dest='ge', metavar='<value>', type=float, help="filter operator (x >= value)")
-    # parser.add_argument('-le', dest='le', metavar='<value>', type=float, help="filter operator (x <= value)")
-    # parser.add_argument('-eq', dest='eq', metavar='<value>', type=float, help="filter operator (x == value)")
+    parser.add_argument('-ge', dest='ge', metavar='<value>', type=float, default=None, help="slack is greater than or equal to <value>")
+    parser.add_argument('-le', dest='le', metavar='<value>', type=float, default=None, help="slack is less than or equal to <value>")
+    parser.add_argument('-gt', dest='gt', metavar='<value>', type=float, default=None, help="slack is greater than <value>")
+    parser.add_argument('-lt', dest='lt', metavar='<value>', type=float, default=None, help="slack is less than <value>")
 
     # report_constraint brief
     parser_cons = subparsers.add_parser('cons', help="Summary of report_constraint\n" + 
@@ -235,10 +235,20 @@ def main():
 
     parser = create_argparse()
     args = parser.parse_args()
+    
+    value_clamp = {}
+    if args.ge:
+        value_clamp['ge'] = args.ge
+    if args.le:
+        value_clamp['le'] = args.le
+    if args.gt:
+        value_clamp['gt'] = args.gt
+    if args.lt:
+        value_clamp['lt'] = args.lt
 
     if args.proc_mode == 'cons':
         rpt_fps = [args.rpt_fn, args.rpt_fn2] if args.rpt_fn2 else [args.rpt_fn]
-        report_cons_summary(rpt_fps)
+        report_cons_summary(rpt_fps, value_clamp)
     elif args.proc_mode == 'time':
         report_time_brief(args.rpt_fn)
 #}}}
