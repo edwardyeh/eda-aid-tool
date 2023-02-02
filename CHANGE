@@ -100,3 +100,6 @@ v0.15.0:
         1. Add 'time mode'.
         2. Re-design 'cons mode'.
 
+v0.16.0:
+
+    pt_rpt_ana: add scenario filter for 'cons mode'.

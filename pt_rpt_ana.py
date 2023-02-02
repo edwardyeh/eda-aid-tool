@@ -29,7 +29,7 @@ val_op = {
 
 ### Function for 'report_constraint' ###
 
-def report_cons_summary(rpt_fps: list, value_clamp: dict):
+def report_cons_summary(rpt_fps: list, value_clamp: dict, tag: str):
     """Summary for 'report_constraint'"""  #{{{
 
     vio_types = (
@@ -75,11 +75,14 @@ def report_cons_summary(rpt_fps: list, value_clamp: dict):
                 if len(toks):
                     item.extend(toks)
                     if toks[-1] == '(VIOLATED)':
-                        is_active, slack = True, float(item[-2])
-                        for op, val in value_clamp.items():
-                            if not val_op[op](slack, val):
-                                is_active = False
-                                break
+                        if tag is not None and not item[-5].startswith(tag):
+                            is_active = False
+                        else:
+                            is_active, slack = True, float(item[-2])
+                            for op, val in value_clamp.items():
+                                if not val_op[op](slack, val):
+                                    is_active = False
+                                    break
 
                         if is_active:
                             tns += slack 
@@ -102,11 +105,14 @@ def report_cons_summary(rpt_fps: list, value_clamp: dict):
                             except:
                                 vgroup_list.append(vgroup_value := [0.0, 0.0, 0])
 
-                        is_active, slack = True, float(item[-3])
-                        for op, val in value_clamp.items():
-                            if not val_op[op](slack, val):
-                                is_active = False
-                                break
+                        if tag is not None and not item[-6].startswith(tag):
+                            is_active = False
+                        else:
+                            is_active, slack = True, float(item[-3])
+                            for op, val in value_clamp.items():
+                                if not val_op[op](slack, val):
+                                    is_active = False
+                                    break
                         
                         if is_active:
                             vgroup_value[1] += slack
@@ -221,6 +227,7 @@ def create_argparse() -> argparse.ArgumentParser:
                                                      "  --command: 'report_cons -all_vio -path end'\n ")
     parser_cons.add_argument('rpt_fn', help="report path (left or base)") 
     parser_cons.add_argument('rpt_fn2', nargs='?', help="report path (right for compare)") 
+    parser_cons.add_argument('-s', dest='tag', metavar='<pattern>', help="filter by scenario full/partial name") 
 
     # report_timing brief
     parser_time = subparsers.add_parser('time', help="Brief report of report_timing\n" +
@@ -248,7 +255,7 @@ def main():
 
     if args.proc_mode == 'cons':
         rpt_fps = [args.rpt_fn, args.rpt_fn2] if args.rpt_fn2 else [args.rpt_fn]
-        report_cons_summary(rpt_fps, value_clamp)
+        report_cons_summary(rpt_fps, value_clamp, args.tag)
     elif args.proc_mode == 'time':
         report_time_brief(args.rpt_fn)
 #}}}
