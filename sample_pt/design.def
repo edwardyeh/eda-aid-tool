@@ -1,0 +1,16 @@
+DESIGN design ;
+UNITS DISTANCE MICRONS 2000 ;
+
+DIEAREA ( 0 0 ) ( 24384000 16248000 ) ;
+
+COMPONENTS 123 ;
+
+- u_top1 top1 + FIXED ( 6971720 7439904 ) N 
+ ;
+- u_top5 top5 + FIXED ( 6971720 4746240 ) N
+ + HALO x x x x
+ ;
+- u_top7 top7 + FIXED ( 19405280 8398272 ) N ;
+- u_top8 top7 + FIXED ( 19465280 3039936 ) S ;
+
+END COMPONENTS 
