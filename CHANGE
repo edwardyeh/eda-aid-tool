@@ -103,3 +103,7 @@ v0.15.0:
 v0.16.0:
 
     pt_rpt_ana: add scenario filter for 'cons mode'.
+
+v0.17.0:
+
+    para_axis_calc: add the new tool.

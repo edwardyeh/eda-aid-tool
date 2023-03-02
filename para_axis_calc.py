@@ -13,7 +13,7 @@ import sys
 
 DESIGN_TOP = DEF_FILE_TOP = ""
 INSTANCE, DEF_FILE = {}, {}
-INST_MAX_LEN = COX_MAX_LEN = COY_MAX_LEN = 0
+INST_MAX_LEN = COX_MAX_LEN = COY_MAX_LEN = FLIP_LEN_TYPE = 0
 
 class Block:
 #{{{
@@ -32,6 +32,9 @@ def config_parser(cfg_fp):
     global INST_MAX_LEN
 
     for line in open(cfg_fp):
+        if line.startswith('#'):
+            continue
+
         try:
             item, value = line.split('=')
         except ValueError:
@@ -54,7 +57,7 @@ def create_blk_tree(top: Block):
     """Create Block Tree"""  #{{{
     global DESIGN_TOP
     global INSTANCE, DEF_FILE
-    global COX_MAX_LEN, COY_MAX_LEN
+    global COX_MAX_LEN, COY_MAX_LEN, FLIP_LEN_TYPE
 
     ## hierarchy check ## 
 
@@ -93,7 +96,19 @@ def create_blk_tree(top: Block):
             scan_stack.extend(node.sub_m.values())
 
         mod_name = DESIGN_TOP if node.name == DESIGN_TOP else INSTANCE[node.name]
-        def_fp = DEF_FILE[mod_name]
+
+        try:
+            def_fp = DEF_FILE[mod_name]
+        except KeyError:
+            print(f"WARNING: cannot find the def file of \'{mod_name}\'")
+            sub_scan_stack = list(node.sub_m.values())
+            while len(sub_scan_stack) > 0:
+                sub_node = sub_scan_stack.pop()
+                sub_node.co[:] = node.co[:]
+                sub_node.di[0:2] = node.di[0:2]
+                if len(sub_node.sub_m) != 0:
+                    sub_scan_stack.extend(sub_node.sub_m.values())
+            continue
 
         if os.path.splitext(def_fp)[1] == '.gz':
             f = gzip.open(def_fp, mode='rt')
@@ -137,6 +152,13 @@ def create_blk_tree(top: Block):
 
                     node.co[0] += node.di[2] * round(w / unit_val)
                     node.co[1] += node.di[3] * round(h / unit_val)
+
+                    cox_len, coy_len = [len(str(x)) for x in node.co[0:2]]
+                    if cox_len > COX_MAX_LEN:
+                        COX_MAX_LEN = cox_len
+                    if coy_len > COY_MAX_LEN:
+                        COY_MAX_LEN = coy_len
+
                     stage = COMP_PRE
 
                 elif stage == COMP_PRE and line.startswith('COMPONENTS'):
@@ -150,7 +172,7 @@ def create_blk_tree(top: Block):
                     if line.startswith('END'):
                         if len(sub_set) != 0:
                             for inst in sub_set:
-                                print("WARNING: cannot find \'{}\' in {}", inst, def_fp)
+                                print(f"WARNING: cannot find \'{inst}\' in {def_fp}")
                         break
 
                     cmd = line if line[0] == '-' else ' '.join((cmd, line))
@@ -175,8 +197,10 @@ def create_blk_tree(top: Block):
                                         COY_MAX_LEN = coy_len
 
                                     if m[3] == 'N':
+                                        FLIP_LEN_TYPE |= 3
                                         sub_node.di[0:2] = node.di[0:2]
                                     elif m[3] == 'S':
+                                        FLIP_LEN_TYPE |= 3
                                         sub_node.di[0:2] = node.di[0] * -1, node.di[1] * -1
                                         sub_node.di[2:4] = node.di[0:2]
                                     elif m[3] == 'W':
@@ -184,9 +208,11 @@ def create_blk_tree(top: Block):
                                     elif m[3] == 'E':
                                         pass
                                     elif m[3] == 'FN':
+                                        FLIP_LEN_TYPE |= 1
                                         sub_node.di[0:2] = node.di[0] * -1, node.di[1]
                                         sub_node.di[2] = node.di[0]
                                     elif m[3] == 'FS':
+                                        FLIP_LEN_TYPE |= 1
                                         sub_node.di[0:2] = node.di[0], node.di[1] * -1
                                         sub_node.di[3] = node.di[1]
                                     elif m[3] == 'FW':
@@ -197,7 +223,7 @@ def create_blk_tree(top: Block):
                                     break
 
                             if not is_done:
-                                print("WARNING: \'{}\' isn't fixed in {}", inst, def_fp)
+                                print(f"WARNING: \'{inst}\' isn't fixed in {def_fp}")
                             if len(sub_set) == 0:
                                 break
 
@@ -207,10 +233,13 @@ def create_blk_tree(top: Block):
 
 def print_blk_axis(top: Block):
     """Print Block Axis"""  #{{{
-    global INST_MAX_LEN, COX_MAX_LEN, COY_MAX_LEN
+    global INST_MAX_LEN, COX_MAX_LEN, COY_MAX_LEN, FLIP_LEN_TYPE
     inst_len = INST_MAX_LEN + 20
-    scan_stack = [top]
+    flip_len = 9 if FLIP_LEN_TYPE == 3 else 6
 
+    print()
+
+    scan_stack = [top]
     while len(scan_stack) > 0:
         node = scan_stack.pop()
 
@@ -228,11 +257,13 @@ def print_blk_axis(top: Block):
                     f"set PARASITIC_AXIS({node.name})".ljust(inst_len),
                     str(node.co[0]).ljust(COX_MAX_LEN), 
                     str(node.co[1]).ljust(COY_MAX_LEN), 
-                    flip_type))
+                    flip_type.ljust(flip_len)))
         
         sub_m_list = list(node.sub_m.values())
         for i in range(len(sub_m_list)-1, -1, -1):
             scan_stack.append(sub_m_list[i])
+
+    print()
 #}}}
 
 def main():
