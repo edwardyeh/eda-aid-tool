@@ -11,7 +11,7 @@ import os
 import re
 import sys
 
-DESIGN_TOP = DEF_FILE_TOP = ""
+DESIGN_TOP = ""
 INSTANCE, DEF_FILE = {}, {}
 INST_MAX_LEN = COX_MAX_LEN = COY_MAX_LEN = FLIP_LEN_TYPE = 0
 
@@ -27,7 +27,7 @@ class Block:
 
 def config_parser(cfg_fp):
     """Configuration Parser"""  #{{{
-    global DESIGN_TOP, DEF_FILE_TOP
+    global DESIGN_TOP
     global INSTANCE, DEF_FILE
     global INST_MAX_LEN
 
@@ -55,8 +55,6 @@ def config_parser(cfg_fp):
 
 def create_blk_tree(top: Block):
     """Create Block Tree"""  #{{{
-    global DESIGN_TOP
-    global INSTANCE, DEF_FILE
     global COX_MAX_LEN, COY_MAX_LEN, FLIP_LEN_TYPE
 
     ## hierarchy check ## 
@@ -233,7 +231,6 @@ def create_blk_tree(top: Block):
 
 def print_blk_axis(top: Block):
     """Print Block Axis"""  #{{{
-    global INST_MAX_LEN, COX_MAX_LEN, COY_MAX_LEN, FLIP_LEN_TYPE
     inst_len = INST_MAX_LEN + 20
     flip_len = 9 if FLIP_LEN_TYPE == 3 else 6
 
