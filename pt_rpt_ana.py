@@ -29,8 +29,8 @@ val_op = {
 
 ### Function for 'report_constraint' ###
 
-def report_cons_summary(rpt_fps: list, value_clamp: dict, tag: str):
-    """Summary for 'report_constraint'"""  #{{{
+def report_cons_brief(rpt_fps: list, value_clamp: dict, tag: str):
+    """Brief for 'report_constraint'"""  #{{{
 
     vio_types = (
         'max_delay/setup', 'min_delay/hold', 
@@ -207,7 +207,44 @@ def report_time_brief(rpt_fp):
     f.close()
 #}}}
 
-### Main Function ###
+### Function for 'report_noise' ###
+
+def report_noise_brief(rpt_fp):
+    """Brief Report for 'report_timing'"""  #{{{
+
+    if os.path.splitext(rpt_fp)[1] == '.gz':
+        f = gzip.open(rpt_fp, mode='rt')
+    else:
+        f = open(rpt_fp)
+
+    IDLE, POS, REC = range(3)
+    stage = IDLE
+
+    print("NoiseRegion         WNS         TNS         NVP")
+    print("===============================================")
+
+    for line in f:
+        if stage == IDLE and line.startswith(" noise_region:"):
+            region, wns, tns, nvp = line.split(':')[1].strip(), 0, 0, 0
+            stage = POS
+        elif stage == POS and line.startswith(" ---"):
+            stage = REC
+        elif stage == REC:
+            tok_list = line.strip().split()
+            if len(tok_list) == 0:
+                stage = IDLE
+                print("{:<11}  {: >10.4f}  {: >10.4f}  {: >10.4f}".format(
+                        region, wns, tns, nvp))
+            else:
+                slack = float(tok_list[4])
+                tns += slack
+                nvp += 1
+                if slack < wns:
+                    wns = slack
+    f.close()
+#}}}
+
+### Main ###
 
 def create_argparse() -> argparse.ArgumentParser:
     """Create Argument Parser"""  #{{{
@@ -215,7 +252,7 @@ def create_argparse() -> argparse.ArgumentParser:
                 formatter_class=argparse.RawTextHelpFormatter,
                 description="PrimeTime Report Analysis")
 
-    subparsers = parser.add_subparsers(dest='proc_mode', required=True, help="select one of process modes.")
+    subparsers = parser.add_subparsers(dest='proc_mode', required=True, help="select one of process modes.\n ")
     parser.add_argument('-version', action='version', version=VERSION)
     parser.add_argument('-ge', dest='ge', metavar='<value>', type=float, default=None, help="slack is greater than or equal to <value>")
     parser.add_argument('-le', dest='le', metavar='<value>', type=float, default=None, help="slack is less than or equal to <value>")
@@ -224,7 +261,7 @@ def create_argparse() -> argparse.ArgumentParser:
 
     # report_constraint brief
     parser_cons = subparsers.add_parser('cons', help="Summary of report_constraint\n" + 
-                                                     "  --command: 'report_cons -all_vio -path end'\n ")
+                                                     "  --command: 'report_cons -all_vio -path end'")
     parser_cons.add_argument('rpt_fn', help="report path (left or base)") 
     parser_cons.add_argument('rpt_fn2', nargs='?', help="report path (right for compare)") 
     parser_cons.add_argument('-s', dest='tag', metavar='<pattern>', help="filter by scenario full/partial name") 
@@ -232,6 +269,11 @@ def create_argparse() -> argparse.ArgumentParser:
     # report_timing brief
     parser_time = subparsers.add_parser('time', help="Brief report of report_timing\n" +
                                                      "  --command: 'report_timing'")
+    parser_time.add_argument('rpt_fn', help="report_path") 
+
+    # report_noise brief
+    parser_time = subparsers.add_parser('nois', help="Brief report of report_noise\n" +
+                                                     "  --command: 'report_noise'")
     parser_time.add_argument('rpt_fn', help="report_path") 
 
     return parser
@@ -255,9 +297,11 @@ def main():
 
     if args.proc_mode == 'cons':
         rpt_fps = [args.rpt_fn, args.rpt_fn2] if args.rpt_fn2 else [args.rpt_fn]
-        report_cons_summary(rpt_fps, value_clamp, args.tag)
+        report_cons_brief(rpt_fps, value_clamp, args.tag)
     elif args.proc_mode == 'time':
         report_time_brief(args.rpt_fn)
+    elif args.proc_mode == 'nois':
+        report_noise_brief(args.rpt_fn)
 #}}}
 
 if __name__ == '__main__':
