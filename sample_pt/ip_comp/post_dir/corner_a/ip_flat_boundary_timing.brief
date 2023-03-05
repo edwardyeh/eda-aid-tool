@@ -1,0 +1,14 @@
+## comment
+
+chip_top10/i_ip10/i_apll/CPU_PU, 37.3733, (, INFINITY, ), <in|i2s2_bclk|chip_top10/i_ip10/i_apll/xin_fix>
+chip_top10/i_ip10/i_apll/DDS_DOUT[0], 11.3441, (, -0.7228, ), <out|apll_hi_wen|p1_pclk>
+chip_top10/i_ip10/i_apll/HI_ADDR_OUT[0], 14.0312, (, 3.2609, ), <out|p1_pclk|p1_pclk>
+chip_top10/i_ip10/i_apll/HI_WDATA_OUT[2], 10.7185, (, 1.799, ), <out|p1_pclk|apll_hi_wen>
+chip_top10/i_ip10/i_apll/HI_WDATA_OUT[4], 10.9333, (, 1.6108, ), <out|p1_pclk|apll_hi_wen>
+chip_top11/i_ip11/i_combphy/CS[0], 4.3202, (, 1.1935, ), <out|comb_clk|comb_clk>
+chip_top11/i_ip11/i_combphy/FORCE_1P5G, 13.1041, (, -0.6817, ), <out|p11_pclk|p11_pclk>
+chip_top11/i_ip11/i_combphy/FORCE_3G, 12.9424, (, -0.5201, ), <out|p11_pclk|p11_pclk>
+chip_top11/i_ip11/i_sataphy_refclk_en, 7.4532, (, -0.2309, ), <out|pllref_clk|chip_top11/i_ip11/i_mpll/REFCLK_OUT>
+chip_top11/i_ip11/i_sataphy_refclk_en2, 7.4532, (, 0.2309, ), <out|pllref_clk|chip_top11/i_ip11/i_mpll/REFCLK_OUT>
+chip_top11/i_ip11/i_sim_rtc/rd_sel, 37.354, (, INFINITY, ), <in|i2s2_bclk|rtc32k_ana_clk>
+chip_top11/i_ip11/i_sim_rtc/rd_sel2, 37.354, (, INFINITY, ), <in|i2s2_bclk|rtc32k_ana_clk>

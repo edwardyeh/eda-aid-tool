@@ -1,0 +1,14 @@
+## comment
+
+chip_top10/i_ip10/i_apll/CPU_PU, 37.3753, (, INFINITY, ), <in|i2s2_bclk|NA>
+chip_top10/i_ip10/i_apll/DDS_DOUT[0], 13.7006, (, 3.3468, ), <out|pclk_io_cons_clk|pclk_io_cons_clk>
+chip_top10/i_ip10/i_apll/HI_ADDR_OUT[0], 13.8263, (, 3.2253, ), <out|p1_pclk|p1_pclk>
+chip_top10/i_ip10/i_apll/HI_WDATA_OUT[2], 10.2854, (, 1.7991, ), <out|p1_pclk|apll_hi_wen>
+chip_top10/i_ip10/i_apll/HI_WDATA_OUT[4], 10.4951, (, 1.6231, ), <out|p1_pclk|apll_hi_wen>
+chip_top11/i_ip11/i_combphy/CS[0], 4.3814, (, 1.084, ), <out|comb_clk|comb_clk>
+chip_top11/i_ip11/i_combphy/FORCE_1P5G, 6.2256, (, 0.361, ), <out|comb_clk|comb_clk>
+chip_top11/i_ip11/i_combphy/FORCE_3G, 6.0954, (, 0.4277, ), <out|comb_clk|comb_clk>
+chip_top11/i_ip11/i_sataphy_refclk_en, 7.3138, (, INFINITY, ), <out|pllref_clk|pll25_clk>
+chip_top11/i_ip11/i_sataphy_refclk_en2, 7.3138, (, INFINITY, ), <out|pllref_clk|pll25_clk>
+chip_top11/i_ip11/i_sim_rtc/rd_sel, 8.218, (, -0.6375, ), <in|p11_pclk|p11_pclk>
+chip_top11/i_ip11/i_sim_rtc/rd_sel2, 8.218, (, 0.6375, ), <in|p11_pclk|p11_pclk>

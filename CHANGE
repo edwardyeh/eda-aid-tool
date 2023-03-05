@@ -107,3 +107,7 @@ v0.16.0:
 v0.17.0:
 
     para_axis_calc: add the new tool.
+
+v0.18.0:
+
+   ip_flat_cmp: add the new tools. 
