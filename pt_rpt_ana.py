@@ -40,8 +40,10 @@ def report_cons_brief(rpt_fps: list, value_clamp: dict, tag: str):
     )
 
     group_vio = ('max_delay/setup', 'min_delay/hold')
-    pulse_width_vio = ('clock_tree_pulse_width', 'sequential_tree_pulse_width')
-    clk_period_vio = ('sequential_clock_min_period')
+    # pulse_width_vio = ('clock_tree_pulse_width', 'sequential_tree_pulse_width')
+    # clk_period_vio = ('sequential_clock_min_period')
+    pulse_width_vio = tuple()
+    clk_period_vio = tuple()
 
     IDLE, POS, REC1, REC2, REC3 = tuple(range(5))
 
