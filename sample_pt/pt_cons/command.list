@@ -1,0 +1,43 @@
+
+=== Environment Command ====================================
+
+grp_col_width: <size>                   # set group column width
+
+=== Instance Choose (Violation Report) =====================
+
+i:<sect>:<group>:<rid>:<path>           # choose the specific instances
+                                          <rid> = 0-left, 1-right, 2-all
+
+ir:<sect>:<group>:<rid>:<regex>         # use regular expression to choose instances
+                                          <rid> = 0-left, 1-right, 2-all
+
+=== Instance Operation =====================================
+
+<inst_path> s:<value>                   # add slack offset to the specific instances
+<inst_path> r                           # reserve the instance
+<inst_path> d                           # remove the instance
+
+<inst_path> r:<condition>               # condition reserve/remove:
+<inst_path> d:<condition>                   - condition format : <target><operation><value>
+                                            - target           : slk (slack)
+                                            - operation        : >, <, ==, >=, <=
+                                            - value type       : int or float
+
+## The priority of the command: s > r > d
+
+=== Group Choose (Summary Report) ==========================
+
+g:<sect>:<group>:<rid>                  # choose the specific group
+                                          <rid> = 0-left, 1-right, 2-diff
+
+gr:<sect>:<regex>:<rid>                 # use regular expression to choose group
+                                          <rid> = 0-left, 1-right, 2-diff
+
+=== Group Operation (Summary) ==============================
+
+<group> w:<codition>                    # threshould alarm:
+                                            - condition format : <target><operation><value>
+                                            - target           : wns, tns, nvp
+                                            - operation        : >, <, ==, >=, <=
+                                            - value type       : int or float
+
