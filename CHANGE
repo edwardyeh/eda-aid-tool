@@ -125,3 +125,6 @@ v0.20.0
         3. Support path slack offset.
         4. Support summary threshold alarm.
 
+v0.20.1
+
+    Fix version number.
