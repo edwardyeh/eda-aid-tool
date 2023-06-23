@@ -128,3 +128,9 @@ v0.20.0
 v0.20.1
 
     Fix version number.
+
+v0.20.2
+
+    pt_rpt_ana (cons mode):
+        1. fix clock violation summary.
+

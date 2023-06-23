@@ -39,6 +39,12 @@ vio_types = (
     'clock_tree_pulse_width', 'sequential_tree_pulse_width', 'sequential_clock_min_period'
 )
 
+clk_vio = (
+    'clock_tree_pulse_width', 
+    'sequential_tree_pulse_width', 
+    'sequential_clock_min_period'
+)
+
 group_vio = ('max_delay/setup', 'min_delay/hold')
 #}}}
 
@@ -243,7 +249,7 @@ def report_cons_brief(rpt_fps: list, cfg_fp: str):
     else:
         grp_col_w, cons_cfg = 50, {'g': {}, 'p': {}}
 
-    IDLE, POS, VT1 = range(3)
+    IDLE, POS, VT1, VT2 = range(4)
     is_multi = len(rpt_fps) > 1
     stage, summary = IDLE, {}
 
@@ -255,23 +261,32 @@ def report_cons_brief(rpt_fps: list, cfg_fp: str):
 
         for line in f:
             toks = line.split()
+            toks_len = len(toks)
 
-            if stage == IDLE and len(toks) and toks[0] in vio_types:
+            if stage == IDLE and toks_len and toks[0] in vio_types:
                 stage, vtype, wns, tns, nvp = POS, toks[0], 0.0, 0.0, 0
                 group = toks[1][2:-1] if vtype in group_vio else vtype
                 item = []
 
-            elif stage == POS and len(toks) and toks[0].startswith('---'):
-                vtype_dict = summary.setdefault(vtype, {})
-                if is_multi:
-                    group_list = vtype_dict.setdefault(group, [(0.0, 0.0, 0), (0.0, 0.0, 0)])
+            elif stage == POS and toks_len:
+                if toks[0].startswith('---'):
+                    vtype_dict = summary.setdefault(vtype, {})
+
+                    if vtype in clk_vio and pre_toks_len == 7:
+                        stage = VT2
+                        group = ""
+                    else:
+                        stage = VT1 
+                        if is_multi:
+                            group_list = vtype_dict.setdefault(group, [(0.0, 0.0, 0), (0.0, 0.0, 0)])
+                        else:
+                            group_list = vtype_dict.setdefault(group, [(0.0, 0.0, 0)])
                 else:
-                    group_list = vtype_dict.setdefault(group, [(0.0, 0.0, 0)])
-                stage = VT1 
+                    pre_toks_len = toks_len
 
             elif stage == VT1:
-                ## type1: <endpoint> [scenario] <required delay> <actual delay> <slack>
-                if len(toks):
+                ## type: <endpoint> [scenario] <required delay> <actual delay> <slack>
+                if toks_len:
                     item.extend(toks)
                     if item[-1] == '(VIOLATED)':
                         is_active, slack = True, float(item[-2])
@@ -308,6 +323,63 @@ def report_cons_brief(rpt_fps: list, cfg_fp: str):
                         item = []
                 else:
                     group_list[fid] = (wns, tns, nvp)
+                    stage = IDLE
+
+            elif stage == VT2:
+                ## type: <endpoint> [scenario] <required delay> <actual delay> <slack> <clock>
+                if toks_len:
+                    item.extend(toks)
+                    if item[-2] == '(VIOLATED)':
+                        if group != item[-1]:
+                            if group != "":
+                                group_list[fid][0] += wns
+                                group_list[fid][1] += tns
+                                group_list[fid][2] += nvp
+                                wns, tns, nvp = 0.0, 0.0, 0
+
+                            group = item[-1]
+
+                            if is_multi:
+                                group_list = vtype_dict.setdefault(group, [[0.0, 0.0, 0], [0.0, 0.0, 0]])
+                            else:
+                                group_list = vtype_dict.setdefault(group, [[0.0, 0.0, 0]])
+
+                        is_active, slack = True, float(item[-3])
+
+                        if len(cons_cfg['p']):
+                            tag = f'{vtype}:{group}:{item[0]}'
+                            if is_active and tag in cons_cfg['p']:
+                                is_active, slack = ins_cons_check(slack, cons_cfg['p'][tag][fid])
+
+                            tag = f'{vtype}::{item[0]}'
+                            if is_active and tag in cons_cfg['p']:
+                                is_active, slack = ins_cons_check(slack, cons_cfg['p'][tag][fid])
+
+                            tag = f'{vtype}:{group}:'
+                            if is_active and tag in cons_cfg['p']:
+                                for ipat, inst_list in cons_cfg['p'][tag].items():
+                                    if re.fullmatch(ipat, item[0]):
+                                        is_active, slack = ins_cons_check(slack, inst_list[fid])
+                                        break
+
+                            tag = f'{vtype}::'
+                            if is_active and tag in cons_cfg['p']:
+                                for ipat, inst_list in cons_cfg['p'][tag].items():
+                                    if re.fullmatch(ipat, item[0]):
+                                        is_active, slack = ins_cons_check(slack, inst_list[fid])
+                                        break
+
+                        if is_active:
+                            tns += slack 
+                            nvp += 1
+                            if slack < wns:
+                                wns = slack
+
+                        item = []
+                else:
+                    group_list[fid][0] += wns
+                    group_list[fid][1] += tns
+                    group_list[fid][2] += nvp
                     stage = IDLE
 
         f.close()
