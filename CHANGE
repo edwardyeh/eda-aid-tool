@@ -132,5 +132,9 @@ v0.20.1
 v0.20.2
 
     pt_rpt_ana (cons mode):
-        1. fix clock violation summary.
+        1. Fix clock violation summary.
 
+v0.21.0:
+
+    ip_flat_cmp.py:
+        1. Support local config. 

@@ -9,6 +9,7 @@
 
 import argparse 
 import gzip
+import importlib
 import os
 import re
 import sys
@@ -22,7 +23,7 @@ from .utils.general import VERSION
 
 ### Global Setting ###   {{{
 
-IP_FLAT_RPT_NAME = 'ip_flat_boundary_timing.brief'
+IP_FLAT_RPT_NAME = 'ip_boundary_timing.brief'
 
 CORNER_MAP = {
     'NORMAL_FFGNP_0p88v_125c_CBEST_125c_HOLD_'      : '0p88v_cbest_125c_hold',
@@ -106,6 +107,43 @@ CHK_RSV = CellIsRule(operator='==', formula=['"c"'], font=YELLOW_FONT1, fill=YEL
 #}}}
 
 ### Function ###
+
+def load_cfg(cfg_fn: str):
+    """Load Tool Config"""  #{{{
+    global CORNER_MAP
+    global STATUS_FORMULA
+    global FATAL_CHK
+    global HELP_MSG
+
+    cfg_mod = Path(cfg_fn).stem
+
+    sys.path.insert(0, '')
+    try:
+        config = importlib.import_module(cfg_mod)
+    except ModuleNotFoundError:
+        print(f"ModuleNotFoundError: Please create '{cfg_mod}' module in current directory")
+        exit(1)
+
+    try:
+        CORNER_MAP = config.CORNER_MAP
+    except AttributeError:
+        pass
+
+    try:
+        STATUS_FORMULA = config.STATUS_FORMULA
+    except AttributeError:
+        pass
+
+    try:
+        FATAL_CHK = config.FATAL_CHK
+    except AttributeError:
+        pass
+
+    try:
+        HELP_MSG = config.HELP_MSG
+    except AttributeError:
+        pass
+#}}}
 
 def load_timing_report(rpt_fp, col_sz: list) -> dict:
     """Load Timing Report"""  #{{{
@@ -403,6 +441,8 @@ def create_argparse() -> argparse.ArgumentParser:
     parser.add_argument('-version', action='version', version=VERSION)
     parser.add_argument('-d', dest='is_dmsa', action='store_true', 
                                 help="DMSA mode enable (default: single mode)")
+    parser.add_argument('-c', dest='cfg_fn', metavar='<filename>', type=str, 
+                                help=f"load custom module")
     parser.add_argument('-u', dest='user_fn', metavar='<filename>', type=str, 
                                 help=f"user check setting")
     parser.add_argument('-r', dest='rpt_fn', metavar='<filename>', type=str, default=IP_FLAT_RPT_NAME, 
@@ -427,6 +467,9 @@ def main():
         if input(f"{out_fn} existed, overwrite? (y/n) ").lower() != 'y':
             print('Terminal')
             return 
+
+    if args.cfg_fn is not None:
+        load_cfg(args.cfg_fn)
 
     post_dir = Path(args.post_flat_dir)
     pre_dir = Path(args.pre_flat_dir)
