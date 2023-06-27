@@ -272,7 +272,7 @@ def report_cons_brief(rpt_fps: list, cfg_fp: str):
                 if toks[0].startswith('---'):
                     vtype_dict = summary.setdefault(vtype, {})
 
-                    if vtype in clk_vio and pre_toks_len == 7:
+                    if vtype in clk_vio and toks[-1] == 'Clock':
                         stage = VT2
                         group = ""
                     else:
@@ -476,8 +476,36 @@ def report_cons_brief(rpt_fps: list, cfg_fp: str):
 
 ### Function for 'report_time' ###
 
-def report_time_brief(rpt_fp):
+def load_time_cfg(cfg_fp) -> dict:
+    """Load Configuration for Time Mode"""  #{{{
+    #
+    # Config Data Structure:
+    #
+    # cons_cfg = {
+    #   'ps': [(tag1, regex_pattern1), (tag2, regex_pattern2), ...]
+    # }
+    #
+    cons_cfg = {}
+
+    with open(cfg_fp, 'r') as f:
+        for ln_no, line in enumerate(f.readlines(), start=1):
+            line = line.split('#')[0].strip()
+            if line != "":
+                try:
+                    if line.startswith('ps:'):
+                        tag, pat = line[3:].split()
+                        cons_cfg.setdefault('ps', []).append((tag, re.compile(pat)))
+                except SyntaxError:
+                    raise SyntaxError(f"config syntax error (ln:{ln_no})")
+#}}}
+
+def report_time_brief(rpt_fp, is_all: bool, cfg_fp: str):
     """Brief Report for 'report_timing'"""  #{{{
+    if cfg_fp is not None:
+        cons_cfg = load_time_cfg(cfg_fp)
+    else:
+        cons_cfg = None
+
     if os.path.splitext(rpt_fp)[1] == '.gz':
         f = gzip.open(rpt_fp, mode='rt')
     else:
@@ -489,9 +517,8 @@ def report_time_brief(rpt_fp):
     print("Group  Type  Slack  Endpoint  Startpoint")
     print("==================================================")
 
-    ln_no = 0
-    for line in f:
-        ln_no += 1
+    ln_no, line = 1, f.readline()
+    while line:
         if stage == ST and line[:13] == "  Startpoint:":
             path['start'] = line[14:-1]
             path['no'] = ln_no
@@ -504,13 +531,49 @@ def report_time_brief(rpt_fp):
             stage = TY
         elif stage == TY and line[:12] == "  Path Type:":
             path['type'] = line.split()[2]
-            stage = SL
+            # is_path_st, is_path_ed = False, False
+            # cur_sect, sect_lat = "", []
         elif stage == SL and line[:9] == "  slack (":
             stage = ST
             toks = line.split()
-            if toks[1] != '(MET)':
+            if toks[1] != '(MET)' or is_all:
                 print(path['group'], path['type'], toks[-1], path['end'], path['start'], end='')
                 print(" line:{}".format(path['no']))
+        # elif stage == SL and cons_cfg is not None and not is_path_ed:
+        #     if not is_path_st:
+        #         if line.startswith(path['start']):
+        #             is_path_st = True
+        #         else:
+        #             continue
+
+        #     if line.startswith("data arrival time"):
+        #         is_path_ed = True
+        #         sect_lat.append((cur_sect, float(line.strip().split()[-1])))
+        #         continue
+
+        #     toks = line.strip().split()
+        #     if len(toks) == 2:
+        #         toks.extend(f.readline().strip().split())
+        #         if toks[1] == "(net)":
+        #             continue
+
+        #     is_match = False
+        #     for tag, path_re in cons_cfg['ps']:
+        #         if path_re.match(toks[0]):
+        #             is_match = True
+        #             continue
+
+        #     if is_match:
+        #         if cur_sect != "" and cur_sect != tag:
+        #             sect_lat.append((cur_sect, float(toks[-2])))
+        #         cur_sect = tag
+        #     else:
+        #         if cur_sect != "" and cur_sect != 'U':
+        #             sect_lat.append((cur_sect, float(toks[-2])))
+        #         cur_sect = 'U'
+
+        ln_no += 1
+        line = f.readline()
 
     f.close()
 #}}}
@@ -569,11 +632,15 @@ def create_argparse() -> argparse.ArgumentParser:
     parser_cons.add_argument('rpt_fp', help="report path (left or base)") 
     parser_cons.add_argument('rpt_fp2', nargs='?', help="report path (right for compare)") 
     parser_cons.add_argument('-c', dest='cfg_fp', metavar='<config>', 
-                                   help="custom configureation file") 
+                                    help="custom configureation file") 
 
     # report_timing brief
     parser_time = subparsers.add_parser('time', help="Brief report of report_timing\n" +
                                                      "  --command: 'report_timing'")
+    parser_time.add_argument('-a', dest='is_all', action='store_true', 
+                                    help="show timing meet path (default: only violation path)")
+    parser_time.add_argument('-c', dest='cfg_fp', metavar='<config>', 
+                                    help="custom configureation file") 
     parser_time.add_argument('rpt_fp', help="report_path") 
 
     # report_noise brief
@@ -593,7 +660,7 @@ def main():
         rpt_fps = [args.rpt_fp, args.rpt_fp2] if args.rpt_fp2 else [args.rpt_fp]
         report_cons_brief(rpt_fps, args.cfg_fp)
     elif args.proc_mode == 'time':
-        report_time_brief(args.rpt_fp)
+        report_time_brief(args.rpt_fp, args.is_all, args.cfg_fp)
     elif args.proc_mode == 'nois':
         report_noise_brief(args.rpt_fp)
 #}}}

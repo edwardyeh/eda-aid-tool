@@ -138,3 +138,11 @@ v0.21.0:
 
     ip_flat_cmp.py:
         1. Support local config. 
+
+v0.22.0
+
+    pt_rpt_ana (cons mode):
+        1. Fix bugs.
+
+    pt_rpt_ana (time mode):
+        1. Add MET path display option.
