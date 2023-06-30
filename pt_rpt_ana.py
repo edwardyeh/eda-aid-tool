@@ -272,7 +272,7 @@ def report_cons_brief(rpt_fps: list, cfg_fp: str):
                 if toks[0].startswith('---'):
                     vtype_dict = summary.setdefault(vtype, {})
 
-                    if vtype in clk_vio and toks[-1] == 'Clock':
+                    if vtype in clk_vio and pre_toks[-1] == 'Clock':
                         stage = VT2
                         group = ""
                     else:
@@ -282,7 +282,7 @@ def report_cons_brief(rpt_fps: list, cfg_fp: str):
                         else:
                             group_list = vtype_dict.setdefault(group, [(0.0, 0.0, 0)])
                 else:
-                    pre_toks_len = toks_len
+                    pre_toks = toks.copy()
 
             elif stage == VT1:
                 ## type: <endpoint> [scenario] <required delay> <actual delay> <slack>
