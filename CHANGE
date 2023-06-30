@@ -146,3 +146,9 @@ v0.22.0
 
     pt_rpt_ana (time mode):
         1. Add MET path display option.
+
+v0.22.1
+
+    fix(pt_rpt_ana): fix cons mode issue
+
+    1. Make clock pulse width check summary fail.
