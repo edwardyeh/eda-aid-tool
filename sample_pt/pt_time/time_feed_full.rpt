@@ -1,0 +1,76 @@
+****************************************
+Report : timing
+        -path_type full
+        -delay_type max
+        -input_pins
+        -nets
+        -max_paths 1
+        -transition_time
+        -capacitance
+        -show_delta
+        -derate
+        -pba_mode exhaustive
+        -sort_by slack
+Design : design
+Version: XXXX
+Date   : XXXX
+****************************************
+
+Startpoint: chip_top1/module1_A/data_reg_2_0_
+             (rise edge-triggered flip-flop clocked by pclk)
+Endpoint: chip_top3/module3_A/recv_reg (rise edge-triggered flip-flop clocked by pclk)
+Path Group: pclk
+Path Type: max
+
+Point                Fanout       Cap    DTrans     Trans    Derate    Delta     Incr      Path
+------------------------------------------------------------------------------------------------------
+clock pclk (rise edge)                                                         0.0000    0.0000
+clock network delay (propagated)                                               0.1000    0.1000
+input external delay                                                           0.2000    0.3000
+MC14 (inout)                                                                   0.0000 &  0.3000 f 
+MC14 (net)              1      1.5154
+chip_top1/module1_A/u_mc14/PAD (SDIO_H)  0.0000    0.0001   1.0600    0.0000   0.0000 &  0.3000 f
+chip_top1/module1_A/u_mc14/C (SDIO_H)              0.0701   1.0830             0.0222 &  0.3222 f
+chip_top1/module1_A/n100 (net)
+                        1      0.0011
+chip_top1/buf1/I (BUF)
+                                         0.0000    0.0455   1.0600    0.0010   0.0004 &  0.3226 r
+chip_top1/buf1/Z (BUF)
+                                                   0.0160   1.0478             0.0160 &  0.3386 r
+chip_top1/n101 (net)
+                        2      0.0033
+chip_top2/IO_BUF_C2/I (BUF)
+                                         0.0010    0.0161   1.0600    0.0009   0.0010 &  0.3396 r
+chip_top2/IO_BUF_C2/Z (BUF)
+                                                   0.0459   1.0365             0.0200 &  0.3596 r
+chip_top2/n201 (net)
+                        1      0.0338
+chip_top3/IO_BUF_C3/I (BUF)
+                                         0.0020    0.0510   1.0600    0.0020   0.0109 &  0.3705 r
+chip_top3/IO_BUF_C3/Z (BUF)
+                                                   0.0416   1.0388             0.0364 &  0.3596 r
+chip_top3/n301 (net)
+                        1      0.0100
+chip_top3/u_mc19/I (SDIO_V)              0.0753    0.2215   1.0600    0.0174   0.0479 &  0.4075 f
+chip_top3/u_mc19/PAD (SDIO_V)                      2.8712   1.0830             0.0400 &  0.4475 f
+chip_top3/MC19 (net)    1      1.5155
+MC19 (inout)                             0.0000    0.4312   1.0600    0.0000   0.0000 &  0.4475 f 
+MC19 (net)              1         
+data arrival time                                                                        0.4475
+
+clock pclk (rise edge)                                                         1.0417    1.0417
+clock network delay (propagated)                                               0.0900    1.1317 
+clock reconvergence pessimism                                                  0.0300    1.1617
+clock uncertainty                                                             -0.1050    1.0567
+output external delay                                                         -0.1000    0.9567
+data required time                                                                       0.9567
+------------------------------------------------------------------------------------------------------
+data required time                                                                       0.9567
+data arrival time                                                                       -0.4475
+------------------------------------------------------------------------------------------------------
+slack (MET)                                                                              0.5092 
+
+
+
+
+
