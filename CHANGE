@@ -157,3 +157,13 @@ v0.24.0
 
     pt_rpt_ana:
         1. Add time2 mode
+
+v0.24.1
+
+    pt_rpt_ana:
+        1. Fix issue for time mode.
+        2. Remove redundant code.
+
+    TCL script:
+        1. Add PT user script.
+

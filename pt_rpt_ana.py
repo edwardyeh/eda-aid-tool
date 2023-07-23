@@ -523,28 +523,29 @@ def report_time_brief(rpt_fp, is_all: bool, cfg_fp: str):
     print("Group  Type  Slack  Endpoint  Startpoint")
     print("==================================================")
 
-    ln_no, line = 1, f.readline()
-    while line:
-        if stage == ST and line[:13] == "  Startpoint:":
-            path['start'] = line[14:-1]
-            path['no'] = ln_no
+    line, no = f.readline(), 1
+    while line != "":
+        line = line.lstrip()
+        if stage == ST and line[:11] == "Startpoint:":
+            path['start'] = line.split()[1]
+            path['no'] = no
             stage = ED 
-        elif stage == ED and line[:11] == "  Endpoint:":
-            path['end'] = line[12:-1]
+        elif stage == ED and line[:9] == "Endpoint:":
+            path['end'] = line.split()[1]
             stage = GR
-        elif stage == GR and line[:13] == "  Path Group:":
-            path['group'] = line[14:-1]
+        elif stage == GR and line[:11] == "Path Group:":
+            path['group'] = line.split()[2]
             stage = TY
-        elif stage == TY and line[:12] == "  Path Type:":
+        elif stage == TY and line[:10] == "Path Type:":
             path['type'] = line.split()[2]
-        elif stage == SL and line[:9] == "  slack (":
-            stage = ST
-            toks = line.split()
+            stage = SL
+        elif stage == SL and line[:7] == "slack (":
+            toks = line.rstrip().split()
             if toks[1] != '(MET)' or is_all:
                 print(path['group'], path['type'], toks[-1], path['end'], path['start'], end='')
                 print(" line:{}".format(path['no']))
-        ln_no += 1
-        line = f.readline()
+            stage = ST
+        line, no = f.readline(), no + 1
     f.close()
 #}}}
 
@@ -579,6 +580,92 @@ def parse_time_rpt(rpt_fp, prange_list: list) -> dict:
 
     fp.close()
     return time_rpt_dict
+#}}}
+
+def report_time_detail(args, prange_list: list):
+    """Detial Time Path Analysis"""  #{{{
+    time_rpt_dict = parse_time_rpt(args.rpt_fp, prange_list)
+
+    if args.cfg_fp is not None:
+        cons_cfg = load_time_cfg(args.cfg_fp)
+    else:
+        cons_cfg = {}
+
+    if args.is_debug:
+        print("opt: {}".format(time_rpt_dict['opt']))
+        for path in time_rpt_dict['path']:
+            for key, val in path.items():
+                if key == 'lpath' or key == 'cpath':
+                    for cell in val:
+                        print("{}: {}".format(key, cell))
+                else:
+                    print("{}: {}".format(key, val))
+    else:
+        for path in time_rpt_dict['path']:
+            splen = len(spath:=path['spin'])
+            if (plen:=len(epath:=path['lpath'][-1][PT])) < splen:
+                plen = splen
+
+            print()
+            print(" {}".format("=" * 60))
+            if plen > 80:
+                print(" Startpoint: {}".format(spath))
+                print("             ({} {})".format(path['sed'], path['sck']))
+                print(" Endpoint:   {}".format(epath))
+                print("             ({} {})".format(path['eed'], path['eck']))
+            else:
+                print(" Startpoint: {} ({} {})".format(spath.ljust(plen), path['sed'], path['sck']))
+                print(" Endpoint:   {} ({} {})".format(epath.ljust(plen), path['eed'], path['eck']))
+            print(" Path group: {}".format(path['grp']))
+            print(" Delay type: {}".format(path['type']))
+            print(" {}".format("=" * 60))
+            print(" data latency:             {: 5.4f}".format(path['arr'] - path['slat'] - path['sev']))
+            print(" arrival:                  {: 5.4f}".format(path['arr']))
+            print(" required:                 {: 5.4f}".format(path['req']))
+            print(" slack:                    {: 5.4f}".format(path['slk']))
+            print(" {}".format("=" * 60))
+            print(" launch clock edge value:  {: 5.4f}".format(path['sev']))
+            print(" capture clock edge value: {: 5.4f}".format(path['eev']))
+            print(" launch clock latency:     {: 5.4f}".format(path['slat']))
+            print(" capture clock latency:    {: 5.4f}".format(path['elat']))
+            print(" crpr:                     {: 5.4f}".format(path['crpr']))
+            print(" clock skew:               {: 5.4f}".format(path['slat'] - path['elat'] - path['crpr']))
+            print(" {}".format("=" * 60))
+
+            if args.is_delta:
+                if 'ddt' in path:
+                    print(" data delta:               {: 5.4f}".format(path['ddt']))
+                else:
+                    print(" data delta:                N/A")
+                if 'sdt' in path:
+                    print(" launch clock delta:       {: 5.4f}".format(path['sdt']))
+                else:
+                    print(" launch clock delta:        N/A")
+                if 'edt' in path:
+                    print(" capture clock delta:      {: 5.4f}".format(path['edt']))
+                else:
+                    print(" capture clock delta:       N/A")
+                print(" {}".format("=" * 60))
+
+            if args.cfg_fp is not None and 'ps' in cons_cfg:
+                show_path_segment(path, time_rpt_dict['opt'], cons_cfg)
+            print()
+
+    if args.bar is not None:
+        if len(args.bar):
+            bar_opt = set(args.bar)
+        else:
+            bar_opt = set(['p','c','t','d','i'])
+
+        if args.path_type is None or len(args.path_type) == 0:
+            path_type = set(['f', 'd'])
+        else:
+            path_type = set(args.path_type)
+            if 'f' in path_type:
+                path_type.add('d')
+
+        show_time_bar(time_rpt_dict['path'][0], time_rpt_dict['opt'], cons_cfg, 
+                      bar_opt, path_type, args.is_rev)
 #}}}
 
 def get_time_opt_set(fp) -> tuple:
@@ -809,33 +896,6 @@ def get_time_path(fp, no: int, opt_set: set) -> tuple:
     return no, time_path, is_eof
 #}}}
 
-def get_time_port(opt_set: set, toks: list, path: list, ptype: str) -> int:
-    """Get Time Port"""  #{{{
-    path[TYPE] = ptype
-    path[PT], cid = toks[0], -1
-    if 'phy' in opt_set:
-        try:
-            path[PHY] = [int(x) for x in toks[cid][1:-1].split(',')]
-        except ValueError:
-            pass
-        cid -= 2
-    else:
-        cid -= 1
-
-    path[PATH], cid = float(toks[cid]), cid - 1
-    if toks[cid] in ANNO_SYM:
-        cid -= 1
-
-    path[INCR], cid = float(toks[cid]), cid - 1
-    if 'tran' in opt_set:
-        path[TRAN], cid = float(toks[cid]), cid - 1
-    if 'cap' in opt_set and 'net' not in opt_set:
-        try:
-            path[CAP] = float(toks[cid])
-        except ValueError:
-            pass
-#}}}
-
 def get_time_cell(opt_set: set, path_cols: list, toks: list, path: list, start_col: int):
     """Get Time Cell"""  #{{{
     cid, cpos = start_col, 0
@@ -867,92 +927,6 @@ def get_time_cell(opt_set: set, path_cols: list, toks: list, path: list, start_c
     except ValueError:
         pass
     # import pdb; pdb.set_trace()
-#}}}
-
-def report_time_detail(args, prange_list: list):
-    """Detial Time Path Analysis"""  #{{{
-    time_rpt_dict = parse_time_rpt(args.rpt_fp, prange_list)
-
-    if args.cfg_fp is not None:
-        cons_cfg = load_time_cfg(args.cfg_fp)
-    else:
-        cons_cfg = {}
-
-    if args.is_debug:
-        print("opt: {}".format(time_rpt_dict['opt']))
-        for path in time_rpt_dict['path']:
-            for key, val in path.items():
-                if key == 'lpath' or key == 'cpath':
-                    for cell in val:
-                        print("{}: {}".format(key, cell))
-                else:
-                    print("{}: {}".format(key, val))
-    else:
-        for path in time_rpt_dict['path']:
-            splen = len(spath:=path['spin'])
-            if (plen:=len(epath:=path['lpath'][-1][PT])) < splen:
-                plen = splen
-
-            print()
-            print(" {}".format("=" * 60))
-            if plen > 80:
-                print(" Startpoint: {}".format(spath))
-                print("             ({} {})".format(path['sed'], path['sck']))
-                print(" Endpoint:   {}".format(epath))
-                print("             ({} {})".format(path['eed'], path['eck']))
-            else:
-                print(" Startpoint: {} ({} {})".format(spath.ljust(plen), path['sed'], path['sck']))
-                print(" Endpoint:   {} ({} {})".format(epath.ljust(plen), path['eed'], path['eck']))
-            print(" Path group: {}".format(path['grp']))
-            print(" Delay type: {}".format(path['type']))
-            print(" {}".format("=" * 60))
-            print(" data latency:             {: 5.4f}".format(path['arr'] - path['slat'] - path['sev']))
-            print(" arrival:                  {: 5.4f}".format(path['arr']))
-            print(" required:                 {: 5.4f}".format(path['req']))
-            print(" slack:                    {: 5.4f}".format(path['slk']))
-            print(" {}".format("=" * 60))
-            print(" launch clock edge value:  {: 5.4f}".format(path['sev']))
-            print(" capture clock edge value: {: 5.4f}".format(path['eev']))
-            print(" launch clock latency:     {: 5.4f}".format(path['slat']))
-            print(" capture clock latency:    {: 5.4f}".format(path['elat']))
-            print(" crpr:                     {: 5.4f}".format(path['crpr']))
-            print(" clock skew:               {: 5.4f}".format(path['slat'] - path['elat'] - path['crpr']))
-            print(" {}".format("=" * 60))
-
-            if args.is_delta:
-                if 'ddt' in path:
-                    print(" data delta:               {: 5.4f}".format(path['ddt']))
-                else:
-                    print(" data delta:                N/A")
-                if 'sdt' in path:
-                    print(" launch clock delta:       {: 5.4f}".format(path['sdt']))
-                else:
-                    print(" launch clock delta:        N/A")
-                if 'edt' in path:
-                    print(" capture clock delta:      {: 5.4f}".format(path['edt']))
-                else:
-                    print(" capture clock delta:       N/A")
-                print(" {}".format("=" * 60))
-
-            if args.cfg_fp is not None and 'ps' in cons_cfg:
-                show_path_segment(path, time_rpt_dict['opt'], cons_cfg)
-            print()
-
-    if args.bar is not None:
-        if len(args.bar):
-            bar_opt = set(args.bar)
-        else:
-            bar_opt = set(['p','c','t','d','i'])
-
-        if args.path_type is None or len(args.path_type) == 0:
-            path_type = set(['f', 'd'])
-        else:
-            path_type = set(args.path_type)
-            if 'f' in path_type:
-                path_type.add('d')
-
-        show_time_bar(time_rpt_dict['path'][0], time_rpt_dict['opt'], cons_cfg, 
-                      bar_opt, path_type, args.is_rev)
 #}}}
 
 def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
