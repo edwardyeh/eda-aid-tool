@@ -938,18 +938,6 @@ def report_time_detail(args, prange_list: list):
                 show_path_segment(path, time_rpt_dict['opt'], cons_cfg)
             print()
 
-            if args.is_pt_cmd:
-                print("[PT_CMD] Data:")
-                print("  change_selection [get_timing_path -pba_mode ex -from {} -to {}]".format(
-                        path['spin'], path['lpath'][-1][PT]))
-                print("[PT_CMD] Launch clock:")
-                print("  change_selection [get_timing_path -path_type full_clock_ex -to {}]".format(
-                        path['spin']))
-                print("[PT_CMD] Capture clock:")
-                print("  change_selection [get_timing_path -path_type full_clock_ex -to {}]".format(
-                        path['cpath'][-1][PT]))
-                print()
-
     if args.bar is not None:
         if len(args.bar):
             bar_opt = set(args.bar)
@@ -1394,8 +1382,6 @@ def create_argparse() -> argparse.ArgumentParser:
                                         help="bar chart content select \
                                                 (p:distance, c:cap, t:tran, d:delta, i:incr)") 
     parser_time2.add_argument('-rev', dest='is_rev', action='store_true', help="axis reverse")
-    parser_time2.add_argument('-pt', dest='is_pt_cmd', action='store_true', 
-                                        help="dump PrimteTime path command")
     parser_time2.add_argument('-debug', dest='is_debug', action='store_true', 
                                         help="enable debug mode")
     parser_time2.add_argument('rpt_fp', help="report_path") 

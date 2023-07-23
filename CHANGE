@@ -152,3 +152,8 @@ v0.22.1
     fix(pt_rpt_ana): fix cons mode issue
 
     1. Make clock pulse width check summary fail.
+
+v0.24.0
+
+    pt_rpt_ana:
+        1. Add time2 mode
