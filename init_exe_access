@@ -1,0 +1,10 @@
+#!/bin/bash
+# SPDX-License-Identifier: GPL-2.0-only
+#
+# initial execute permission
+#
+# Copyright (C) 2023 Yeh, Hsin-Hsien <yhh76227@gmail.com>
+#
+
+find -type f -name "*.py" | xargs chmod +x
+find cli/ -maxdepth 1 -type f | xargs chmod +x

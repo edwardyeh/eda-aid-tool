@@ -26,7 +26,19 @@ Point                Fanout       Cap    DTrans     Trans    Derate    Delta    
 ------------------------------------------------------------------------------------------------------
 clock pclk (rise edge)                                                         0.0000    0.0000
 clock network delay (propagated)                                               0.1000    0.1000
-input external delay                                                           0.2000    0.3000 f
+chip_top1/cb_pclk/Z (BUF)
+                                                   0.0200                      0.0100 &  0.1100 r
+chip_top1/clock_cts/n1 (net)
+                        1      0.0020
+chip_top1/clk_cell1/I (BUF)
+                                         0.0000    0.0300   1.0620    0.0020   0.0300 &  0.1400 r
+chip_top1/clk_cell1/Z (BUF)
+                                                   0.0160   1.0308             0.0150 &  0.1550 r
+chip_top1/clock_cts/n2 (net)
+                        1      0.0030
+chip_top1/module1_A/data_reg_2_0_/CP (DFF)
+                                         0.0010    0.1000   1.0600    0.0015   0.0110 &  0.1660 r
+input external delay                                                           0.1340    0.3000 f
 MC14 (inout)                                                                   0.0000 &  0.3000 f 
 MC14 (net)              1      1.5154
 chip_top1/module1_A/u_mc14/PAD (SDIO_H)  0.0000    0.0001   1.0600    0.0000   0.0000 &  0.3000 f
@@ -60,15 +72,27 @@ data arrival time                                                               
 
 clock pclk (rise edge)                                                         1.0417    1.0417
 clock network delay (propagated)                                               0.0900    1.1317 
-clock reconvergence pessimism                                                  0.0300    1.1617
-clock uncertainty                                                             -0.1050    1.0567
-output external delay                                                         -0.1000    0.9567
-data required time                                                                       0.9567
+chip_top1/cb_pclk/Z (BUF)
+                                                   0.0200                      0.0100 &  1.1417 r
+chip_top1/clock_cts/n1 (net)
+                        1      0.0020
+chip_top1/clk_cell1/I (BUF)
+                                         0.0000    0.0300   1.0620    0.0020   0.0300 &  1.1717 r
+chip_top1/clk_cell1/Z (BUF)
+                                                   0.0160   1.0308             0.0150 &  1.1867 r
+chip_top1/clock_cts/n2 (net)
+                        1      0.0030
+chip_top1/module1_A/data_reg_2_0_/CP (DFF)
+                                         0.0010    0.1000   1.0600    0.0015   0.0110 &  1.1977 r
+clock reconvergence pessimism                                                  0.0300    1.2277
+clock uncertainty                                                             -0.1050    1.1227
+output external delay                                                         -0.1000    1.0227
+data required time                                                                       1.0227
 ------------------------------------------------------------------------------------------------------
-data required time                                                                       0.9567
+data required time                                                                       1.0227
 data arrival time                                                                       -0.4475
 ------------------------------------------------------------------------------------------------------
-slack (MET)                                                                              0.5092 
+slack (MET)                                                                              0.5752 
 
 
 

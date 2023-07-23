@@ -172,3 +172,17 @@ v0.24.2
     pt_rpt_ana:
         1. fix issues about clock point & clock edge type detect.
         2. fix issues about the startpoint detection with the MACRO out.
+
+v0.25.0
+
+    pt_rpt_ana/time2:
+        1. Split the original 'time' mode to the 'time' and 'time2' modes.
+        2. Record line number.
+        3. Record cell lib name.
+        4. Support clock path analysis.
+        5. Support cell delay highlight.
+        6. Refine the function structure.
+
+    pt_rpt_ana/cons:
+        1. Fix config issue.
+
