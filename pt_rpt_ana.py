@@ -53,7 +53,6 @@ group_vio = ('max_delay/setup', 'min_delay/hold')
 prange_re1 = re.compile(r"(\d+)\+(\d+)")
 prange_re2 = re.compile(r"(\d+)-(\d+)")
 path_re = re.compile(r"\s*\S+")
-dps_tag = {'T': 'T', 'S': 'S'}
 
 TIME_COL_NUM = 10
 PT, PHY, FO, CAP, DTRAN, TRAN, DERATE, DELTA, INCR, PATH = range(TIME_COL_NUM)
@@ -485,7 +484,6 @@ def load_time_cfg(cfg_fp) -> dict:
     #   'ps': [(tag1, regex_pattern1), (tag2, regex_pattern2), ...]
     # }
     #
-    global dps_tag
     cons_cfg = {}
 
     with open(cfg_fp, 'r') as f:
@@ -497,9 +495,8 @@ def load_time_cfg(cfg_fp) -> dict:
                         tag, pat = line[3:].split()
                         ps_dict = cons_cfg.setdefault('ps', {})
                         ps_dict[tag] = re.compile(pat)
-                    elif line.startswith('dps:'):
-                        tag, pat = line[4:].split()
-                        dps_tag[pat] = tag
+                    elif line.startswith('ckp:'):
+                        CKP.add(line[4:].split()[0])
                 except SyntaxError:
                     raise SyntaxError(f"config syntax error (ln:{no})")
 
@@ -602,7 +599,7 @@ def report_time_detail(args, prange_list: list):
                     print("{}: {}".format(key, val))
     else:
         for path in time_rpt_dict['path']:
-            splen = len(spath:=path['spin'])
+            splen = len(spath:=path['lpath'][path['spin']][PT])
             if (plen:=len(epath:=path['lpath'][-1][PT])) < splen:
                 plen = splen
 
@@ -732,23 +729,12 @@ def get_time_path(fp, no: int, opt_set: set) -> tuple:
         elif state == STD and toks[0] == 'Startpoint:':
             state = PREF
             time_path = {'stp': toks[1], 'lpath': [], 'cpath': []}
-            if len(toks) == 2:
-                toks.extend(fp.readline().strip().split())
-                no += 1
-            time_path['sed'] = toks[2][1:]
-            time_path['sck'] = toks[-1][:-1]
 
         elif state == PREF:
             if toks[0][0] == '-':
-                state, is_1st_cell, is_2nd_cell = LPATH, True, False
-                spin, slat, sdt, ddt = None, None, 0, 0
+                state, spin, sdt, ddt = LPATH, None, 0, 0
             elif toks[0] == 'Endpoint:':
                 time_path['edp'] = toks[1]
-                if len(toks) == 2:
-                    toks.extend(fp.readline().strip().split())
-                    no += 1
-                time_path['eed'] = toks[2][1:]
-                time_path['eck'] = toks[-1][:-1]
             elif toks[1] == 'Group:':
                 time_path['grp'] = toks[2]
             elif toks[1] == 'Type:':
@@ -763,8 +749,12 @@ def get_time_path(fp, no: int, opt_set: set) -> tuple:
                 # import pdb; pdb.set_trace()   # debug
                 state, p_state, edt = CPATH, 0, 0
                 time_path['arr'] = float(toks[-1])
-                time_path['slat'] = slat - time_path['sev']
-                time_path['spin'] = spin
+                if spin is None:
+                    time_path['spin'] = 0
+                    print("\n [WARNING] Cannot detect the startpoint, use 1st cell pin default.")
+                else:
+                    time_path['spin'] = spin
+                time_path['slat'] = time_path['lpath'][time_path['spin']][PATH] - time_path['sev']
                 if 'delta' in opt_set:
                     if 'pf' in opt_set:
                         time_path['ddt'] = ddt
@@ -776,6 +766,8 @@ def get_time_path(fp, no: int, opt_set: set) -> tuple:
                 time_path['idly'] = float(toks[-2])
 
             elif p_state == 0 and tag0 == 'clock':
+                time_path['sck'] = tag1
+                time_path['sed'] = toks[2].lstrip()[1:]
                 if len(toks) == 4:
                     toks, no = fp.readline().strip().split(), no + 1
                 time_path['sev'] = float(toks[-2])
@@ -812,10 +804,8 @@ def get_time_path(fp, no: int, opt_set: set) -> tuple:
                     path[PT] = tag0
                     get_time_cell(opt_set, path_cols, toks2, path, start_col)
                     ddt += path[DELTA]
-                    if (path[PT].split('/')[-1] in CKP) or (spin is None and is_2nd_cell):
-                        spin, slat, sdt = path[PT], path[PATH], ddt
-                    is_2nd_cell = True if is_1st_cell else False
-                    is_1st_cell = False
+                    if path[PT].split('/')[-1] in CKP:
+                        spin, sdt = len(time_path['lpath']), ddt
                     time_path['lpath'].append(path)
                     # print("path (l-nor):", path)  # debug
 
@@ -850,6 +840,8 @@ def get_time_path(fp, no: int, opt_set: set) -> tuple:
                 time_path['odly'] = 0.0
                 time_path['lib']  = 0.0
                 time_path['gate'] = 0.0
+                time_path['eck'] = tag1
+                time_path['eed'] = toks[2].lstrip()[1:]
                 if len(toks) == 4:
                     toks, no = fp.readline().strip().split(), no + 1
                 time_path['eev'] = float(toks[-2])
@@ -931,11 +923,10 @@ def get_time_cell(opt_set: set, path_cols: list, toks: list, path: list, start_c
 
 def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
     """Show Path Segment"""  #{{{
-    ttag, stag = dps_tag['T'], dps_tag['S']
     tag, is_1st, is_clk = None, True, True
     slat_list, sdt_list, dlat_list, ddt_list = [], [], [], []
 
-    for cell in path['lpath']:
+    for cid, cell in enumerate(path['lpath']):
         if tag is None:
             new_tag = None
             for key, ps_re in cons_cfg['ps'].items():
@@ -949,11 +940,11 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
                 lat_sum, dt_sum = cell[INCR], cell[DELTA]
             elif new_tag is not None:
                 if is_clk:
-                    slat_list.append([ttag, lat_sum])
-                    sdt_list.append([ttag, dt_sum])
+                    slat_list.append(['TP', lat_sum])
+                    sdt_list.append(['TP', dt_sum])
                 else:
-                    dlat_list.append([ttag, lat_sum])
-                    ddt_list.append([ttag, dt_sum])
+                    dlat_list.append(['TP', lat_sum])
+                    ddt_list.append(['TP', dt_sum])
                 lat_sum, dt_sum = cell[INCR], cell[DELTA]
             else:
                 lat_sum += cell[INCR]
@@ -977,8 +968,8 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
             lat_sum += cell[INCR]
             dt_sum += cell[DELTA]
 
-        key = ttag if tag == None else tag
-        if cell[PT] == path['spin']:
+        key = 'TP' if tag == None else tag
+        if cid == path['spin']:
             slat_list.append([key, lat_sum])
             sdt_list.append([key, dt_sum])
             tag, is_1st, is_clk = None, True, False 
@@ -1002,8 +993,8 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
                 is_1st = False
                 lat_sum, dt_sum = cell[INCR], cell[DELTA]
             elif new_tag is not None:
-                elat_list.append([ttag, lat_sum])
-                edt_list.append([ttag, dt_sum])
+                elat_list.append(['TP', lat_sum])
+                edt_list.append(['TP', dt_sum])
                 lat_sum, dt_sum = cell[INCR], cell[DELTA]
             else:
                 lat_sum += cell[INCR]
@@ -1023,7 +1014,7 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
             lat_sum += cell[INCR]
             dt_sum += cell[DELTA]
 
-    key = ttag if tag == None else tag
+    key = 'TP' if tag == None else tag
     elat_list.append([key, lat_sum])
     edt_list.append([key, dt_sum])
 
@@ -1052,7 +1043,7 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
     print(" {}".format("-" * 60))
 
     print(" launch clk latency:  ", end='')
-    print("{}:{: .4f} ".format(stag, path['sslat']), end='')
+    print("SC:{: .4f} ".format(path['sslat']), end='')
     for tag, val in slat_list:
         print("{}:{: .4f} ".format(tag, val), end='')
     print()
@@ -1065,7 +1056,7 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
     print(" {}".format("-" * 60))
 
     print(" capture clk latency: ", end='')
-    print("{}:{: .4f} ".format(stag, path['eslat']), end='')
+    print("SC:{: .4f} ".format(path['eslat']), end='')
     for tag, val in elat_list:
         print("{}:{: .4f} ".format(tag, val), end='')
     print()
@@ -1080,15 +1071,14 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
 
 def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_opt: set, path_type: set, is_rev: bool):
     """Show Time Path Barchart"""  #{{{
-    global dps_tag
     db, db_dict = [], {}
 
     ## [c]apacitance
     if 'c' in bar_opt and 'cap' in opt_set:
         db_dict['c'], data = [], []
-        for cell in path['lpath']:
+        for cid, cell in enumerate(path['lpath']):
             data.append(cell[CAP])
-            if cell[PT] == path['spin']:
+            if cid == path['spin']:
                 if 'l' in path_type:
                     db_dict['c'].append(["Launch Clk Cap (pf)", data.copy()])
                 if 'd' not in path_type:
@@ -1120,9 +1110,9 @@ def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_opt: set, path_t
     for btype in bar_types:
         if btype[0] in bar_opt and btype[1] in opt_set:
             db_dict[btype[0]], data = [], []
-            for cell in path['lpath']:
+            for cid, cell in enumerate(path['lpath']):
                 data.append(cell[btype[2]])
-                if cell[PT] == path['spin']:
+                if cid == path['spin']:
                     if 'l' in path_type:
                         db_dict[btype[0]].append([f"Launch Clk {btype[3]}", data.copy()])
                     if 'd' not in path_type:
@@ -1167,11 +1157,11 @@ def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_opt: set, path_t
         if 'ps' in cons_cfg:
             for type_ in ('l', 'c', 'd'):
                 if type_ in path_type:
-                    tag, pal_idx, hist_lg_cell = None, 0, {dps_tag['T']: HIST_DEFAULT_COLOR}
+                    tag, pal_idx, hist_lg_cell = None, 0, {'TP': HIST_DEFAULT_COLOR}
                     lv_c_cell, lv_ha_cell, lv_ec_cell = [], [], []
                     s_path = path['cpath'] if type_ == 'c' else path['lpath']
 
-                    for cell in s_path:
+                    for cid, cell in enumerate(s_path):
                         if tag is None:
                             new_tag = None
                             for key, ps_re in cons_cfg['ps'].items():
@@ -1187,23 +1177,23 @@ def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_opt: set, path_t
                                     break
                             tag = new_tag
 
-                        if cell[PT] == path['spin'] and type_ == 'd' and 'f' not in path_type:
-                            pal_idx, hist_lg_cell = 0, {dps_tag['T']: HIST_DEFAULT_COLOR}
+                        if cid == path['spin'] and type_ == 'd' and 'f' not in path_type:
+                            pal_idx, hist_lg_cell = 0, {'TP': HIST_DEFAULT_COLOR}
                             lv_c_cell, lv_ha_cell, lv_ec_cell = [], [], []
 
-                        key = dps_tag['T'] if tag is None else tag
+                        key = 'TP' if tag is None else tag
                         if key not in hist_lg_cell:
                             hist_lg_cell[key] = HIST_PALETTE[pal_idx]
                             pal_idx = (pal_idx + 1) % pal_num
 
                         lv_c_cell.append(hist_lg_cell[key])
-                        if cell[PT] == path['spin'] and type_ == 'd':
+                        if cid == path['spin'] and type_ == 'd':
                             lv_ha_cell.append('/')
                             lv_ec_cell.append('r')
                         else:
                             lv_ha_cell.append('')
                             lv_ec_cell.append('k')
-                        if cell[PT] == path['spin'] and type_ == 'l':
+                        if cid == path['spin'] and type_ == 'l':
                             break
 
                     hist_lg.append(hist_lg_cell)
@@ -1211,7 +1201,7 @@ def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_opt: set, path_t
                     lv_ha.append(lv_ha_cell)
                     lv_ec.append(lv_ec_cell)
         else:
-            lg_cell = {dps_tag['T']: HIST_PALETTE[0]}
+            lg_cell = {'TP': HIST_PALETTE[0]}
             lv_c_cell = [HIST_PALETTE[0]]
             for type_ in ('l', 'd', 'c'):
                 if type_ in path_type:
@@ -1219,8 +1209,8 @@ def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_opt: set, path_t
                     lv_c.append(lv_c_cell)
                     if type_ == 'd':
                         lv_ha_cell, lv_ec_cell = [], []
-                        for cell in path['lpath']:
-                            if cell[PT] == path['spin']:
+                        for cid, cell in enumerate(path['lpath']):
+                            if cid == path['spin']:
                                 if 'f' in path_type: 
                                     lv_ha_cell.append('/')
                                     lv_ec_cell.append('r')

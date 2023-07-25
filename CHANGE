@@ -167,3 +167,8 @@ v0.24.1
     TCL script:
         1. Add PT user script.
 
+v0.24.2
+
+    pt_rpt_ana:
+        1. fix issues about clock point & clock edge type detect.
+        2. fix issues about the startpoint detection with the MACRO out.
