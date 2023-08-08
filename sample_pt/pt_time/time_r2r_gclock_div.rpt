@@ -24,8 +24,8 @@ Date   : XXXX
   chip_top1/i_ip1/i_mpll/CLK_480 (mpll_top)             0.0000    0.0000 r
   chip_top1/clk_gcell1/I (CKBUF)                        0.0100    0.0100 r
   chip_top1/clk_gcell1/Z (CKBUF)                        0.1000    0.1100 r
-  chip_top1/clk_div1/A  (CKMUX)                         0.0200    0.1300 r
-  chip_top1/clk_div1/Z (CKMUX)                          0.0500    0.1800 r
+  chip_top1/clk_div1/A (MUX)                            0.0200    0.1300 r
+  chip_top1/clk_div1/Z (MUX)                            0.0500    0.1800 r
   chip_top1/clk_gcell2/I (CKBUF)                        0.0150    0.1950 r
   chip_top1/clk_gcell2/Z (CKBUF)                        0.1200    0.3150 r
   chip_top1/cb_pclk/I (CKBUF)                           0.0250    0.3400 r

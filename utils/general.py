@@ -6,7 +6,11 @@
 General function set
 """
 
-VERSION = '0.25.0'
+### Global Variable ###
+
+VERSION = '0.26.0'
+
+### General Function ###
 
 def str2int(str_: str, is_signed: bool=False, bits: int=32) -> int:
     """Convert string to integer (with HEX check)"""  #{{{

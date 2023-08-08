@@ -49,7 +49,7 @@ clk_vio = (
 group_vio = ('max_delay/setup', 'min_delay/hold')
 #}}}
 
-## for time2 {{{
+## for TimeS mode {{{
 prange_re1 = re.compile(r"(\d+)\+(\d+)")
 prange_re2 = re.compile(r"(\d+)-(\d+)")
 path_re = re.compile(r"\s*\S+")
@@ -478,14 +478,14 @@ def report_cons_brief(rpt_fps: list, cfg_fp: str):
             print()
 #}}}
 
-### Function for 'report_time (time)' ###
+### Function for 'report_time (TimeB mode)' ###
 
-def load_time_cfg(cfg_fp) -> dict:
+def load_timeb_cfg(cfg_fp) -> dict:
     """Load Configuration for Time Mode"""  #{{{
     # Config Data Structure:
     #
     # cons_cfg = {
-    #   'ps': {tag1: regex_pattern1, tag2: regex_pattern2, ...},
+    #   'pc': {tag1: regex_pattern1, tag2: regex_pattern2, ...},
     # }
     cons_cfg = {}
     with open(cfg_fp, 'r') as f:
@@ -493,10 +493,10 @@ def load_time_cfg(cfg_fp) -> dict:
             line = line.split('#')[0].strip()
             if line != "":
                 try:
-                    if line.startswith('ps:'):
+                    if line.startswith('pc:'):
                         tag, pat = line[3:].split()
-                        ps_dict = cons_cfg.setdefault('ps', {})
-                        ps_dict[tag] = re.compile(pat)
+                        pc_dict = cons_cfg.setdefault('pc', {})
+                        pc_dict[tag] = re.compile(pat)
                 except SyntaxError:
                     raise SyntaxError(f"config syntax error (ln:{no})")
 
@@ -511,7 +511,7 @@ def report_time_brief(rpt_fp, is_all: bool, cfg_fp: str):
         f = open(rpt_fp)
 
     if cfg_fp is not None:
-        cons_cfg = load_time_cfg(cfg_fp)
+        cons_cfg = load_timeb_cfg(cfg_fp)
     else:
         cons_cfg = None
 
@@ -546,87 +546,11 @@ def report_time_brief(rpt_fp, is_all: bool, cfg_fp: str):
     f.close()
 #}}}
 
-### Function for 'report_time (time2)' ###
+### Function for 'report_time (TimeS mode)' ###
 
-def load_time2_cfg(cfg_fp) -> dict:
-    """Load Configuration for Time Mode (share with time2)"""  #{{{
-    # Config Data Structure:
-    #
-    # cons_cfg = {
-    #   'ps':    {tag1: regex_pattern1, tag2: regex_pattern2, ...},
-    #   'ckp':   {pin1, pin2, ...},
-    #   'ckt':   [(is_ck, regex_pattern1), (is_ck, regex_pattern2), ...]
-    #   'ckdiv': [regex_pattern1, regex_pattern2, ...]
-    #   'cc':    {tag1: regex_pattern1, tag2: regex_pattern2, ...}
-    #   'cdh':   {ctype1: {in_out_pair1: tag1, in_out_pair2: tag2}, 
-    #             ctype2: {in_out_pair3: tag3, in_out_pair4: tag4}, ...}
-    # }
-    cons_cfg = {}
-    with open(cfg_fp, 'r') as f:
-        for no, line in enumerate(f.readlines(), start=1):
-            line = line.split('#')[0].strip()
-            if line != "":
-                try:
-                    if line.startswith('bo:'):
-                        tag, *pat = line[3:].split()
-                        bo_dict = cons_cfg.setdefault('bo', {})
-                        bo_dict[tag] = pat
-                    elif line.startswith('ps:'):
-                        tag, pat = line[3:].split()
-                        ps_dict = cons_cfg.setdefault('ps', {})
-                        ps_dict[tag] = re.compile(pat)
-                    elif line.startswith('ckp:'):
-                        ckp_set = cons_cfg.setdefault('ckp', set())
-                        ckp_set.add(line[4:].split()[0])
-                    elif line.startswith('ckt:'):
-                        tag, pat = line[4:].split()
-                        match tag.lower():
-                            case 'y': tag = True
-                            case 'n': tag = False
-                            case  _ : raise SyntaxError
-                        ckt_list = cons_cfg.setdefault('ckt', [])
-                        ckt_list.append((tag, re.compile(pat)))
-                    elif line.startswith('ckdiv:'):
-                        ckdiv_list = cons_cfg.setdefault('ckdiv', [])
-                        ckdiv_list.append(re.compile(line[6:].split()[0]))
-                    elif line.startswith('cc:'):
-                        tag, pat = line[3:].split()
-                        cc_dict = cons_cfg.setdefault('cc', {})
-                        cc_dict[tag] = re.compile(pat)
-                    elif line.startswith('cdh:'):
-                        toks = line[4:].split('"') 
-                        if len(toks) > 1:
-                            ctype, pi, po, tag = *toks[0].split(), toks[1]
-                        else:
-                            ctype, pi, po, tag = toks[0].split()
-                        cdh_dict = cons_cfg.setdefault('cdh', {})
-                        cdh_pair = cdh_dict.setdefault(ctype, {})
-                        cdh_pair[f"{pi}:{po}"] = tag
-                except SyntaxError:
-                    raise SyntaxError(f"config syntax error (ln:{no})")
-
-    return cons_cfg
-#}}}
-
-def report_time_detail(args, prange_list: list):
+def report_time_summary(args, prange_list: list):
     """Detial Time Path Analysis"""  #{{{
-    if args.cfg_fp is not None:
-        cons_cfg = load_time2_cfg(args.cfg_fp)
-    else:
-        cons_cfg = {}
-
-    bar_opt = set()
-    if args.cbar is not None:
-        if args.cbar in cons_cfg['bo']:
-            bar_opt |= set(cons_cfg['bo'][args.cbar])
-        else:
-            print(" [WARNING] The cbar option cannot find in the configuration, ignore.\n")
-    if args.bar is not None:
-        if len(args.bar) != 0:
-            bar_opt |= set(args.bar)
-        else:
-            bar_opt |= set(['p','c','t','d','i','ct'])
-
+    cons_cfg = load_times_cfg(args.cfg_fp)
     time_rpt_dict = parse_time_rpt(args.rpt_fp, prange_list, cons_cfg)
 
     if args.is_debug:
@@ -653,6 +577,7 @@ def report_time_detail(args, prange_list: list):
 
             idly = path['idly'] if 'idly' in path else 0.0
 
+            ## path information
             print(" {}".format("=" * 60))
             if plen > 80:
                 print(" Startpoint: {}".format(stp))
@@ -665,80 +590,152 @@ def report_time_detail(args, prange_list: list):
             print(" Path group: {}".format(path['grp']))
             print(" Delay type: {}".format(path['type']))
             print(" {}".format("=" * 60))
-            print(" data latency:             {: 5.4f}".format(path['arr'] - idly - \
-                                                               path['slat'] - path['sev']))
-            print(" arrival:                  {: 5.4f}".format(path['arr']))
-            print(" required:                 {: 5.4f}".format(path['req']))
-            print(" slack:                    {: 5.4f}".format(path['slk']))
+
+            ## path latency
+            print(" {:26}{: 5.4f}".format("data latency:", path['arr']-idly-path['slat']-path['sev']))
+            print(" {:26}{: 5.4f}".format("arrival:", path['arr']))
+            print(" {:26}{: 5.4f}".format("required:", path['req']))
+            print(" {:26}{: 5.4f}".format("slack:", path['slk']))
             if 'idly' in path or 'odly' in path or len(path['cdh']) != 0:
                 print(" {}".format("-" * 60))
             if 'idly' in path:
-                print(" input delay:              {: 5.4f}".format(idly))
+                print(" {:26}{: 5.4f}".format("input delay:", idly))
             if 'odly' in path:
-                print(" output delay:             {: 5.4f}".format(abs(path['odly'])))
+                print(" {:26}{: 5.4f}".format("output delay:", abs(path['odly'])))
             for tag, val in path['cdh']:
                 print(" {}{: 5.4f}".format(f"{tag}:".ljust(26), val))
             print(" {}".format("=" * 60))
-            print(" launch clock edge value:  {: 5.4f}".format(path['sev']))
-            print(" capture clock edge value: {: 5.4f}".format(path['eev']))
-            print(" launch clock latency:     {: 5.4f}".format(path['slat']))
-            print(" capture clock latency:    {: 5.4f}".format(path['elat']))
-            print(" crpr:                     {: 5.4f}".format(path['crpr']))
-            print(" clock skew:               {: 5.4f}".format(path['slat'] - path['elat'] - path['crpr']))
-            print(" {}".format("-" * 60))
 
-            if 'sgpi' in path:
-                sgpi = path['sgpi'] + 1
-                sgpath, spath = path['lpath'][0:sgpi], path['lpath'][sgpi:path['spin']+1]
-            else:
-                sgpath, spath = [], path['lpath'][0:path['spin']+1]
+            ## clock latency & check
+            print(" {:26}{: 5.4f}".format("launch clock edge value:", path['sev']))
+            print(" {:26}{: 5.4f}".format("capture clock edge value:", path['eev']))
+            print(" {:26}{: 5.4f}".format("launch clock latency:", path['slat']))
+            print(" {:26}{: 5.4f}".format("capture clock latency:", path['elat']))
+            print(" {:26}{: 5.4f}".format("crpr:", path['crpr']))
+            print(" {:26}{: 5.4f}".format("clock skew:", path['slat'] - path['elat'] - path['crpr']))
 
-            if 'egpi' in path:
-                egpi = path['egpi'] + 1
-                egpath, epath = path['cpath'][0:egpi], path['cpath'][egpi:path['spin']+1]
-            else:
-                egpath, epath = [], path['cpath']
+            if args.ckc_en or cons_cfg['ckc_en']:
+                if 'sgpi' in path:
+                    sgpi = path['sgpi'] + 1
+                    sgpath, spath = path['lpath'][0:sgpi], path['lpath'][sgpi:path['spin']+1]
+                else:
+                    sgpath, spath = [], path['lpath'][0:path['spin']+1]
 
-            ckt_list = cons_cfg['ckt'] if 'ckt' in cons_cfg else None
-            ckdiv_list = cons_cfg['ckdiv'] if 'ckdiv' in cons_cfg else None
-            gc_chk, ckt_chk, cf_info = clock_path_check(
-                                            sgpath, spath, egpath, epath, 
-                                            pid=pid, ckt_list=ckt_list, ckdiv_list=ckdiv_list, 
-                                            is_dump=args.is_ckdump)
+                if 'egpi' in path:
+                    egpi = path['egpi'] + 1
+                    egpath, epath = path['cpath'][0:egpi], path['cpath'][egpi:path['spin']+1]
+                else:
+                    egpath, epath = [], path['cpath']
 
-            fork_val = "{}/{}/{}".format(len(spath), len(epath), cf_info[0])
-            gcchk = gc_chk.split(',')
-            print(" clk cell type check:       {}".format(ckt_chk))
-            print(" gclock path check:         {}  {}".format(gcchk[0].ljust(len(fork_val)), gcchk[1]))
-            print(" sclock fork detect:        {}  (ln:{}:{})".format(fork_val, *cf_info[1:]))
+                gcc_rslt, scc_rslt, ctc_rslt = clock_path_check(sgpath, spath, egpath, epath, 
+                                                pid=pid, cons_cfg=cons_cfg, is_dump=args.ckc_dump)
+                
+                col_sz = len(split_lv:=f"{len(spath)}/{len(epath)}/{scc_rslt[0]}")
+                print(" {}".format("-" * 60))
+                print(" {:26} {}    {}".format("clock cell type check:", 
+                                                ctc_rslt[0].ljust(col_sz), ctc_rslt[1]))
+                print(" {:26} {}    {}".format("clock source path match:", 
+                                                gcc_rslt[0].ljust(col_sz), gcc_rslt[1]))
+                print(" {:26} {}    (ln:{}:{})".format("clock network path fork:", 
+                                                split_lv, *scc_rslt[1:]))
+
             print(" {}".format("=" * 60))
 
-            if args.is_delta:
+            ## clock & path delta
+            if args.dts_en or cons_cfg['dts_en']:
                 ddt_val = "{: 5.4f}".format(path['ddt']) if 'ddt' in path else ' N/A'
-                sdt_val = "{: 5.4f}".format(path['sdt']) if 'sdt' in path else ' N/A'
-                edt_val = "{: 5.4f}".format(path['edt']) if 'edt' in path else ' N/A'
-                print(" data delta:               {}".format(ddt_val))
-                print(" launch clock delta:       {}".format(sdt_val))
-                print(" capture clock delta:      {}".format(edt_val))
+                sdt_val = "{:5.4f}".format(path['sdt']) if 'sdt' in path else 'N/A'
+                edt_val = "{:5.4f}".format(path['edt']) if 'edt' in path else 'N/A'
+                print(" {:26}{} : {} : {}".format("total delta (D:L:C):", ddt_val, sdt_val, edt_val))
                 print(" {}".format("=" * 60))
 
-            if args.cfg_fp is not None and 'ps' in cons_cfg:
+            ## path segment
+            if 'pc' in cons_cfg and (args.seg_en or cons_cfg['seg_en']):
                 show_path_segment(path, time_rpt_dict['opt'], cons_cfg)
             print()
 
-        if len(bar_opt) != 0:
-            if 'ct' in bar_opt:
-                bar_opt.add('i')
-
-            if args.path_type is None or len(args.path_type) == 0:
-                path_type = set(['f', 'd'])
+        ## show time bar chart
+        bar_dtype = set()
+        if args.bars is not None:
+            if 'bds' in cons_cfg and args.bars in cons_cfg['bds']:
+                bar_dtype |= set(cons_cfg['bds'][args.bars])
             else:
-                path_type = set(args.path_type)
-                if 'f' in path_type:
-                    path_type.add('d')
+                print(" [WARNING] The bars option cannot find in the configuration, ignore.\n")
+        if args.bar is not None:
+            bar_dtype |= set(args.bar) if len(args.bar) != 0 else set(['p','c','t','d','i','ct'])
+        if 'ct' in bar_dtype:
+            bar_dtype.add('i')
+
+        if len(bar_dtype) != 0:
+            if args.bar_ptype is None or len(args.bar_ptype) == 0:
+                bar_ptype = set(['f', 'd'])
+            else:
+                bar_ptype = set(args.bar_ptype)
+                if 'f' in bar_ptype:
+                    bar_ptype.add('d')
 
             show_time_bar(time_rpt_dict['path'][0], time_rpt_dict['opt'], cons_cfg, 
-                          bar_opt, path_type, args.is_rev)
+                          bar_dtype, bar_ptype, args.bar_rev)
+#}}}
+
+def load_times_cfg(cfg_fp) -> dict:
+    """Load Configuration for TimeS Mode"""  #{{{
+    cons_cfg = {'ckc_en': False, 'dts_en': False, 'seg_en': False, 'ckm_nock': False}
+    if cfg_fp is None:
+        return cons_cfg
+
+    with open(cfg_fp, 'r') as f:
+        for no, line in enumerate(f.readlines(), start=1):
+            line = line.split('#')[0].strip()
+            if line != "":
+                try:
+                    if line.startswith('clock_check_default_on:'):
+                        enable = line.split()[-1].lower()
+                        cons_cfg['ckc_en'] = True if enable == 'true' else False
+                    elif line.startswith('delta_sum_default_on:'):
+                        enable = line.split()[-1].lower()
+                        cons_cfg['dts_en'] = True if enable == 'true' else False
+                    elif line.startswith('path_segment_default_on:'):
+                        enable = line.split()[-1].lower()
+                        cons_cfg['seg_en'] = True if enable == 'true' else False
+                    elif line.startswith('ckm_with_non_clock_cell:'):
+                        enable = line.split()[-1].lower()
+                        cons_cfg['ckm_nock'] = True if enable == 'true' else False
+                    elif line.startswith('bds:'):
+                        tag, *pat = line[4:].split()
+                        cons_cfg.setdefault('bds', {})[tag] = pat
+                    elif line.startswith('ckt:'):
+                        tag, pat = line[4:].split()
+                        match tag.lower():
+                            case 'y': tag = True
+                            case 'n': tag = False
+                            case  _ : raise SyntaxError
+                        cons_cfg.setdefault('ckt', []).append((tag, re.compile(pat)))
+                    elif line.startswith('ckp:'):
+                        pat = line[4:].split()[0]
+                        cons_cfg.setdefault('ckp', set()).add(pat)
+                    elif line.startswith('ckm:'):
+                        pat = re.compile(line[4:].split()[0])
+                        cons_cfg.setdefault('ckm', []).append(pat)
+                    elif line.startswith('pc:'):
+                        tag, pat = line[3:].split()
+                        cons_cfg.setdefault('pc', {})[tag] = re.compile(pat)
+                    elif line.startswith('cc:'):
+                        tag, pat = line[3:].split()
+                        cons_cfg.setdefault('cc', {})[tag] = re.compile(pat)
+                    elif line.startswith('cdh:'):
+                        toks = line[4:].split('"') 
+                        if len(toks) > 1:
+                            ctype, pi, po, tag = *toks[0].split(), toks[1]
+                        else:
+                            ctype, pi, po, tag = toks[0].split()
+                        cdh_dict = cons_cfg.setdefault('cdh', {})
+                        cdh_pair = cdh_dict.setdefault(ctype, {})
+                        cdh_pair[f"{pi}:{po}"] = tag
+                except SyntaxError:
+                    raise SyntaxError(f"config syntax error (ln:{no})")
+
+    return cons_cfg
 #}}}
 
 def parse_time_rpt(rpt_fp, prange_list: list, cons_cfg: dict) -> dict:
@@ -1051,149 +1048,203 @@ def get_time_cell(opt_set: set, path_cols: list, toks: list, path: list, start_c
 #}}}
 
 def clock_path_check(sgpath: list, spath: list, egpath: list, epath: list, 
-                     pid: int=0, ckt_list: list=None, ckdiv_list: list=None, is_dump: bool=False):
+                     pid: int=0, cons_cfg: dict=None, is_dump: bool=False):
     """Clock Path Similarity Check"""  #{{{
-    # return: gc_chk:str, ckt_chk:str, cf_info:list[0:3] 
+    ## return: gcc_rslt: list[0:2], scc_rslt: list[0:4], ctc_rslt: list[0:2] 
 
-    ## check beforce gclock
-    gc_chk, ckdiv_chk, gclist = 'PASS,', True, []
-    sglen, eglen, pv_cmp_ckdiv = len(sgpath), len(egpath), None
+    ## gclock path match check
+    gcc_rslt, fail_by_ckm, gclist = ['PASS', ''], True, []
+    sglen, eglen, pvckm_re = len(sgpath), len(egpath), None
     egset = set([ecell[PT] for ecell in egpath])
-    if ckdiv_list is None:
-        ckdiv_list = []
+    empty_cell = ("", "", "")   # (LN, PT, CELL)
+    same_ckm_cell = ("", "... same clock module ...", "")
+
+    ckt_list = cons_cfg['ckt'] if (cons_cfg is not None and 'ckt' in cons_cfg) else []
+    ckm_list = cons_cfg['ckm'] if (cons_cfg is not None and 'ckm' in cons_cfg) else []
 
     if sglen != 0 and eglen != 0:
-        scell, ecell = sgpath[0], egpath[0]
-        si = ei = 1
+        scell, ecell, si, ei = sgpath[0], egpath[0], 1, 1
         while True:
             if scell[PT] == ecell[PT]:
                 gclist.append((scell, ecell))
                 match (si==sglen, ei==eglen):
                     case (False, False):
-                        scell, ecell = sgpath[si], egpath[ei]
-                        si, ei = si+1, ei+1
+                        scell, ecell, si, ei = sgpath[si], egpath[ei], si+1, ei+1
                     case (False, True):
-                        gc_chk, ckdiv_chk = 'FAIL,', False
+                        gcc_rslt[0], fail_by_ckm = 'FAIL', False
                         for i in range(si, sglen):
-                            gclist.append((sgpath[i], ("", "", "")))
+                            gclist.append((sgpath[i], empty_cell))
                         break
                     case (True, False):
-                        gc_chk, ckdiv_chk = 'FAIL,', False
-                        for i in range(si, sglen):
-                            gclist.append((("", "", ""), egpath[i]))
+                        gcc_rslt[0], fail_by_ckm = 'FAIL', False
+                        for i in range(ei, eglen):
+                            gclist.append((empty_cell, egpath[i]))
                         break
                     case (True, True):
                         break
             else:
-                gc_chk, sckdiv_chk, eckdiv_chk = 'FAIL,', None, None
-                if pv_cmp_ckdiv is not None:
-                    sckdiv_chk = True if pv_cmp_ckdiv.fullmatch(scell[PT]) else False
-                    eckdiv_chk = True if pv_cmp_ckdiv.fullmatch(ecell[PT]) else False
-                if not (sckdiv_chk and eckdiv_chk):
-                    for cmp_ckdiv in ckdiv_list:
-                        sckdiv_chk = True if cmp_ckdiv.fullmatch(scell[PT]) else False
-                        eckdiv_chk = True if cmp_ckdiv.fullmatch(ecell[PT]) else False
-                        if sckdiv_chk and eckdiv_chk:
-                            pv_cmp_ckdiv = cmp_ckdiv
-                            break
-                if not (curr_chk := sckdiv_chk and eckdiv_chk):
-                    pv_cmp_ckdiv = None
-                ckdiv_chk = ckdiv_chk and curr_chk
+                gcc_rslt[0], sckm, eckm = 'FAIL', False, False
+                if pvckm_re is not None:
+                    ckm_list2 = [pvckm_re] + ckm_list
+                else:
+                    ckm_list2 = ckm_list
 
+                for ckm_re in ckm_list2:
+                    sckm = True if ckm_re.fullmatch(scell[PT]) else False
+                    eckm = True if ckm_re.fullmatch(ecell[PT]) else False
+                    if sckm and eckm:
+                        pvckm_re = ckm_re
+                        break
+                if not (all_ckm := sckm and eckm):
+                    pvckm_re = None
+                fail_by_ckm &= all_ckm
+
+                dummy_cell = same_ckm_cell if all_ckm else empty_cell
                 if scell[PT] in egset:
-                    empty_scell = ("", ("   ... same divider ...   " if curr_chk else ""), "")
-                    gclist.append((empty_scell, ecell))
+                    gclist.append((dummy_cell, ecell))
                     ecell, ei = egpath[ei], ei+1
                 else:
-                    empty_ecell = ("", ("   ... same divider ...   " if curr_chk else ""), "")
-                    gclist.append((scell, empty_ecell))
+                    gclist.append((scell, dummy_cell))
                     scell, si = sgpath[si], si+1
 
-        if gc_chk == 'FAIL,' and ckdiv_chk:
-            gc_chk += "(caused by the divider)"
+        if gcc_rslt[0] == 'FAIL' and fail_by_ckm:
+            gcc_rslt[1] = "(caused by user-defined clk modules)"
     else:
-        gc_chk = 'N/A,'
+        gcc_rslt[0] = 'N/A'
 
-    ## check after gclock
-    cf_info = (-1, 'N/A', 'N/A')
-    if len(spath) != 0 and (spath[-1][CELL] == 'inout' or spath[-1][CELL] == 'in'):
-        del spath[-1]
-
+    ## sclock path match check
     slen, elen = len(spath), len(epath)
+    scc_rslt = (-1, 'N/A', 'N/A')    # (split_level, lineNo_in_spath, lineNo_in_epath)
+    if slen != 0 and spath[-1][CELL] in ('inout', 'in'):
+        del spath[-1]
+        slen -= 1
+
     if slen != 0 and elen != 0:
-        scell, ecell, = spath[0], epath[0]
-        si = ei = 1
+        scell, ecell, si, ei = spath[0], epath[0], 1, 1
         while True:
             if scell[PT] != ecell[PT]:
                 break
             else:
-                cf_info = (cf_info[0]+1, scell[LN], ecell[LN])
+                scc_rslt = (scc_rslt[0]+1, scell[LN], ecell[LN])
                 if si == slen or ei == elen:
                     break
                 else:
-                    scell, ecell = spath[si], epath[ei]
-                    si, ei = si+1, ei+1
+                    scell, ecell, si, ei = spath[si], epath[ei], si+1, ei+1
 
-    ## clock cell type check
-    ckt_chk, gckt_result = True, []
-    sckt_list, sc_col_sz = [], [0]*3
-    eckt_list, ec_col_sz = [], [0]*3
-    if ckt_list is not None:
-        # gclock
+    ## cell type check
+    ctc_pass, fail_by_ckm, ctc_rslt, gct_list = True, cons_cfg['ckm_nock'], None, []
+    sct_list, ect_list = [], []
+
+    if len(ckt_list):
+        pvckm_re = None
+        # gclock path cell type check
         for i in range(len(gclist)):
-            sck = eck = False
+            sc_pass = ec_pass = False
             sname, ename = gclist[i][0][CELL], gclist[i][1][CELL]
-            for cmp_ckt in ckt_list:
-                if not sck and (sname == "" or cmp_ckt[1].fullmatch(sname)):
-                    sck = cmp_ckt[0]
-                if not eck and (ename == "" or cmp_ckt[1].fullmatch(ename)):
-                    eck = cmp_ckt[0]
-                if sck and eck:
+            for ckt_en, ckt_re in ckt_list:
+                if not sc_pass:
+                    if sname == "":
+                        sc_pass = True
+                    elif ckt_re.fullmatch(sname):
+                        sc_pass = ckt_en
+                if not ec_pass:
+                    if ename == "":
+                        ec_pass = True
+                    elif ckt_re.fullmatch(ename):
+                        ec_pass = ckt_en
+                if sc_pass and ec_pass:
                     break
-            ckt_chk = ckt_chk and sck and eck
-            gckt_result.append(('' if sck else 'FA',
-                                '' if eck else 'FA'))
+            ctc_pass &= (cur_pass := sc_pass and ec_pass)
 
-        # launch clock
+            sc_is_ckm, ec_is_ckm = sc_pass, ec_pass
+            if not cur_pass and cons_cfg['ckm_nock']:
+                sname, ename = gclist[i][0][PT], gclist[i][1][PT]
+                if pvckm_re is not None:
+                    ckm_list2 = [pvckm_re] + ckm_list
+                else:
+                    ckm_list2 = ckm_list
+
+                for ckm_re in ckm_list2:
+                    sc_is_ckm = sc_is_ckm or (True if ckm_re.fullmatch(sname) else False)
+                    ec_is_ckm = ec_is_ckm or (True if ckm_re.fullmatch(ename) else False)
+                    if sc_is_ckm and ec_is_ckm:
+                        pvckm_re = ckm_re
+                        break
+
+                if not (all_ckm := sc_is_ckm and ec_is_ckm):
+                    pvckm_re = None
+                fail_by_ckm &= all_ckm
+
+            gct_list.append(('' if sc_pass else 'IG' if sc_is_ckm else 'FA', 
+                             '' if ec_pass else 'IG' if ec_is_ckm else 'FA'))
+
+        # launch path cell type check
         for cell in spath:
-            is_ck = False
-            for cmp_ckt in ckt_list:
-                if cmp_ckt[1].fullmatch(cell[CELL]):
-                    is_ck = cmp_ckt[0]
+            sc_pass = False
+            for ckt_en, ckt_re in ckt_list:
+                if ckt_re.fullmatch(cell[CELL]):
+                    sc_pass = ckt_en
                     break
-            if not is_ck:
-                sckt_list.append(cell)
-                for cid in range(LN, CELL+1):
-                    if (len_:=len(str(cell[cid]))) > sc_col_sz[cid]:
-                        sc_col_sz[cid] = len_
-                    if (len_:=len(str(cell[cid]))) > sc_col_sz[cid]:
-                        sc_col_sz[cid] = len_
-        ckt_chk = ckt_chk and len(sckt_list) == 0
+            ctc_pass &= sc_pass
 
-        # capture clock
+            sc_is_ckm = False
+            if not sc_pass and cons_cfg['ckm_nock']:
+                if pvckm_re is not None:
+                    ckm_list2 = [pvckm_re] + ckm_list
+                else:
+                    ckm_list2 = ckm_list
+
+                for ckm_re in ckm_list2:
+                    if (sc_is_ckm := True if ckm_re.fullmatch(cell[PT]) else False):
+                        pvckm_re = ckm_re
+                        break
+
+                if not sc_is_ckm:
+                    pvckm_re = None
+                fail_by_ckm &= sc_is_ckm
+
+            sct_list.append((cell, '' if sc_pass else 'IG' if sc_is_ckm else 'FA'))
+
+        # capture path cell type check
         for cell in epath:
-            is_ck = False
-            for cmp_ckt in ckt_list:
-                if cmp_ckt[1].fullmatch(cell[CELL]):
-                    is_ck = cmp_ckt[0]
+            ec_pass = False
+            for ckt_en, ckt_re in ckt_list:
+                if ckt_re.fullmatch(cell[CELL]):
+                    ec_pass = ckt_en
                     break
-            if not is_ck:
-                eckt_list.append(cell)
-                for cid in range(LN, CELL+1):
-                    if (len_:=len(str(cell[cid]))) > ec_col_sz[cid]:
-                        ec_col_sz[cid] = len_
-                    if (len_:=len(str(cell[cid]))) > ec_col_sz[cid]:
-                        ec_col_sz[cid] = len_
-        ckt_chk = ckt_chk and len(eckt_list) == 0
+            ctc_pass &= ec_pass
 
-        ckt_chk = 'PASS' if ckt_chk else 'FAIL'
+            ec_is_ckm = False
+            if not ec_pass and cons_cfg['ckm_nock']:
+                if pvckm_re is not None:
+                    ckm_list2 = [pvckm_re] + ckm_list
+                else:
+                    ckm_list2 = ckm_list
+
+                for ckm_re in ckm_list2:
+                    if (ec_is_ckm := True if ckm_re.fullmatch(cell[PT]) else False):
+                        pvckm_re = ckm_re
+                        break
+
+                if not ec_is_ckm:
+                    pvckm_re = None
+                fail_by_ckm &= ec_is_ckm
+
+            ect_list.append((cell, '' if ec_pass else 'IG' if ec_is_ckm else 'FA'))
+
+        ctc_rslt = ['PASS' if ctc_pass else 'FAIL']
+        if not ctc_pass and fail_by_ckm:
+            ctc_rslt.append("(caused by user-defined clk modules)")
+        else:
+            ctc_rslt.append("")
     else:
-        ckt_chk = 'N/A'
-        gckt_result = [('--', '--') for i in range(len(gclist))]
+        ctc_rslt = ['N/A', '']
+        gct_list = [('--', '--') for i in range(len(gclist))]
 
     ## dump gclock compare list
     if is_dump:
-        gc_col_sz = [0] * 3
+        gc_col_sz, sc_col_sz, ec_col_sz = [0, 0, 0], [0, 0, 0], [0, 0, 0]
+
         for i in range(len(gclist)):
             for cid in range(LN, CELL+1):
                 if (len_:=len(str(gclist[i][0][cid]))) > gc_col_sz[cid]:
@@ -1201,10 +1252,20 @@ def clock_path_check(sgpath: list, spath: list, egpath: list, epath: list,
                 if (len_:=len(str(gclist[i][1][cid]))) > gc_col_sz[cid]:
                     gc_col_sz[cid] = len_
 
+        for cell in spath:
+            for cid in range(LN, CELL+1):
+                if (len_:=len(str(cell[cid]))) > sc_col_sz[cid]:
+                    sc_col_sz[cid] = len_
+
+        for cell in epath:
+            for cid in range(LN, CELL+1):
+                if (len_:=len(str(cell[cid]))) > ec_col_sz[cid]:
+                    ec_col_sz[cid] = len_
+
         for i, sz in enumerate([4, 10, 10], start=LN):
             gc_col_sz[i] = sz if gc_col_sz[i] < sz else gc_col_sz[i]
-            sc_col_sz[i] = sz if sc_col_sz[i] < sz else sc_col_sz[i]
-            ec_col_sz[i] = sz if ec_col_sz[i] < sz else ec_col_sz[i]
+            sc_col_sz[i] = (sz if sc_col_sz[i] < sz else sc_col_sz[i])
+            ec_col_sz[i] = (sz if ec_col_sz[i] < sz else ec_col_sz[i])
 
         with open(f"clock_check{pid}.dump", "w") as f:
             f.write("\n=== GClock Compare:\n")
@@ -1229,13 +1290,13 @@ def clock_path_check(sgpath: list, spath: list, egpath: list, epath: list,
             for i in range(len(gclist)):
                 f.write("| {} | {} | {} | {}    | {}    |\n".format(
                             'L'.center(4),
-                            gckt_result[i][0].rjust(2),
+                            gct_list[i][0].rjust(2),
                             str(gclist[i][0][LN]).rjust(gc_col_sz[LN]),
                             gclist[i][0][PT].ljust(gc_col_sz[PT]),
                             gclist[i][0][CELL].ljust(gc_col_sz[CELL])))
                 f.write("| {} | {} | {} | {}    | {}    |\n".format(
                             'C'.center(4),
-                            gckt_result[i][1].rjust(2),
+                            gct_list[i][1].rjust(2),
                             str(gclist[i][1][LN]).rjust(gc_col_sz[LN]),
                             gclist[i][1][PT].ljust(gc_col_sz[PT]),
                             gclist[i][1][CELL].ljust(gc_col_sz[CELL])))
@@ -1247,31 +1308,42 @@ def clock_path_check(sgpath: list, spath: list, egpath: list, epath: list,
                             '-' * gc_col_sz[CELL]))
             f.write("\n")
 
-            scan_list = [('Launch', sckt_list, sc_col_sz)] if len(sckt_list) != 0 else []
-            if len(eckt_list) != 0:
-                scan_list.append(('Capture', eckt_list, ec_col_sz))
+            scan_list = [('Launch', sct_list, sc_col_sz)] if len(sct_list) != 0 else []
+            if len(ect_list) != 0:
+                scan_list.append(('Capture', ect_list, ec_col_sz))
 
             for ctype, cell_list, col_sz in scan_list:
                 f.write("=== Non-CK type cell ({} source):\n".format(ctype))
-                f.write("+-{}-+-{}----+-{}----+\n".format('-' * col_sz[LN],
-                                                          '-' * col_sz[PT],
-                                                          '-' * col_sz[CELL]))
-                f.write("| {} | {}    | {}    |\n".format('Line'.ljust(col_sz[LN]), 
-                                                          'Pin'.ljust(col_sz[PT]),
-                                                          'Cell'.ljust(col_sz[CELL])))
-                f.write("+-{}-+-{}----+-{}----+\n".format('-' * col_sz[LN],
-                                                          '-' * col_sz[PT],
-                                                          '-' * col_sz[CELL]))
-                for cell in cell_list:
-                    f.write("| {} | {}    | {}    |\n".format(str(cell[LN]).ljust(col_sz[LN]), 
-                                                              cell[PT].ljust(col_sz[PT]),
-                                                              cell[CELL].ljust(col_sz[CELL])))
-                f.write("+-{}-+-{}----+-{}----+\n\n".format('-' * col_sz[LN],
-                                                            '-' * col_sz[PT],
-                                                            '-' * col_sz[CELL]))
+                f.write("+-{}-+-{}-+-{}----+-{}----+\n".format(
+                            '-' * 2,
+                            '-' * col_sz[LN],
+                            '-' * col_sz[PT],
+                            '-' * col_sz[CELL]))
+                f.write("| {} | {} | {}    | {}    |\n".format(
+                            'CK'.ljust(2), 
+                            'Line'.ljust(col_sz[LN]), 
+                            'Pin'.ljust(col_sz[PT]),
+                            'Cell'.ljust(col_sz[CELL])))
+                f.write("+-{}-+-{}-+-{}----+-{}----+\n".format(
+                            '-' * 2,
+                            '-' * col_sz[LN],
+                            '-' * col_sz[PT],
+                            '-' * col_sz[CELL]))
+                for cell, ctc_status in cell_list:
+                    f.write("| {} | {} | {}    | {}    |\n".format(
+                                ctc_status.rjust(2),
+                                str(cell[LN]).rjust(col_sz[LN]),
+                                cell[PT].ljust(col_sz[PT]),
+                                cell[CELL].ljust(col_sz[CELL])))
+                f.write("+-{}-+-{}-+-{}----+-{}----+\n".format(
+                            '-' * 2,
+                            '-' * col_sz[LN],
+                            '-' * col_sz[PT],
+                            '-' * col_sz[CELL]))
+                f.write("\n")
 
-    cf_info = (cf_info[0]+1, *cf_info[1:])
-    return gc_chk, ckt_chk, cf_info
+    scc_rslt = (scc_rslt[0]+1, *scc_rslt[1:])
+    return gcc_rslt, scc_rslt, ctc_rslt
 #}}}
 
 def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
@@ -1281,7 +1353,7 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
     for cid, cell in enumerate(path['lpath']):
         if tag is None:
             new_tag = None
-            for key, ps_re in cons_cfg['ps'].items():
+            for key, ps_re in cons_cfg['pc'].items():
                 if (m:=ps_re.fullmatch(cell[PT])):
                     new_tag = key
                     break
@@ -1300,7 +1372,7 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
             else:
                 lat_sum += cell[INCR]
                 dt_sum += cell[DELTA]
-        elif cons_cfg['ps'][tag].fullmatch(cell[PT]) is None:
+        elif cons_cfg['pc'][tag].fullmatch(cell[PT]) is None:
             if is_clk:
                 slat_list.append([tag, lat_sum])
                 sdt_list.append([tag, dt_sum])
@@ -1309,7 +1381,7 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
                 ddt_list.append([tag, dt_sum])
             lat_sum, dt_sum = cell[INCR], cell[DELTA]
             tag = None
-            for key, ps_re in cons_cfg['ps'].items():
+            for key, ps_re in cons_cfg['pc'].items():
                 if (m:=ps_re.fullmatch(cell[PT])):
                     tag = key
                     break
@@ -1332,7 +1404,7 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
     for cell in path['cpath']:
         if tag is None:
             new_tag = None
-            for key, ps_re in cons_cfg['ps'].items():
+            for key, ps_re in cons_cfg['pc'].items():
                 if (m:=ps_re.fullmatch(cell[PT])):
                     new_tag = key
                     break
@@ -1347,12 +1419,12 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
             else:
                 lat_sum += cell[INCR]
                 dt_sum += cell[DELTA]
-        elif cons_cfg['ps'][tag].fullmatch(cell[PT]) is None:
+        elif cons_cfg['pc'][tag].fullmatch(cell[PT]) is None:
             elat_list.append([tag, lat_sum])
             edt_list.append([tag, dt_sum])
             lat_sum, dt_sum = cell[INCR], cell[DELTA]
             tag = None
-            for key, ps_re in cons_cfg['ps'].items():
+            for key, ps_re in cons_cfg['pc'].items():
                 if (m:=ps_re.fullmatch(cell[PT])):
                     tag = key
                     break
@@ -1405,26 +1477,26 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
     print(" {}".format("=" * 60))
 #}}}
 
-def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_opt: set, path_type: set, is_rev: bool):
+def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_dtype: set, bar_ptype: set, is_rev: bool):
     """Show Time Path Barchart"""  #{{{
     db, db_dict = [], {}
 
     ## [c]apacitance
-    if 'c' in bar_opt and 'cap' in opt_set:
+    if 'c' in bar_dtype and 'cap' in opt_set:
         db_dict['c'], data = [], []
         for cid, cell in enumerate(path['lpath']):
             data.append(cell[CAP])
             if cid == path['spin']:
-                if 'l' in path_type:
+                if 'l' in bar_ptype:
                     db_dict['c'].append(["Launch Clk Cap (pf)", data.copy()])
-                if 'd' not in path_type:
+                if 'd' not in bar_ptype:
                     data = None
                     break
-                if 'f' not in path_type:
+                if 'f' not in bar_ptype:
                     data = [data[-1]]
         ddata = data
 
-        if 'c' in path_type:
+        if 'c' in bar_ptype:
             data = []
             for cell in path['cpath']:
                 data.append(cell[CAP])
@@ -1433,41 +1505,41 @@ def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_opt: set, path_t
         if ddata is not None:
             db_dict['c'].append(["Path Cap (pf)", ddata])
     else:
-        bar_opt.discard('c')
+        bar_dtype.discard('c')
 
     opt_set.add('incr')
-    bar_types = [
+    dtype_list = [
         ['p', 'phy', PHY, "Distance (um)"],     ## [p]hysical distance
         ['t', 'tran', TRAN, "Tran (ns)"],       ## [t]ransition
         ['d', 'delta', DELTA, "Delta (ns)"],    ## [d]elta
         ['i', 'incr', INCR, "Increment (ns)"],  ## latency [i]ncrement
     ]
 
-    for btype in bar_types:
-        if btype[0] in bar_opt and btype[1] in opt_set:
-            db_dict[btype[0]], data = [], []
+    for dtype in dtype_list:
+        if dtype[0] in bar_dtype and dtype[1] in opt_set:
+            db_dict[dtype[0]], data = [], []
             for cid, cell in enumerate(path['lpath']):
-                data.append(cell[btype[2]])
+                data.append(cell[dtype[2]])
                 if cid == path['spin']:
-                    if 'l' in path_type:
-                        db_dict[btype[0]].append([f"Launch Clk {btype[3]}", data.copy()])
-                    if 'd' not in path_type:
+                    if 'l' in bar_ptype:
+                        db_dict[dtype[0]].append([f"Launch Clk {dtype[3]}", data.copy()])
+                    if 'd' not in bar_ptype:
                         data = None
                         break
-                    if 'f' not in path_type:
+                    if 'f' not in bar_ptype:
                         data = [data[-1]]
             ddata = data
 
-            if 'c' in path_type:
+            if 'c' in bar_ptype:
                 data = []
                 for cell in path['cpath']:
-                        data.append(cell[btype[2]])
-                db_dict[btype[0]].append([f"Capture Clk {btype[3]}", data])
+                        data.append(cell[dtype[2]])
+                db_dict[dtype[0]].append([f"Capture Clk {dtype[3]}", data])
 
             if ddata is not None:
-                db_dict[btype[0]].append([f"Path {btype[3]}", ddata])
+                db_dict[dtype[0]].append([f"Path {dtype[3]}", ddata])
         else:
-            bar_opt.discard(btype[0])
+            bar_dtype.discard(dtype[0])
 
     if 'p' in db_dict:          # physical distance
         db.extend(db_dict['p'])
@@ -1487,164 +1559,263 @@ def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_opt: set, path_t
     if 'i' in db_dict:          # latency increment
         db.extend(db_dict['i'])
 
-    plt_cnt = len(db)
-    if plt_cnt != 0:
-        seg_dict = cons_cfg['ps'] if 'ps' in cons_cfg else None
-        bar_lg, lv_c, lv_ha, lv_ec = get_time_bar_info(PT, 'TP', seg_dict, path_type, path, True)
+    if len(db) != 0:
+        seg_dict = cons_cfg['pc'] if 'pc' in cons_cfg else None
+        bar_info, spin_pos = get_time_bar_info(PT, 'TP', seg_dict, bar_ptype, path, True)
 
-        if 'cc' in cons_cfg and 'ct' in bar_opt:
-            bar_ct_lg, lv_ct_c, lv_ct_ha, lv_ct_ec = \
-                get_time_bar_info(CELL, 'UN', cons_cfg['cc'], path_type, path, True)
+        if 'cc' in cons_cfg and 'ct' in bar_dtype:
+            bar_ct_info, spin_pos = get_time_bar_info(CELL, 'UN', cons_cfg['cc'], bar_ptype, path, True)
         else:
-            bar_opt.discard('ct')
+            bar_dtype.discard('ct')
 
-        if plt_cnt == 1 and 'ct' not in bar_opt:
-            labels = list(bar_lg[0].keys())
-            handles = [plt.Rectangle((0,0), 1, 1, color=bar_lg[0][label]) for label in labels]
-            lv_cnt = len(db[-1][1])
-            level = range(0, lv_cnt)
+        bar_ptype.discard('f')
+        dtype_cnt, ptype_cnt = len(bar_dtype), len(bar_ptype)
+        cy_cnt, cx_cnt = (ptype_cnt, dtype_cnt) if is_rev else (dtype_cnt, ptype_cnt)
+        fig, axs = plt.subplots(cy_cnt, cx_cnt, constrained_layout=True)
 
-            plt.bar(level, db[-1][1], align='center', color=lv_c[0], hatch=lv_ha[0], ec=lv_ec[0], width=1.0)
-            plt.grid(axis='y', which='both', ls=':', c='grey')
-            plt.xticks(level, [])
-            plt.title(db[-1][0])
-            plt.legend(handles, labels, loc='upper left', ncol=len(labels))
+        pt_anno_list = [[] for i in range(dtype_cnt*ptype_cnt)]
+        bbox = dict(boxstyle='round', fc='#ffcc00', alpha=0.6)
+        arrow = dict(arrowstyle='->', connectionstyle="arc3,rad=0.")
+
+        if 'ct' in bar_dtype:
+            is_ct_chk, last_dtype = True, dtype_cnt-1
         else:
-            path_type.discard('f')
-            opt_cnt, type_cnt = len(bar_opt), len(path_type)
-            cy_cnt, cx_cnt = (type_cnt, opt_cnt) if is_rev else (opt_cnt, type_cnt)
-            fig, axs = plt.subplots(cy_cnt, cx_cnt, constrained_layout=True)
-            if 'ct' in bar_opt:
-                opt_cnt -= 1
-                for x in range(type_cnt):
-                    did = type_cnt * (opt_cnt - 1) + x
-                    aid = (cx_cnt * x + opt_cnt) if is_rev else (cx_cnt * opt_cnt + x)
-                    labels = list(bar_ct_lg[x].keys())
-                    handles = [plt.Rectangle((0,0), 1, 1, color=bar_ct_lg[x][label]) for label in labels]
-                    lv_cnt = len(db[did][1])
-                    level = range(0, lv_cnt)
+            is_ct_chk = False
 
-                    axs = plt.subplot(cy_cnt, cx_cnt, aid+1)
-                    axs.bar(level, db[did][1], align='center', 
-                            color=lv_ct_c[x], hatch=lv_ct_ha[x], ec=lv_ct_ec[x], width=1.0)
-                    axs.grid(axis='y', which='both', ls=':', c='grey')
-                    axs.set_xticks(level, [])
-                    axs.set_title(db[did][0])
-                    axs.legend(handles, labels, loc='upper left', ncol=len(labels))
+        for y in range(dtype_cnt):
+            if (ct_act:=(is_ct_chk and y == last_dtype)):
+                slg, slv_ce, slv_c, slv_ha, slv_ec = bar_ct_info
+                dtype_off = ptype_cnt * (y - 1)
+            else:
+                slg, slv_ce, slv_c, slv_ha, slv_ec = bar_info
+                dtype_off = ptype_cnt * y
 
-            for y in range(opt_cnt):
-                for x in range(type_cnt):
-                    did = type_cnt * y + x
-                    aid = (cx_cnt * x + y) if is_rev else (cx_cnt * y + x)
-                    labels = list(bar_lg[x].keys())
-                    handles = [plt.Rectangle((0,0), 1, 1, color=bar_lg[x][label]) for label in labels]
-                    lv_cnt = len(db[did][1])
-                    level = range(0, lv_cnt)
+            for x in range(ptype_cnt):
+                sdb = db[dtype_off+x]
+                aid = (cx_cnt*x+y) if is_rev else (cx_cnt*y+x)
+                labels = list(slg[x].keys())
+                handles = [plt.Rectangle((0,0), 1, 1, color=slg[x][label]) for label in labels]
+                level = range(0, len(sdb[1]))
 
-                    axs = plt.subplot(cy_cnt, cx_cnt, aid+1)
-                    axs.bar(level, db[did][1], align='center', 
-                            color=lv_c[x], hatch=lv_ha[x], ec=lv_ec[x], width=1.0)
-                    axs.grid(axis='y', which='both', ls=':', c='grey')
-                    axs.set_xticks(level, [])
-                    axs.set_title(db[did][0])
-                    axs.legend(handles, labels, loc='upper left', ncol=len(labels))
+                max_dy = max(sdb[1])
+                min_dy = 0 if (min_dy:=min(sdb[1])) > 0 else min_dy
+                dy_off = 2.0 if ct_act else (max_dy-min_dy)
+                dx, dy_rt = -0.5, 0.5
+                dy = min_dy + dy_off * dy_rt
 
-        plt.xlabel("level")
+                xlist = [*level]
+                if spin_pos[0] is not None and spin_pos[0] == x:
+                    xlist.append(xlist[spin_pos[1]])
+                    del xlist[spin_pos[1]]
+
+                axs = plt.subplot(cy_cnt, cx_cnt, aid+1)
+                for ix in xlist:
+                    toks = slv_ce[x][ix][PT].split('/')
+                    pin = f".../{toks[-2]}/{toks[-1]}" if len(toks) > 2 else toks
+                    if ct_act:
+                        val, iy = f"lib: {slv_ce[x][ix][CELL]}", 0.5
+                    else:
+                        val = "val: {:.4f}".format(iy:=sdb[1][ix])
+
+                    comm = "pin: {}\n{}\nln: {}".format(pin, val, slv_ce[x][ix][LN])
+                    pt, = axs.bar(ix, iy, width=1.0, 
+                                  color=slv_c[x][ix], hatch=slv_ha[x][ix], ec=slv_ec[x][ix])
+                    anno = plt.annotate(comm, xy=(ix,iy), xytext=(dx,dy), 
+                                        bbox=bbox, arrowprops=arrow, size=10)
+                    anno.set_visible(False)
+                    info = {'dx': dx, 'min_dy': min_dy, 'dy_off': dy_off, 'dy_rt': dy_rt, 
+                            'ce': slv_ce[x][ix], 'plv': 2, 'ct': ct_act}
+                    pt_anno_list[aid].append([pt, anno, info])
+
+                if ct_act:
+                    axs.set_title(sdb[0].split()[0] + " Cell Type")
+                    axs.set_ylim(0, 2)
+                else:
+                    axs.set_title(sdb[0])
+                axs.grid(axis='y', which='both', ls=':', c='grey')
+                axs.set_xticks(level, [])
+                axs.legend(handles, labels, loc='upper left', ncol=len(labels))
+
+        # def on_move(event):
+        #     is_vis_chg = False
+        #     for i in range(len(pt_anno_list)):
+        #         for pt, anno, _ in pt_anno_list[i]:
+        #             is_vis = (pt.contains(event)[0] == True)
+        #             if is_vis != anno.get_visible():
+        #                 is_vis_chg = True
+        #                 anno.set_visible(is_vis)
+        #     if is_vis_chg:
+        #         plt.draw()
+
+        def on_mouse(event):
+            ev_key = str(event.button)
+            # print(ev_key)
+            if ev_key == 'MouseButton.LEFT':
+                for i in range(len(pt_anno_list)):
+                    is_act, vis_list = False, []
+                    for pt, *_ in pt_anno_list[i]:
+                        vis_list.append(pt.contains(event)[0] == True)
+                        is_act = is_act or vis_list[-1]
+                    if is_act:
+                        for is_vis, pt_anno in zip(vis_list, pt_anno_list[i]):
+                            if is_vis != pt_anno[1].get_visible():
+                                pt_anno[1].set_visible(is_vis)
+            elif ev_key == 'MouseButton.RIGHT':
+                for i in range(len(pt_anno_list)):
+                    for pt, anno, _ in pt_anno_list[i]:
+                        anno.set_visible(False)
+            plt.draw()
+
+        def on_key(event):
+            ev_key, val = key_event_check(str(event.key))
+            # print(str(event.key))
+            match ev_key:
+                case 'ESC':
+                    for i in range(len(pt_anno_list)):
+                        for pt, anno, _ in pt_anno_list[i]:
+                            anno.set_visible(False)
+                    plt.draw()
+                case 'UD':
+                    for i in range(len(pt_anno_list)):
+                        for pt, anno, info in pt_anno_list[i]:
+                            info['dy_rt'] += val 
+                            anno.set_y(info['min_dy']+info['dy_off']*info['dy_rt'])
+                    plt.draw()
+                case 'LR':
+                    for i in range(len(pt_anno_list)):
+                        for pt, anno, info in pt_anno_list[i]:
+                            anno.set_x(anno._x+val)
+                    plt.draw()
+                case 'PM':
+                    for i in range(len(pt_anno_list)):
+                        for pt, anno, info in pt_anno_list[i]:
+                            info['plv'], toks = (plv:=info['plv']+val), (pin:=info['ce'][PT]).split('/')
+                            if len(toks) > plv:
+                                pin = ""
+                                for i in range(-1, -1-plv, -1):
+                                    pin = "/{}".format(toks[i]) + pin
+                                pin = '...' + pin
+                            toks = anno.get_text().split('\n')
+                            anno.set_text(f"pin: {pin}\n{toks[-2]}\n{toks[-1]}")
+                    plt.draw()
+                case 'BT':
+                    for i in range(len(pt_anno_list)):
+                        for pt, anno, info in pt_anno_list[i]:
+                            toks = anno.get_text().split('\n')
+                            if val == 2 and info['ct'] is False:
+                                toks[0] = "{}\nlib: {}".format(toks[0], info['ce'][CELL])
+                            anno.set_text(f"{toks[0]}\n{toks[-2]}\n{toks[-1]}")
+                    plt.draw()
+                case 'RESET':
+                    for i in range(len(pt_anno_list)):
+                        for pt, anno, info in pt_anno_list[i]:
+                            if anno._x == -0.5 and info['dy_rt'] == 0.5:
+                                info['plv'], toks = 2, (pin:=info['ce'][PT]).split('/')
+                                if len(toks) > 2:
+                                    pin = f'.../{toks[-2]}/{toks[-1]}'
+                                toks = anno.get_text().split('\n')
+                                anno.set_text(f"pin: {pin}\n{toks[-2]}\n{toks[-1]}")
+                            info['dy_rt'] = 0.5
+                            anno.set_x(-0.5)
+                            anno.set_y(info['min_dy']+info['dy_off']*info['dy_rt'])
+                    plt.draw()
+
+        # fig.canvas.mpl_connect('motion_notify_event', on_move)
+        fig.canvas.mpl_connect('button_press_event', on_mouse)
+        fig.canvas.mpl_connect('key_press_event', on_key)
         plt.show()
 #}}}
 
-def get_time_bar_info(cmp_id: int, default_tag: str, seg_dict: None, path_type: set, path: dict, 
+def get_time_bar_info(cmp_id: int, default_tag: str, seg_dict: None, bar_ptype: set, path: dict, 
                       is_order=False):
     """Get Time Bar Information"""  #{{{
-    bar_lg, lv_c, lv_ha, lv_ec = [], [], [], []
-    if seg_dict is not None:
-        pal_num = len(HIST_PALETTE)
-        if seg_dict is not None and is_order:
-            hist_palette = {}
-            for i, key in enumerate(seg_dict.keys()):
-                hist_palette[key] = HIST_PALETTE[i%pal_num]
-        else:
-            hist_palette = HIST_PALETTE
-
-        for type_ in ('l', 'c', 'd'):
-            if type_ in path_type:
-                tag, pal_idx, bar_lg_path = None, -1, {default_tag: HIST_DEFAULT_COLOR}
-                lv_c_path, lv_ha_path, lv_ec_path = [], [], []
-                s_path = path['cpath'] if type_ == 'c' else path['lpath']
-                for cid, cell in enumerate(s_path):
-                    if tag is None:
-                        new_tag = None
-                        for key, ps_re in seg_dict.items():
-                            if (m:=ps_re.fullmatch(cell[cmp_id])):
-                                new_tag = key
-                                break
-                        tag = new_tag
-                    elif seg_dict[tag].fullmatch(cell[cmp_id]) is None:
-                        new_tag = None
-                        for key, ps_re in seg_dict.items():
-                            if (m:=ps_re.fullmatch(cell[cmp_id])):
-                                new_tag = key
-                                break
-                        tag = new_tag
-
-                    if cid == path['spin'] and type_ == 'd' and 'f' not in path_type:
-                        pal_idx, bar_lg_path = -1, {default_tag: HIST_DEFAULT_COLOR}
-                        lv_c_path, lv_ha_path, lv_ec_path = [], [], []
-
-                    key = default_tag if tag is None else tag
-                    if key not in bar_lg_path:
-                        if is_order:
-                            bar_lg_path[key] = hist_palette[key]
-                        else:
-                            bar_lg_path[key] = hist_palette[(pal_idx:=pal_idx+1)%pal_num]
-
-                    lv_c_path.append(bar_lg_path[key])
-                    if cid == path['spin'] and type_ == 'd':
-                        lv_ha_path.append('/')
-                        lv_ec_path.append('b')
-                    else:
-                        lv_ha_path.append('')
-                        lv_ec_path.append('k')
-                    if cid == path['spin'] and type_ == 'l':
-                        break
-
-                if is_order:
-                    m_bar_lg_path = {}
-                    for key in seg_dict.keys():
-                        if key in bar_lg_path:
-                            m_bar_lg_path[key] = bar_lg_path[key]
-                else:
-                    m_bar_lg_path = bar_lg_path
-
-                bar_lg.append(m_bar_lg_path)
-                lv_c.append(lv_c_path)
-                lv_ha.append(lv_ha_path)
-                lv_ec.append(lv_ec_path)
+    pal_num = len(HIST_PALETTE)
+    if seg_dict is not None and is_order:
+        hist_palette = {}
+        for i, key in enumerate(seg_dict.keys()):
+            hist_palette[key] = HIST_PALETTE[i%pal_num]
     else:
-        for type_ in ('l', 'c', 'd'):
-            if type_ in path_type:
-                bar_lg.append({default_tag: HIST_PALETTE[0]})
-                lv_c.append([HIST_PALETTE[0]])
-                if type_ == 'd':
-                    lv_ha_path, lv_ec_path = [], []
-                    for cid, cell in enumerate(path['lpath']):
-                        if cid == path['spin']:
-                            if 'f' in path_type: 
-                                lv_ha_path.append('/')
-                                lv_ec_path.append('b')
-                            else:
-                                lv_ha_path = ['/']
-                                lv_ec_path = ['b']
-                        else:
-                            lv_ha_path.append('')
-                            lv_ec_path.append('k')
-                    lv_ha.append(lv_ha_path)
-                    lv_ec.append(lv_ec_path)
-                else:
-                    lv_ha.append([''])
-                    lv_ec.append(['k'])
+        hist_palette = HIST_PALETTE
 
-    return bar_lg, lv_c, lv_ha, lv_ec
+    default_color = HIST_PALETTE[0] if seg_dict is None else HIST_DEFAULT_COLOR
+    bar_lg, spin_pos = [], (None, None)
+    lv_ce, lv_c, lv_ha, lv_ec = [], [], [], []
+
+    for type_ in ('l', 'c', 'd'):
+        if type_ in bar_ptype:
+            tag, pal_idx, bar_lg_path = None, -1, {default_tag: default_color}
+            lv_ce_path, lv_c_path, lv_ha_path, lv_ec_path  = [], [], [], []
+            s_path = path['cpath'] if type_ == 'c' else path['lpath']
+            for cid, cell in enumerate(s_path):
+                if seg_dict is None:
+                    pass
+                elif tag is None:
+                    new_tag = None
+                    for key, ps_re in seg_dict.items():
+                        if (m:=ps_re.fullmatch(cell[cmp_id])):
+                            new_tag = key
+                            break
+                    tag = new_tag
+                elif seg_dict[tag].fullmatch(cell[cmp_id]) is None:
+                    new_tag = None
+                    for key, ps_re in seg_dict.items():
+                        if (m:=ps_re.fullmatch(cell[cmp_id])):
+                            new_tag = key
+                            break
+                    tag = new_tag
+
+                if cid == path['spin'] and type_ == 'd' and 'f' not in bar_ptype:
+                    pal_idx, bar_lg_path = -1, {default_tag: default_color}
+                    lv_ce_path, lv_c_path, lv_ha_path, lv_ec_path  = [], [], [], []
+
+                key = default_tag if tag is None else tag
+                if key not in bar_lg_path:
+                    if is_order:
+                        bar_lg_path[key] = hist_palette[key]
+                    else:
+                        bar_lg_path[key] = hist_palette[(pal_idx:=pal_idx+1)%pal_num]
+
+                lv_ce_path.append(cell)
+
+                lv_c_path.append(bar_lg_path[key])
+                if cid == path['spin'] and type_ == 'd':
+                    spin_pos = (len(lv_ha), len(lv_ha_path))
+                    lv_ha_path.append('/')
+                    lv_ec_path.append('b')
+                else:
+                    lv_ha_path.append('')
+                    lv_ec_path.append('k')
+
+            if seg_dict is not None and is_order:
+                m_bar_lg_path = {default_tag: default_color}
+                for key in seg_dict.keys():
+                    if key in bar_lg_path:
+                        m_bar_lg_path[key] = bar_lg_path[key]
+            else:
+                m_bar_lg_path = bar_lg_path
+
+            bar_lg.append(m_bar_lg_path)
+            lv_ce.append(lv_ce_path)
+            lv_c.append(lv_c_path)
+            lv_ha.append(lv_ha_path)
+            lv_ec.append(lv_ec_path)
+
+    return (bar_lg, lv_ce, lv_c, lv_ha, lv_ec), spin_pos
+#}}}
+
+def key_event_check(action):
+    """Check Key Event"""  #{{{
+    if action == 'escape'   : return 'ESC'  ,  0    # remove all comment bubble
+    if action == 'up'       : return 'UD'   ,  0.1  # up shift bubble
+    if action == 'down'     : return 'UD'   , -0.1  # down shift bubble
+    if action == 'left'     : return 'LR'   , -0.5  # left shift bubble
+    if action == 'right'    : return 'LR'   ,  0.5  # right shift bubble
+    if action == 'a'        : return 'PM'   ,  1    # increase pin hierarchical
+    if action == 'd'        : return 'PM'   , -1    # decrease pin hierarchical
+    if action == '1'        : return 'BT'   ,  1    # bubble type 1 (pin, val, ln)
+    if action == '2'        : return 'BT'   ,  2    # bubble type 2 (pin, lib, val, ln)
+    if action == 'r'        : return 'RESET',  0    # reset bubble
+    return "NONE", 0
 #}}}
 
 ### Function for 'report_noise' ###
@@ -1704,39 +1875,47 @@ def create_argparse() -> argparse.ArgumentParser:
                                     help="custom configuration file") 
 
     ## report_timing brief
-    parser_time = subparsers.add_parser('time', help="Brief report of report_timing\n" +
-                                                     "  --command: 'report_timing'")
-    parser_time.add_argument('-a', dest='is_all', action='store_true', 
+    parser_timeb = subparsers.add_parser('timeb', help="Timing Path Brief Report\n" +
+                                                       "  --command: 'report_timing'")
+    parser_timeb.add_argument('-a', dest='is_all', action='store_true', 
                                     help="show timing meet path (default: only violation path)")
-    parser_time.add_argument('-c', dest='cfg_fp', metavar='<config>', 
+    parser_timeb.add_argument('-c', dest='cfg_fp', metavar='<config>',
                                     help="custom configuration file") 
-    parser_time.add_argument('rpt_fp', help="report_path") 
+    parser_timeb.add_argument('rpt_fp', help="report_path") 
 
     ## report_timing detail
-    parser_time2 = subparsers.add_parser('time2', help="Detail time path analysis\n" +
-                                                      "  --command: 'report_timing'")
-    parser_time2.add_argument('-c', dest='cfg_fp', metavar='<config>', 
-                                        help="custom configuration file") 
-    parser_time2.add_argument('-r', dest='range', metavar='<value>', 
-                                        help="scan range (ex: 6,16+2,26-100)") 
-    parser_time2.add_argument('-delta', dest='is_delta', action='store_true', 
-                                        help="show delta")
-    parser_time2.add_argument('-ckdump', dest='is_ckdump', action='store_true', 
-                                        help="dump gclock compare list")
-    parser_time2.add_argument('-path', dest='path_type', metavar='<pat>', nargs='*', 
-                                        choices=['f','d','l','c'],
-                                        help="bar chart path type \
-                                                (f:full data, d:data, l:launch clk, c:capture clk)") 
-    parser_time2.add_argument('-cbar', dest='cbar', metavar='<tag>', 
-                                        help="custom bar chart content select set") 
-    parser_time2.add_argument('-bar', dest='bar', metavar='<pat>', nargs='*', 
+    parser_times = subparsers.add_parser('times', help="Timing Path Summary\n" +
+                                                       "  --command: 'report_timing'")
+    parser_times.add_argument('rpt_fp', help="report_path") 
+    parser_times.add_argument('-c', dest='cfg_fp', metavar='<config>', 
+                                        help="set the config file path") 
+    parser_times.add_argument('-nc', dest='is_nocfg', action='store_true', 
+                                        help="disable to load the config file")
+    parser_times.add_argument('-r', dest='range', metavar='<value>', 
+                                        help="report scan range select \
+                                              (ex: 6,16+2,26-100 ; default load 1 path from line 0)") 
+    parser_times.add_argument('-ckc', dest='ckc_en', action='store_true', 
+                                        help="enable clock path check")
+    parser_times.add_argument('-ckcd', dest='ckc_dump', action='store_true', 
+                                        help="dump clock path check contents to the file")
+    parser_times.add_argument('-dts', dest='dts_en', action='store_true', 
+                                        help="enable clock/data path delta summation")
+    parser_times.add_argument('-seg', dest='seg_en', action='store_true', 
+                                        help="enable path segment")
+    parser_times.add_argument('-bar', dest='bar', metavar='<pat>', nargs='*', 
                                         choices=['p','c','t','d','i', 'ct'],
-                                        help="bar chart content select \
+                                        help="bar view data type select \
                                                 (p:distance, c:cap, t:tran, d:delta, i:incr, ct:cell_type)") 
-    parser_time2.add_argument('-rev', dest='is_rev', action='store_true', help="axis reverse")
-    parser_time2.add_argument('-debug', dest='is_debug', action='store_true', 
+    parser_times.add_argument('-barp', dest='bar_ptype', metavar='<pat>', nargs='*', 
+                                        choices=['f','d','l','c'],
+                                        help="bar view path type select \
+                                                (f:full data, d:data, l:launch clk, c:capture clk)") 
+    parser_times.add_argument('-bars', dest='bars', metavar='<tag>', 
+                                        help="bar view data type set defined in the config file") 
+    parser_times.add_argument('-barr', dest='bar_rev', action='store_true', 
+                                        help="axis reverse for bar view")
+    parser_times.add_argument('-debug', dest='is_debug', action='store_true',
                                         help="enable debug mode")
-    parser_time2.add_argument('rpt_fp', help="report_path") 
 
     ## report_noise brief
     parser_time = subparsers.add_parser('nois', help="Brief report of report_noise\n" +
@@ -1752,24 +1931,26 @@ def main():
     args = parser.parse_args()
 
     if args.proc_mode == 'cons':
-        if args.cfg_fp is None and os.path.exists(".pt_rpt_ana.cons.setup"):
-            if os.path.isfile(".pt_rpt_ana.cons.setup"):
-                args.cfg_fp = ".pt_rpt_ana.cons.setup"
+        if args.cfg_fp is None and os.path.exists(".pt_ana_cons.setup"):
+            if os.path.isfile(".pt_ana_cons.setup"):
+                args.cfg_fp = ".pt_ana_cons.setup"
 
         rpt_fps = [args.rpt_fp] if args.rpt_fp2 is None else [args.rpt_fp, args.rpt_fp2]
         report_cons_brief(rpt_fps, args.cfg_fp)
 
-    elif args.proc_mode == 'time':
-        if args.cfg_fp is None and os.path.exists(".pt_rpt_ana.time.setup"):
-            if os.path.isfile(".pt_rpt_ana.time.setup"):
-                args.cfg_fp = ".pt_rpt_ana.time.setup"
+    elif args.proc_mode == 'timeb':
+        if args.cfg_fp is None and os.path.exists(".pt_ana_timeb.setup"):
+            if os.path.isfile(".pt_ana_timeb.setup"):
+                args.cfg_fp = ".pt_ana_timeb.setup"
 
         report_time_brief(args.rpt_fp, args.is_all, args.cfg_fp)
 
-    elif args.proc_mode == 'time2':
-        if args.cfg_fp is None and os.path.exists(".pt_rpt_ana.time2.setup"):
-            if os.path.isfile(".pt_rpt_ana.time2.setup"):
-                args.cfg_fp = ".pt_rpt_ana.time2.setup"
+    elif args.proc_mode == 'times':
+        if args.is_nocfg:
+            args.cfg_fp = None
+        elif args.cfg_fp is None and os.path.exists(".pt_ana_times.setup"):
+            if os.path.isfile(".pt_ana_times.setup"):
+                args.cfg_fp = ".pt_ana_times.setup"
 
         prange_list = []
         if args.range is None:
@@ -1784,7 +1965,7 @@ def main():
                     prange_list.append([int(args.range), None, 1])
         
         print("\n Report: {}\n".format(os.path.abspath(args.rpt_fp)))
-        report_time_detail(args, prange_list)
+        report_time_summary(args, prange_list)
 
     elif args.proc_mode == 'nois':
         report_noise_brief(args.rpt_fp)

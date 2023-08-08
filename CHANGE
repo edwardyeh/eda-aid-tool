@@ -186,3 +186,10 @@ v0.25.0
     pt_rpt_ana/cons:
         1. Fix config issue.
 
+v0.26.0
+
+    pt_rpt_ana/times:
+        1. Add comment bubble for bar diagram.
+        2. Refine clock check function.
+        3. Design refactoring for time2 (rename from 'time2' to 'times').
+
