@@ -4,6 +4,6 @@
 #
 __all__ = []
 
-from .general import str2int
+from .common import str2int
 
 __all__ += ['str2int']

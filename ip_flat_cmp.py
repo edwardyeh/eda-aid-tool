@@ -19,7 +19,9 @@ import openpyxl
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.formatting.rule import CellIsRule
 
-from .utils.general import VERSION
+from .utils.common import PKG_VERSION
+
+VERSION = f"ip_flat_cmp version 1.0.0 ({PKG_VERSION})"
 
 ### Global Setting ###   {{{
 

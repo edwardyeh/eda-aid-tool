@@ -16,10 +16,12 @@ import sys
 import textwrap
 from dataclasses import dataclass, field
 
-import pandas as pd
 import numpy as np
+import pandas as pd
 
-from .utils.general import VERSION
+from .utils.common import PKG_VERSION
+
+VERSION = f"dc_ana_area version 1.0.0 ({PKG_VERSION})"
 
 ### Global Parameter ###  
 

@@ -3,14 +3,10 @@
 # Copyright (C) 2022 Yeh, Hsin-Hsien <yhh76227@gmail.com>
 #
 """
-General function set
+Common Function of EDA-Aid-Tool
 """
 
-### Global Variable ###
-
-VERSION = '0.26.0'
-
-### General Function ###
+PKG_VERSION = 'EDA-Aid-Tool 2023.09-SP1 (dev.1)'
 
 def str2int(str_: str, is_signed: bool=False, bits: int=32) -> int:
     """Convert string to integer (with HEX check)"""  #{{{
