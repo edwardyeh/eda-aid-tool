@@ -6,7 +6,13 @@
 Common Function of EDA-Aid-Tool
 """
 
-PKG_VERSION = 'EDA-Aid-Tool 2023.09-SP1 (dev.1)'
+PKG_VERSION = "EDA-Aid-Tool 2023.09-SP1 (dev.1)"
+DC_AREA_VER = "1.0.0.a1"
+IP_FLAT_VER = "1.0.0.a1"
+PT_CONS_VER = "1.0.0.a1"
+PT_TB_VER   = "1.0.0.a1"
+PT_TS_VER   = "1.0.0.a2"
+PT_ANA_VER  = "1.0.0.a1"
 
 def str2int(str_: str, is_signed: bool=False, bits: int=32) -> int:
     """Convert string to integer (with HEX check)"""  #{{{

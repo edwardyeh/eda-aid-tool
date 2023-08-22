@@ -15,14 +15,13 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from .utils.common import PKG_VERSION 
+from .utils.common import PKG_VERSION, PT_TS_VER
 
-VERSION = f"pt_ana_ts version 1.0.0 ({PKG_VERSION})"
+VERSION = f"pt_ana_ts version {PT_TS_VER} ({PKG_VERSION})"
 
 ### Global Variable ###    {{{
 
-prange_re1 = re.compile(r"(\d+)\+(\d+)")
-prange_re2 = re.compile(r"(\d+)-(\d+)")
+range_re = re.compile(r"(?P<st>\d+)(?::(?P<ed>\d+))?(?:\+(?P<nu>\d+))?")
 path_re = re.compile(r"\s*\S+")
 
 TIME_COL_NUM = 12
@@ -50,10 +49,13 @@ HIST_PALETTE = [
 
 ### Function ###
 
-def report_time_summary(args, prange_list: list):
+def report_time_summary(args, range_list: list):
     """Detial Time Path Analysis"""  #{{{
     cons_cfg = load_times_cfg(args.cfg_fp)
-    time_rpt_dict = parse_time_rpt(args.rpt_fp, prange_list, cons_cfg)
+
+    ckp_set = cons_cfg['ckp'] if 'ckp' in cons_cfg else set()
+    cdh_dict = cons_cfg['cdh'] if 'cdh' in cons_cfg else {}
+    time_rpt_dict = parse_time_report(args.rpt_fp, range_list, ckp_set, cdh_dict)
 
     if args.is_debug:
         print("opt: {}".format(time_rpt_dict['opt']))
@@ -94,29 +96,39 @@ def report_time_summary(args, prange_list: list):
             print(" {}".format("=" * 60))
 
             ## path latency
-            print(" {:26}{: 5.4f}".format("data latency:", path['arr']-idly-path['slat']-path['sev']))
-            print(" {:26}{: 5.4f}".format("arrival:", path['arr']))
-            print(" {:26}{: 5.4f}".format("required:", path['req']))
-            print(" {:26}{: 5.4f}".format("slack:", path['slk']))
-            if 'idly' in path or 'odly' in path or len(path['cdh']) != 0:
-                print(" {}".format("-" * 60))
-            if 'idly' in path:
-                print(" {:26}{: 5.4f}".format("input delay:", idly))
-            if 'odly' in path:
-                print(" {:26}{: 5.4f}".format("output delay:", abs(path['odly'])))
-            for tag, val in path['cdh']:
-                print(" {}{: 5.4f}".format(f"{tag}:".ljust(26), val))
-            print(" {}".format("=" * 60))
+            if cons_cfg['slk_on_rpt']:
+                print(" {:26}{: 5.4f}".format("data latency:", path['arr']-idly-path['slat']-path['sev']))
+                print(" {:26}{: 5.4f}".format("arrival:", path['arr']))
+                print(" {:26}{: 5.4f}".format("required:", path['req']))
+                print(" {:26}{: 5.4f}".format("slack:", path['slk']))
+                if 'idly' in path or 'odly' in path or len(path['cdh']) != 0:
+                    print(" {}".format("-" * 60))
+                if 'idly' in path:
+                    print(" {:26}{: 5.4f}".format("input delay:", idly))
+                if 'odly' in path:
+                    print(" {:26}{: 5.4f}".format("output delay:", abs(path['odly'])))
+                for tag, val in path['cdh']:
+                    print(" {}{: 5.4f}".format(f"{tag}:".ljust(26), val))
+                print(" {}".format("=" * 60))
 
             ## clock latency & check
-            print(" {:26}{: 5.4f}".format("launch clock edge value:", path['sev']))
-            print(" {:26}{: 5.4f}".format("capture clock edge value:", path['eev']))
-            print(" {:26}{: 5.4f}".format("launch clock latency:", path['slat']))
-            print(" {:26}{: 5.4f}".format("capture clock latency:", path['elat']))
-            print(" {:26}{: 5.4f}".format("crpr:", path['crpr']))
-            print(" {:26}{: 5.4f}".format("clock skew:", path['slat'] - path['elat'] - path['crpr']))
+            is_clk_on_rpt = False
+
+            if cons_cfg['ck_skew_on_rpt']:
+                is_clk_on_rpt = True
+                print(" {:26}{: 5.4f}".format("launch clock edge value:", path['sev']))
+                print(" {:26}{: 5.4f}".format("capture clock edge value:", path['eev']))
+                print(" {:26}{: 5.4f}".format("launch clock latency:", path['slat']))
+                print(" {:26}{: 5.4f}".format("capture clock latency:", path['elat']))
+                print(" {:26}{: 5.4f}".format("crpr:", path['crpr']))
+                print(" {:26}{: 5.4f}".format("clock skew:", path['slat'] - path['elat'] - path['crpr']))
 
             if args.ckc_en or cons_cfg['ckc_en']:
+                if is_clk_on_rpt:
+                    print(" {}".format("-" * 60))
+                else:
+                    is_clk_on_rpt = True
+
                 if 'sgpi' in path:
                     sgpi = path['sgpi'] + 1
                     sgpath, spath = path['lpath'][0:sgpi], path['lpath'][sgpi:path['spin']+1]
@@ -133,7 +145,6 @@ def report_time_summary(args, prange_list: list):
                                                 pid=pid, cons_cfg=cons_cfg, is_dump=args.ckc_dump)
                 
                 col_sz = len(split_lv:=f"{len(spath)}/{len(epath)}/{scc_rslt[0]}")
-                print(" {}".format("-" * 60))
                 print(" {:26} {}    {}".format("clock cell type check:", 
                                                 ctc_rslt[0].ljust(col_sz), ctc_rslt[1]))
                 print(" {:26} {}    {}".format("clock source path match:", 
@@ -141,7 +152,8 @@ def report_time_summary(args, prange_list: list):
                 print(" {:26} {}    (ln:{}:{})".format("clock network path fork:", 
                                                 split_lv, *scc_rslt[1:]))
 
-            print(" {}".format("=" * 60))
+            if is_clk_on_rpt:
+                print(" {}".format("=" * 60))
 
             ## clock & path delta
             if args.dts_en or cons_cfg['dts_en']:
@@ -182,7 +194,22 @@ def report_time_summary(args, prange_list: list):
 
 def load_times_cfg(cfg_fp) -> dict:
     """Load Configuration for TimeS Mode"""  #{{{
-    cons_cfg = {'ckc_en': False, 'dts_en': False, 'seg_en': False, 'ckm_nock': False}
+    attr = {
+        'clock_check_enable':                    ('ckc_en'         , False),
+        'delta_sum_enable':                      ('dts_en'         , False),
+        'path_segment_enable':                   ('seg_en'         , False),
+        'ckm_with_non_clock_cell':               ('ckm_nock'       , False),
+        'slack_on_report':                       ('slk_on_rpt'     , True),
+        'clock_skew_on_report':                  ('ck_skew_on_rpt' , True),
+        'segment_data_latency_on_report':        ('seg_dlat_on_rpt', True),
+        "segment_data_delta_on_report":          ('seg_ddt_on_rpt' , True),
+        'segment_launch_clk_latency_on_report':  ('seg_slat_on_rpt', True),
+        'segment_launch_clk_delta_on_report':    ('seg_sdt_on_rpt' , True),
+        'segment_capture_clk_latency_on_report': ('seg_elat_on_rpt', True),
+        'segment_capture_clk_delta_on_report':   ('seg_edt_on_rpt' , True),
+    }
+
+    cons_cfg = dict(attr.values())
     if cfg_fp is None:
         return cons_cfg
 
@@ -191,42 +218,35 @@ def load_times_cfg(cfg_fp) -> dict:
             line = line.split('#')[0].strip()
             if line != "":
                 try:
-                    if line.startswith('clock_check_default_on:'):
-                        enable = line.split()[-1].lower()
-                        cons_cfg['ckc_en'] = True if enable == 'true' else False
-                    elif line.startswith('delta_sum_default_on:'):
-                        enable = line.split()[-1].lower()
-                        cons_cfg['dts_en'] = True if enable == 'true' else False
-                    elif line.startswith('path_segment_default_on:'):
-                        enable = line.split()[-1].lower()
-                        cons_cfg['seg_en'] = True if enable == 'true' else False
-                    elif line.startswith('ckm_with_non_clock_cell:'):
-                        enable = line.split()[-1].lower()
-                        cons_cfg['ckm_nock'] = True if enable == 'true' else False
-                    elif line.startswith('bds:'):
-                        tag, *pat = line[4:].split()
+                    key, value = line.split(':')
+                    key, value = key.strip(), value.strip()
+                    if key in attr:
+                        is_default = not (value.lower() == str(not attr[key][1]).lower())
+                        cons_cfg[attr[key][0]] = attr[key][1] if is_default else not attr[key][1]
+                    elif key == 'bds':
+                        tag, *pat = value.split()
                         cons_cfg.setdefault('bds', {})[tag] = pat
-                    elif line.startswith('ckt:'):
-                        tag, pat = line[4:].split()
+                    elif key == 'ckt':
+                        tag, pat = value.split()
                         match tag.lower():
                             case 'y': tag = True
                             case 'n': tag = False
                             case  _ : raise SyntaxError
                         cons_cfg.setdefault('ckt', []).append((tag, re.compile(pat)))
-                    elif line.startswith('ckp:'):
-                        pat = line[4:].split()[0]
+                    elif key == 'ckp':
+                        pat = value.split()[0]
                         cons_cfg.setdefault('ckp', set()).add(pat)
-                    elif line.startswith('ckm:'):
-                        pat = re.compile(line[4:].split()[0])
+                    elif key == 'ckm':
+                        pat = re.compile(value.split()[0])
                         cons_cfg.setdefault('ckm', []).append(pat)
-                    elif line.startswith('pc:'):
-                        tag, pat = line[3:].split()
+                    elif key == 'pc':
+                        tag, pat = value.split()
                         cons_cfg.setdefault('pc', {})[tag] = re.compile(pat)
-                    elif line.startswith('cc:'):
-                        tag, pat = line[3:].split()
+                    elif key == 'cc':
+                        tag, pat = value.split()
                         cons_cfg.setdefault('cc', {})[tag] = re.compile(pat)
-                    elif line.startswith('cdh:'):
-                        toks = line[4:].split('"') 
+                    elif key == 'cdh':
+                        toks = value.split('"') 
                         if len(toks) > 1:
                             ctype, pi, po, tag = *toks[0].split(), toks[1]
                         else:
@@ -240,36 +260,40 @@ def load_times_cfg(cfg_fp) -> dict:
     return cons_cfg
 #}}}
 
-def parse_time_rpt(rpt_fp, prange_list: list, cons_cfg: dict) -> dict:
+def parse_time_report(rpt_fp, range_list=None, ckp_set=None, cdh_dict=None) -> dict:
     """Parsing Timing Report"""  #{{{
+    ## ret: timing report dict: dict
+
     if os.path.splitext(rpt_fp)[1] == '.gz':
         fp = gzip.open(rpt_fp, mode='rt')
     else:
         fp = open(rpt_fp)
 
+    if range_list is None:
+        range_list = [0, None, 1]  # [start_line, last_line, number]
+    if ckp_set is None:
+        ckp_set = set()
+    if cdh_dict is None:
+        cdh_dict = {}
+
     no, opt_set = get_time_opt_set(fp)
-    ckp_set = cons_cfg['ckp'] if 'ckp' in cons_cfg else set()
-    cdh_dict = cons_cfg['cdh'] if 'cdh' in cons_cfg else {}
     time_rpt_dict = {'opt': opt_set, 'path': []}
 
-    for prange in prange_list:
-        rec_cnt, is_ongo = 0, True
-        p_st = prange[0] - 1
+    for range_ in range_list:
+        pcnt = 0
+        p_st, p_ed, p_nu = range_[0]-1, range_[1], range_[2]
         while no < p_st:
-            line, no = fp.readline(), no + 1
-
-        while is_ongo:
+            line, no = fp.readline(), no+1
+        while True:
             no, path, is_eof = get_time_path(fp, no, opt_set, ckp_set, cdh_dict)
-            if is_eof:
+            if is_eof or path is None:
                 break
             else:
-                rec_cnt += 1
-            if path is not None:
                 time_rpt_dict['path'].append(path)
-            if prange[1] is not None and no >= prange[1]:
-                is_ongo = False
-            elif prange[2] is not None and rec_cnt == prange[2]:
-                is_ongo = False
+                if p_ed is not None and no >= p_ed:
+                    break
+                if p_nu is not None and (pcnt:=pcnt+1) == p_nu:
+                    break
 
     fp.close()
     return time_rpt_dict
@@ -277,9 +301,19 @@ def parse_time_rpt(rpt_fp, prange_list: list, cons_cfg: dict) -> dict:
 
 def get_time_opt_set(fp) -> tuple:
     """Get Option Set"""  #{{{
-    # return: file_no:int, option:set
+    ## ret: file number: int, option set: set
+
     is_ongo, opt_set = False, set()
     line, no = fp.readline(), 1
+
+    opt_dict = {'-path_type': {'full': 'pf', 'full_clock': 'pfc', 'full_clock_expanded': 'pfce'},
+                '-input_pins'      : 'input',
+                '-nets'            : 'net',
+                '-transition_time' : 'tran',
+                '-capacitance'     : 'cap',
+                '-show_delta'      : 'delta',
+                '-crosstalk_delta' : 'delta',
+                '-derate'          : 'derate'}
 
     while line != "":
         line = line.strip()
@@ -287,25 +321,14 @@ def get_time_opt_set(fp) -> tuple:
             toks = line.split()
             if toks[0][0] == '*':
                 break
-            elif toks[0] == '-path_type':
-                if toks[1] == 'full':
-                    opt_set.add('pf')
-                elif toks[1] == 'full_clock':
-                    opt_set.add('pfc')
-                elif toks[1] == 'full_clock_expanded':
-                    opt_set.add('pfce')
-            elif toks[0] == '-input_pins':
-                opt_set.add('input')
-            elif toks[0] == '-nets':
-                opt_set.add('net')
-            elif toks[0] == '-transition_time':
-                opt_set.add('tran')
-            elif toks[0] == '-capacitance':
-                opt_set.add('cap')
-            elif toks[0] == '-show_delta' or toks[0] == '-crosstalk_delta':
-                opt_set.add('delta')
-            elif toks[0] == '-derate':
-                opt_set.add('derate')
+            elif toks[0] in opt_dict:
+                try:
+                    if type(value:=opt_dict[toks[0]]) is dict:
+                        opt_set.add(value[toks[1]])
+                    else:
+                        opt_set.add(value)
+                except KeyError:
+                    pass
         elif line[:6] == "Report":
             is_ongo = True
         line, no = fp.readline(), no+1
@@ -319,20 +342,17 @@ def get_time_opt_set(fp) -> tuple:
 def get_time_path(fp, no: int, opt_set: set, ckp_set: set, cdh_dict: None) -> tuple:
     """Parsing Timing Path"""  #{{{
     STD, PREF, LPATH, CPATH, FINAL = range(5)
-    time_path, state, p_state = None, STD, 0
-    is_eof, line, no = False, fp.readline(), no + 1
-    cdh_result = []
+    CKEG, CKLAT, SCAN_PATH = range(3)
+    time_path, state, p_state = None, STD, CKEG
+    line, no = fp.readline(), no+1
 
-    if line == '':
-        is_eof = True
+    is_eof = True if line == '' else False
 
     while line != '':
         if state == LPATH or state == CPATH:
             toks = path_re.findall(line)
         else:
             toks = line.strip().split()
-        # print("toks:", toks)          # debug
-        # import pdb; pdb.set_trace()   # debug
 
         if len(toks) == 0:
             pass
@@ -355,11 +375,9 @@ def get_time_path(fp, no: int, opt_set: set, ckp_set: set, cdh_dict: None) -> tu
                 path_cols = path_re.findall(line)
 
         elif state == LPATH:
-            # import pdb; pdb.set_trace()   # debug
             tag0, tag1 = toks[0].lstrip(), toks[1].lstrip()
             if tag1 == 'arrival':
-                # import pdb; pdb.set_trace()   # debug
-                state, p_state, edt = CPATH, 0, 0
+                state, p_state, edt = CPATH, CKEG, 0
                 time_path['arr'] = float(toks[-1])
                 if spin is None:
                     time_path['spin'] = 0
@@ -380,22 +398,21 @@ def get_time_path(fp, no: int, opt_set: set, ckp_set: set, cdh_dict: None) -> tu
                 time_path['idly'] = float(toks[-3])
                 add_ckp = True
 
-            elif p_state == 0 and tag0 == 'clock':
+            elif p_state == CKEG and tag0 == 'clock':
                 time_path['sck'] = tag1
                 time_path['sed'] = toks[2].lstrip()[1:]
                 if len(toks) == 4:
                     toks, no = fp.readline().strip().split(), no + 1
                 time_path['sev'] = float(toks[-2])
-                p_state = 1
+                p_state = CKLAT
 
-            elif p_state == 1 and tag0 == 'clock':
+            elif p_state == CKLAT and tag0 == 'clock':
                 if len(toks) == 4:
                     toks, no = fp.readline().strip().split(), no + 1
                 time_path['sslat'] = float(toks[-2])
-                p_state = 2
+                p_state = SCAN_PATH
 
-            elif p_state == 2:
-                # import pdb; pdb.set_trace()   # debug
+            elif p_state == SCAN_PATH:
                 path = [no, None, None] + [0] * (TIME_COL_NUM - 2)
                 toks_len = len(toks)
                 if (toks_len == 2) or \
@@ -414,7 +431,6 @@ def get_time_path(fp, no: int, opt_set: set, ckp_set: set, cdh_dict: None) -> tu
 
                 if tag1 == '(net)':
                     get_time_cell(opt_set, path_cols, toks2, time_path['lpath'][-1], start_col)
-                    # print("path (l-net):", time_path['lpath'][-1])  # debug
                 else:
                     path[PT], path[CELL] = tag0, tag1[1:-1]
                     get_time_cell(opt_set, path_cols, toks2, path, start_col)
@@ -435,13 +451,10 @@ def get_time_path(fp, no: int, opt_set: set, ckp_set: set, cdh_dict: None) -> tu
                         if (ctype:=path[CELL]) in cdh_dict and cdh_pair in cdh_dict[ctype]:
                             time_path['cdh'].append((cdh_dict[ctype][cdh_pair], path[INCR]))
                     pv_path = path
-                    # print("path (l-nor):", path)  # debug
 
         elif state == CPATH:
-            # import pdb; pdb.set_trace()   # debug
             tag0, tag1 = toks[0].lstrip(), toks[1].lstrip()
             if tag1 == 'required':
-                # import pdb; pdb.set_trace()   # debug
                 state = FINAL
                 time_path['req'] = float(toks[-1])
                 time_path['elat'] = time_path['req'] - time_path['eev'] - \
@@ -461,7 +474,7 @@ def get_time_path(fp, no: int, opt_set: set, ckp_set: set, cdh_dict: None) -> tu
             elif tag1 == 'gating':
                 time_path['gate'] = (gate_dly:=float(toks[-2]))
 
-            elif p_state == 0 and tag0 == 'clock':
+            elif p_state == CKEG and tag0 == 'clock':
                 # default zero
                 odly, lib_dly, gate_dly = 0.0, 0.0, 0.0
                 time_path['crpr'] = 0.0
@@ -471,16 +484,15 @@ def get_time_path(fp, no: int, opt_set: set, ckp_set: set, cdh_dict: None) -> tu
                 if len(toks) == 4:
                     toks, no = fp.readline().strip().split(), no + 1
                 time_path['eev'] = float(toks[-2])
-                p_state = 1
+                p_state = CKLAT
 
-            elif p_state == 1 and tag0 == 'clock':
+            elif p_state == CKLAT and tag0 == 'clock':
                 if len(toks) == 4:
                     toks, no = fp.readline().strip().split(), no + 1
                 time_path['eslat'] = float(toks[-2])
-                p_state = 2
+                p_state = SCAN_PATH
 
-            elif p_state == 2:
-                # import pdb; pdb.set_trace()   # debug
+            elif p_state == SCAN_PATH:
                 path = [no, None, None] + [0] * (TIME_COL_NUM - 2)
                 toks_len = len(toks)
                 if (toks_len == 2) or \
@@ -496,7 +508,6 @@ def get_time_path(fp, no: int, opt_set: set, ckp_set: set, cdh_dict: None) -> tu
 
                 if tag1 == '(net)':
                     get_time_cell(opt_set, path_cols, toks2, time_path['cpath'][-1], start_col)
-                    # print("path (c-net):", time_path['cpath'][-1])  # debug
                 else:
                     path[PT], path[CELL] = tag0, tag1[1:-1]
                     get_time_cell(opt_set, path_cols, toks2, path, start_col)
@@ -504,10 +515,8 @@ def get_time_path(fp, no: int, opt_set: set, ckp_set: set, cdh_dict: None) -> tu
                     if toks_len > 2 and toks[2].endswith('(gclock'):
                         time_path['egpi'] = len(time_path['cpath'])
                     time_path['cpath'].append(path)
-                    # print("path (c-nor):", path)  # debug
 
         elif state == FINAL:
-            # import pdb; pdb.set_trace()   # debug
             if toks[0] == 'slack':
                 time_path['slk'] = float(toks[2])
                 break
@@ -546,7 +555,6 @@ def get_time_cell(opt_set: set, path_cols: list, toks: list, path: list, start_c
         pass
     except ValueError:
         pass
-    # import pdb; pdb.set_trace()
 #}}}
 
 def clock_path_check(sgpath: list, spath: list, egpath: list, epath: list, 
@@ -947,35 +955,58 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
         print("(report path type: full_clock_expanded)")
     else:
         print("(report path type: unknown)")
-    print(" {}".format("-" * 60))
-    print(" data latency: ", end='')
-    for tag, val in dlat_list:
-        print("{}:{: .4f} ".format(tag, val), end='')
-    print()
-    print(" data delta:   ", end='')
-    for tag, val in ddt_list:
-        print("{}:{: .4f} ".format(tag, val), end='')
-    print()
-    print(" {}".format("-" * 60))
-    print(" launch clk latency:  ", end='')
-    print("SC:{: .4f} ".format(path['sslat']), end='')
-    for tag, val in slat_list:
-        print("{}:{: .4f} ".format(tag, val), end='')
-    print()
-    print(" launch clk delta:    ", end='')
-    for tag, val in sdt_list:
-        print("{}:{: .4f} ".format(tag, val), end='')
-    print()
-    print(" {}".format("-" * 60))
-    print(" capture clk latency: ", end='')
-    print("SC:{: .4f} ".format(path['eslat']), end='')
-    for tag, val in elat_list:
-        print("{}:{: .4f} ".format(tag, val), end='')
-    print()
-    print(" capture clk delta:   ", end='')
-    for tag, val in edt_list:
-        print("{}:{: .4f} ".format(tag, val), end='')
-    print()
+
+    ## data latency & delta
+    if cons_cfg['seg_dlat_on_rpt'] or cons_cfg['seg_ddt_on_rpt']:
+        print(" {}".format("-" * 60))
+
+    if cons_cfg['seg_dlat_on_rpt']:
+        print(" data latency: ", end='')
+        for tag, val in dlat_list:
+            print("{}:{: .4f} ".format(tag, val), end='')
+        print()
+
+    if cons_cfg['seg_ddt_on_rpt']:
+        print(" data delta:   ", end='')
+        for tag, val in ddt_list:
+            print("{}:{: .4f} ".format(tag, val), end='')
+        print()
+
+    ## launch clock latency & delta
+    if cons_cfg['seg_slat_on_rpt'] or cons_cfg['seg_sdt_on_rpt']:
+        print(" {}".format("-" * 60))
+
+    if cons_cfg['seg_slat_on_rpt']:
+        is_sck_on_rpt = True
+        print(" launch clk latency:  ", end='')
+        print("SC:{: .4f} ".format(path['sslat']), end='')
+        for tag, val in slat_list:
+            print("{}:{: .4f} ".format(tag, val), end='')
+        print()
+
+    if cons_cfg['seg_sdt_on_rpt']:
+        is_sck_on_rpt = True
+        print(" launch clk delta:    ", end='')
+        for tag, val in sdt_list:
+            print("{}:{: .4f} ".format(tag, val), end='')
+        print()
+
+    ## capture clock latency & delta
+    if cons_cfg['seg_elat_on_rpt'] or cons_cfg['seg_edt_on_rpt']:
+        print(" {}".format("-" * 60))
+
+    if cons_cfg['seg_elat_on_rpt']:
+        print(" capture clk latency: ", end='')
+        print("SC:{: .4f} ".format(path['eslat']), end='')
+        for tag, val in elat_list:
+            print("{}:{: .4f} ".format(tag, val), end='')
+        print()
+
+    if cons_cfg['seg_edt_on_rpt']:
+        print(" capture clk delta:   ", end='')
+        for tag, val in edt_list:
+            print("{}:{: .4f} ".format(tag, val), end='')
+        print()
     print(" {}".format("=" * 60))
 #}}}
 
@@ -1333,34 +1364,33 @@ def create_argparse() -> argparse.ArgumentParser:
     parser.add_argument('-version', action='version', version=VERSION)
     parser.add_argument('rpt_fp', help="report_path") 
     parser.add_argument('-c', dest='cfg_fp', metavar='<config>', 
-                                  help="set the config file path") 
+                                    help="set the config file path") 
     parser.add_argument('-nc', dest='is_nocfg', action='store_true', 
-                                  help="disable to load the config file")
+                                    help="disable to load the config file")
     parser.add_argument('-r', dest='range', metavar='<value>', 
-                                  help="report scan range select, ex: 6,16+2,26-100 \n" +
-                                       "(default load 1 path from line 0)") 
+                                    help="report scan range select, ex: 6,16+2,26:100,26:100+2 \n" +
+                                         "(default load 1 path from line 0)") 
     parser.add_argument('-ckc', dest='ckc_en', action='store_true', 
-                                  help="enable clock path check")
+                                    help="enable clock path check")
     parser.add_argument('-ckcd', dest='ckc_dump', action='store_true', 
-                                  help="dump clock path check contents to the file")
+                                    help="dump clock path check contents to the file")
     parser.add_argument('-dts', dest='dts_en', action='store_true', 
-                                  help="enable clock/data path delta summation")
+                                    help="enable clock/data path delta summation")
     parser.add_argument('-seg', dest='seg_en', action='store_true', 
-                                  help="enable path segment")
+                                    help="enable path segment")
     parser.add_argument('-bar', dest='bar', metavar='<pat>', nargs='*', 
-                                  choices=['p','c','t','d','i', 'ct'],
-                                  help="bar view data type select\n" +
-                                       "(p:distance, c:cap, t:tran, d:delta, i:incr, ct:cell_type)") 
+                                    choices=['p','c','t','d','i', 'ct'],
+                                    help="bar view data type select\n" +
+                                         "(p:distance, c:cap, t:tran, d:delta, i:incr, ct:cell_type)") 
     parser.add_argument('-barp', dest='bar_ptype', metavar='<pat>', nargs='*', 
-                                  choices=['f','d','l','c'],
-                                  help="bar view path type select\n" +
-                                       "(f:full data, d:data, l:launch clk, c:capture clk)") 
+                                    choices=['f','d','l','c'],
+                                    help="bar view path type select\n" +
+                                         "(f:full data, d:data, l:launch clk, c:capture clk)") 
     parser.add_argument('-bars', dest='bars', metavar='<tag>', 
-                                  help="bar view data type set defined in the config file") 
+                                    help="bar view data type set defined in the config file") 
     parser.add_argument('-barr', dest='bar_rev', action='store_true', 
-                                  help="axis reverse for bar view")
-    parser.add_argument('-debug', dest='is_debug', action='store_true',
-                                        help="enable debug mode")
+                                    help="axis reverse for bar view")
+    parser.add_argument('-debug', dest='is_debug', action='store_true', help="enable debug mode")
 
     return parser
 #}}}
@@ -1377,20 +1407,19 @@ def main():
         if os.path.isfile(default_cfg):
             args.cfg_fp = default_cfg
 
-    prange_list = []
-    if args.range is None:
-        prange_list.append([0, None, 1])
-    else:
-        for prange in args.range.split(','):
-            if (m:=prange_re1.fullmatch(args.range)):
-                prange_list.append([int(m[1]), None, int(m[2])])
-            elif (m:=prange_re2.fullmatch(args.range)): 
-                prange_list.append([int(m[1]), int(m[2]), None])
-            else:
-                prange_list.append([int(args.range), None, 1])
+    range_list = []
+    if args.range is not None:
+        for range_ in args.range.split(','):
+            if (m:=range_re.fullmatch(range_)):
+                st = int(m.group('st'))
+                ed = None if (ed:=m.group('ed')) is None else int(ed)
+                nu = None if (nu:=m.group('nu')) is None else int(nu)
+                range_list.append([st, ed, nu])
+    if len(range_list) == 0:
+        range_list.append([0, None, 1])  # [start_line, last_line, number]
     
     print("\n Report: {}\n".format(os.path.abspath(args.rpt_fp)))
-    report_time_summary(args, prange_list)
+    report_time_summary(args, range_list)
 #}}}
 
 if __name__ == '__main__':

@@ -15,9 +15,9 @@ import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
 
-from .utils.common import PKG_VERSION
+from .utils.common import PKG_VERSION, PT_ANA_VER
 
-VERSION = f"pt_rpt_ana version 1.0.0 ({PKG_VERSION})"
+VERSION = f"pt_rpt_ana version {PT_ANA_VER} ({PKG_VERSION})"
 
 ### Function ###
 

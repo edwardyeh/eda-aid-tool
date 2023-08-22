@@ -13,9 +13,9 @@ import gzip
 import os
 import re
 
-from .utils.common import PKG_VERSION
+from .utils.common import PKG_VERSION, PT_TB_VER
 
-VERSION = f"pt_ana_tb version 1.0.0 ({PKG_VERSION})"
+VERSION = f"pt_ana_tb version {PT_TB_VER} ({PKG_VERSION})"
 
 ### Function ###
 

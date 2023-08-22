@@ -13,9 +13,9 @@ import gzip
 import os
 import re
 
-from .utils.common import PKG_VERSION
+from .utils.common import PKG_VERSION, PT_CONS_VER
 
-VERSION = f"pt_ana_cons version 1.0.0 ({PKG_VERSION})"
+VERSION = f"pt_ana_cons version {PT_CONS_VER} ({PKG_VERSION})"
 
 ### Global Variable ###    {{{
 

@@ -19,9 +19,9 @@ from dataclasses import dataclass, field
 import numpy as np
 import pandas as pd
 
-from .utils.common import PKG_VERSION
+from .utils.common import PKG_VERSION, DC_AREA_VER
 
-VERSION = f"dc_ana_area version 1.0.0 ({PKG_VERSION})"
+VERSION = f"dc_ana_area version {DC_AREA_VER} ({PKG_VERSION})"
 
 ### Global Parameter ###  
 
