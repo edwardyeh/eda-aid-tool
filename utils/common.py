@@ -11,7 +11,7 @@ DC_AREA_VER = "1.0.0.a1"
 IP_FLAT_VER = "1.0.0.a1"
 PT_CONS_VER = "1.0.0.a1"
 PT_TB_VER   = "1.0.0.a1"
-PT_TS_VER   = "1.0.0.a2"
+PT_TS_VER   = "1.0.0.a3"
 PT_ANA_VER  = "1.0.0.a1"
 
 def str2int(str_: str, is_signed: bool=False, bits: int=32) -> int:

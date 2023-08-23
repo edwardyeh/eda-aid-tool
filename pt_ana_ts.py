@@ -239,6 +239,8 @@ def load_times_cfg(cfg_fp) -> dict:
                     elif key == 'ckm':
                         pat = re.compile(value.split()[0])
                         cons_cfg.setdefault('ckm', []).append(pat)
+                    elif key == 'dpc':
+                        cons_cfg['dpc'] = value
                     elif key == 'pc':
                         tag, pat = value.split()
                         cons_cfg.setdefault('pc', {})[tag] = re.compile(pat)
@@ -256,6 +258,13 @@ def load_times_cfg(cfg_fp) -> dict:
                         cdh_pair[f"{pi}:{po}"] = tag
                 except SyntaxError:
                     raise SyntaxError(f"config syntax error (ln:{no})")
+
+    if 'dpc' in cons_cfg:
+        if 'pc' not in cons_cfg or cons_cfg['dpc'] not in cons_cfg['pc']:
+            print(" [INFO] Specific group for default path isn't existed, ignore.\n")
+            cons_cfg['dpc'] = None
+    else:
+        cons_cfg['dpc'] = None
 
     return cons_cfg
 #}}}
@@ -862,7 +871,7 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
     slat_list, sdt_list, dlat_list, ddt_list = [], [], [], []
     for cid, cell in enumerate(path['lpath']):
         if tag is None:
-            new_tag = None
+            new_tag = cons_cfg['dpc']
             for key, ps_re in cons_cfg['pc'].items():
                 if (m:=ps_re.fullmatch(cell[PT])):
                     new_tag = key
@@ -883,18 +892,22 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
                 lat_sum += cell[INCR]
                 dt_sum += cell[DELTA]
         elif cons_cfg['pc'][tag].fullmatch(cell[PT]) is None:
-            if is_clk:
-                slat_list.append([tag, lat_sum])
-                sdt_list.append([tag, dt_sum])
-            else:
-                dlat_list.append([tag, lat_sum])
-                ddt_list.append([tag, dt_sum])
-            lat_sum, dt_sum = cell[INCR], cell[DELTA]
-            tag = None
+            new_tag = cons_cfg['dpc']
             for key, ps_re in cons_cfg['pc'].items():
                 if (m:=ps_re.fullmatch(cell[PT])):
-                    tag = key
+                    new_tag = key
                     break
+            if new_tag != tag:
+                if is_clk:
+                    slat_list.append([tag, lat_sum])
+                    sdt_list.append([tag, dt_sum])
+                else:
+                    dlat_list.append([tag, lat_sum])
+                    ddt_list.append([tag, dt_sum])
+                tag, lat_sum, dt_sum = new_tag, cell[INCR], cell[DELTA]
+            else:
+                lat_sum += cell[INCR]
+                dt_sum += cell[DELTA]
         else:
             lat_sum += cell[INCR]
             dt_sum += cell[DELTA]
@@ -913,7 +926,7 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
 
     for cell in path['cpath']:
         if tag is None:
-            new_tag = None
+            new_tag = cons_cfg['dpc']
             for key, ps_re in cons_cfg['pc'].items():
                 if (m:=ps_re.fullmatch(cell[PT])):
                     new_tag = key
@@ -930,14 +943,18 @@ def show_path_segment(path: dict, opt_set: set, cons_cfg: dict):
                 lat_sum += cell[INCR]
                 dt_sum += cell[DELTA]
         elif cons_cfg['pc'][tag].fullmatch(cell[PT]) is None:
-            elat_list.append([tag, lat_sum])
-            edt_list.append([tag, dt_sum])
-            lat_sum, dt_sum = cell[INCR], cell[DELTA]
-            tag = None
+            new_tag = cons_cfg['dpc']
             for key, ps_re in cons_cfg['pc'].items():
                 if (m:=ps_re.fullmatch(cell[PT])):
-                    tag = key
+                    new_tag = key
                     break
+            if new_tag != tag:
+                elat_list.append([tag, lat_sum])
+                edt_list.append([tag, dt_sum])
+                tag, lat_sum, dt_sum = new_tag, cell[INCR], cell[DELTA]
+            else:
+                lat_sum += cell[INCR]
+                dt_sum += cell[DELTA]
         else:
             lat_sum += cell[INCR]
             dt_sum += cell[DELTA]
@@ -1094,7 +1111,8 @@ def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_dtype: set, bar_
 
     if len(db) != 0:
         seg_dict = cons_cfg['pc'] if 'pc' in cons_cfg else None
-        bar_info, spin_pos = get_time_bar_info(PT, 'TP', seg_dict, bar_ptype, path, True)
+        default_seg = 'TP' if cons_cfg['dpc'] is None else cons_cfg['dpc']
+        bar_info, spin_pos = get_time_bar_info(PT, default_seg, seg_dict, bar_ptype, path, True)
 
         if 'cc' in cons_cfg and 'ct' in bar_dtype:
             bar_ct_info, spin_pos = get_time_bar_info(CELL, 'UN', cons_cfg['cc'], bar_ptype, path, True)
@@ -1144,7 +1162,7 @@ def show_time_bar(path: dict, opt_set: set, cons_cfg: dict, bar_dtype: set, bar_
                 axs = plt.subplot(cy_cnt, cx_cnt, aid+1)
                 for ix in xlist:
                     toks = slv_ce[x][ix][PT].split('/')
-                    pin = f".../{toks[-2]}/{toks[-1]}" if len(toks) > 2 else toks
+                    pin = f".../{toks[-2]}/{toks[-1]}" if len(toks) > 2 else slv_ce[x][ix][PT]
                     if ct_act:
                         val, iy = f"lib: {slv_ce[x][ix][CELL]}", 0.5
                     else:
@@ -1270,27 +1288,33 @@ def get_time_bar_info(cmp_id: int, default_tag: str, seg_dict: None, bar_ptype: 
     else:
         hist_palette = HIST_PALETTE
 
-    default_color = HIST_PALETTE[0] if seg_dict is None else HIST_DEFAULT_COLOR
+    if seg_dict is None:
+        default_color = HIST_PALETTE[0]
+    else:
+        default_color = HIST_DEFAULT_COLOR
+        init_tag = default_tag if default_tag in seg_dict else None
+
     bar_lg, spin_pos = [], (None, None)
     lv_ce, lv_c, lv_ha, lv_ec = [], [], [], []
 
     for type_ in ('l', 'c', 'd'):
         if type_ in bar_ptype:
-            tag, pal_idx, bar_lg_path = None, -1, {default_tag: default_color}
+            tag, pal_idx = init_tag, -1
+            bar_lg_path = {default_tag: default_color} if init_tag is None else {}
             lv_ce_path, lv_c_path, lv_ha_path, lv_ec_path  = [], [], [], []
             s_path = path['cpath'] if type_ == 'c' else path['lpath']
             for cid, cell in enumerate(s_path):
                 if seg_dict is None:
                     pass
                 elif tag is None:
-                    new_tag = None
+                    new_tag = init_tag 
                     for key, ps_re in seg_dict.items():
                         if (m:=ps_re.fullmatch(cell[cmp_id])):
                             new_tag = key
                             break
                     tag = new_tag
                 elif seg_dict[tag].fullmatch(cell[cmp_id]) is None:
-                    new_tag = None
+                    new_tag = init_tag
                     for key, ps_re in seg_dict.items():
                         if (m:=ps_re.fullmatch(cell[cmp_id])):
                             new_tag = key
@@ -1298,7 +1322,8 @@ def get_time_bar_info(cmp_id: int, default_tag: str, seg_dict: None, bar_ptype: 
                     tag = new_tag
 
                 if cid == path['spin'] and type_ == 'd' and 'f' not in bar_ptype:
-                    pal_idx, bar_lg_path = -1, {default_tag: default_color}
+                    pal_idx = -1
+                    bar_lg_path = {default_tag: default_color} if init_tag is None else {}
                     lv_ce_path, lv_c_path, lv_ha_path, lv_ec_path  = [], [], [], []
 
                 key = default_tag if tag is None else tag
