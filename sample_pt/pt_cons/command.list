@@ -1,17 +1,14 @@
 
 === Attribute ==============================================
 
-grp_col_width: <size>                   # set group column width
+group_column_width: <size>              # set group column width
 
-=== Instance Choose (Violation Report) =====================
+=== Path Choose (Violation Report) =========================    
 
-i:<sect>:<group>:<rid>:<path>           # choose the specific instances
-                                          <rid> = 0-left, 1-right, 2-all
+p:<type>:<group>:<path>:<rid>           # use regular expression to choose path
+                                          <rid> = l-left, r-right, a-all
 
-ir:<sect>:<group>:<rid>:<regex>         # use regular expression to choose instances
-                                          <rid> = 0-left, 1-right, 2-all
-
-=== Instance Operation =====================================
+=== Path Operation =========================================
 
 <inst_path> s:<value>                   # add slack offset to the specific instances
 <inst_path> r                           # reserve the instance
@@ -19,19 +16,16 @@ ir:<sect>:<group>:<rid>:<regex>         # use regular expression to choose insta
 
 <inst_path> r:<condition>               # condition reserve/remove:
 <inst_path> d:<condition>                   - condition format : <target><operation><value>
-                                            - target           : slk (slack)
+                                            - target           : slk
                                             - operation        : >, <, ==, >=, <=
-                                            - value type       : int or float
+                                            - value type       : float
 
 ## The priority of the command: s > r > d
 
 === Group Choose (Summary Report) ==========================
 
-g:<sect>:<group>:<rid>                  # choose the specific group
-                                          <rid> = 0-left, 1-right, 2-diff
-
-gr:<sect>:<regex>:<rid>                 # use regular expression to choose group
-                                          <rid> = 0-left, 1-right, 2-diff
+g:<type>:<group>:<rid>                  # use regular expression to choose group
+                                          <rid> = l-left, r-right, d-diff
 
 === Group Operation (Summary) ==============================
 
@@ -39,5 +33,10 @@ gr:<sect>:<regex>:<rid>                 # use regular expression to choose group
                                             - condition format : <target><operation><value>
                                             - target           : wns, tns, nvp
                                             - operation        : >, <, ==, >=, <=
-                                            - value type       : int or float
+                                            - value type       : float
+
+=== User Group (Violation Report) ==========================
+
+ug:<type>:<group>:<path> <user_group>:<is_reserve>
+
 

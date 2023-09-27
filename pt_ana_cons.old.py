@@ -14,128 +14,124 @@ import os
 import re
 
 from .utils.common import PKG_VERSION, PT_CONS_VER
-from .utils.primetime import (ConsPathOp, ConsGroupOp, ConsUGroupOp,
-                              ConsReport)
 
 VERSION = f"pt_ana_cons version {PT_CONS_VER} ({PKG_VERSION})"
 
-
 ### Global Variable ###    {{{
 
-# ofs_re = re.compile(r"(\w:)(.+)")
-# ofs_ta = set(('s:',))
+ofs_re = re.compile(r"(\w:)(.+)")
+ofs_ta = set(('s:',))
 
 cmp_re = re.compile(r"(\w:\w{3})([><=]{1,2})(.+)")
 cmp_ta = set(('w:wns', 'w:tns', 'w:nvp', 'r:slk', 'd:slk'))
+cmp_op = {
+    '>' : lambda a, b: a > b,
+    '<' : lambda a, b: a < b,
+    '==': lambda a, b: a == b,
+    '>=': lambda a, b: a >= b,
+    '<=': lambda a, b: a <= b
+}
 
-# clk_vio = (
-#     'clock_tree_pulse_width', 
-#     'sequential_tree_pulse_width', 
-#     'sequential_clock_min_period'
-# )
+vio_types = (
+    'max_delay/setup', 'min_delay/hold', 
+    'recovery', 'removal', 'clock_gating_setup', 'clock_gating_hold', 
+    'max_capacitance', 'min_capacitance', 'max_transition', 'min_transition',
+    'clock_tree_pulse_width', 'sequential_tree_pulse_width', 'sequential_clock_min_period'
+)
 
-# group_vio = ('max_delay/setup', 'min_delay/hold')
+clk_vio = (
+    'clock_tree_pulse_width', 
+    'sequential_tree_pulse_width', 
+    'sequential_clock_min_period'
+)
+
+group_vio = ('max_delay/setup', 'min_delay/hold')
 
 #}}}
 
+### Function ###
 
-##############################################################################
-### Function
-
-
-def load_cons_cfg(cfg_fp) -> dict:
-    """Load configuration."""
+def load_cons_cfg(cfg_fp) -> tuple:
+    """Load Configuration for Cons Mode"""  #{{{
     #
     # Config Data Structure:
     #
     # cons_cfg = {
-    #   'p': {
-    #           'type1:group1': {path1: path_obj1, path2: path_obj2, ...}, 
-    #           'type2:*':      {path3: path_obj3, path4: path_obj4, ...},
-    #           ... 
-    #        },
+    #   'g': {'vtype1:grp1': [[(ln, tar, op, val), ...], [...], [...]], 
+    #         'vtype1:grp2': [[(ln, tar, op, val), ...], [...], [...]], 
+    #         'vtype1:'    : {'rgrp1': [[(ln, tar, op, val), ...], [...], [...]],
+    #                         'rgrp2': [[(ln, tar, op, val), ...], [...], [...]]}, 
+    #         'vtype2:grp1': [[(ln, tar, op, val), ...], [...], [...]], ...},
     #
-    #   'g': {
-    #           'type1': {group1: group_obj1, group2: group_obj2, ...},
-    #           'type2': {group3: group_obj3, group4: group_obj4, ...},
-    #           ...
-    #        },
-    #
-    #   'ug': {
-    #           'type1:group1': {path1: path_obj1, path2: path_obj2, ...}, 
-    #           'type2:*':      {path3: path_obj3, path4: path_obj4, ...},
-    #           ... 
-    #         },
+    #   'p': {'vtype1:grp1:ins1': [[(ln, tar, op, val), ...], [...]],
+    #         'vtype1:grp1:ins2': [[(ln, tar, op, val), ...], [...]],
+    #         'vtype1::ins3'    : [[(ln, tar, op, val), ...], [...]],
+    #         'vtype1:grp1:'    : {'rins1': [[(ln, tar, op, val), ...], [...]],
+    #                              'rins2': [[(ln, tar, op, val), ...], [...]]}, ...}
+    #         'vtype1::'        : {'rins1': [[(ln, tar, op, val), ...], [...]],
+    #                              'rins2': [[(ln, tar, op, val), ...], [...]]}, ...}
     # }
     #
-    attr = {}
-    cons_cfg = dict(attr.values())
-    cons_cfg.update({
-        'grp_col_w': 50,
-        'p': {}, 'g': {}, 'ug': {}
-    })
-    if cfg_fp is None:
-        return cons_cfg
+    # {'group': [left op], [right op], [diff op]}
+    # {'path':  [left op], [right op]}
+    #
+    global group_vio
+    grp_col_w, cons_cfg = 50, {'g': {}, 'p': {}}
 
-    with open(cfg_fp, 'r') as fp:
-        for fno, line in enumerate(fp, 1):
-            if (line:=line.split('#')[0].strip()):
+    with open(cfg_fp, 'r') as f:
+        for ln_no, line in enumerate(f.readlines(), start=1):
+            line = line.split('#')[0].strip()
+            if line != '':
                 try:
-                    key, value, *_ = line.split(':')
-                    key, value = key.strip(), value.strip()
-                    if key in attr:
-                        if value.lower() == str(not attr[key][1]).lower():
-                            cons_cfg[attr[key][0]] = not attr[key][1]
-                        else:
-                            cons_cfg[attr[key][0]] = attr[key][1]
-                    elif key == 'group_column_width':
-                        cons_cfg['grp_col_w'] = int(value)
-                    elif key == 'p':
-                        tag, *cmd_src = line[2:].split()
-                        type_, group, path, rid = tag.split(':')
-                        gid = ':'.join((type_, group))
-                        grp_dict = cons_cfg['p'].setdefault(gid, {})
-                        path_obj = grp_dict.setdefault(
-                                path, ConsPathOp(path=path, 
-                                                 l=[(0, 's:0.0')], 
-                                                 r=[(0, 's:0.0')]))
-                        for cmd in cmd_src:
-                            if rid == 'l' or rid == 'a':
-                                if cmd.startswith('s'):
-                                    path_obj.l[0] = (fno, cmd)
-                                else:
-                                    path_obj.l.append((fno, cmd))
-                            if rid == 'r' or rid == 'a':
-                                if cmd.startswith('s'):
-                                    path_obj.r[0] = (fno, cmd)
-                                else:
-                                    path_obj.r.append((fno, cmd))
-                    elif key == 'g':
-                        tag, *cmd_src = line[2:].split()
-                        type_, group, rid = tag.split(':')
-                        type_dict = cons_cfg['g'].setdefault(type_, {})
-                        grp_obj = type_dict.setdefault(
-                                    group, ConsGroupOp(group=group))
-                        for cmd in cmd_src:
-                            grp_obj[rid].append((fno, cmd))
-                    elif key == 'ug':
-                        tag, cmd = line[3:].split()
-                        type_, group, path = tag.split(':')
-                        gid = ':'.join((type_, group))
-                        grp_dict = cons_cfg['ug'].setdefault(gid, {})
-                        ugroup, is_rsv = cmd.split(':')
-                        is_rsv = True if is_rsv.lower() == 'y' else False
-                        grp_dict[path] = ConsUGroupOp(
-                                            fno=fno,
-                                            path=path,
-                                            ugroup=ugroup,
-                                            is_rsv=is_rsv
-                                         )
-                except SyntaxError:
-                    raise SyntaxError(f"config syntax error (ln:{fno})")
+                    if line.startswith('grp_col_width:'):
+                        grp_col_w = int(line[14:])
 
-    # import pdb; pdb.set_trace()  # debug
-    return cons_cfg
+                    elif line.startswith('g:'):
+                        item, *cmd_list = line[2:].split()
+                        vtype, group, rid = item.split(':') 
+                        tag = f'{vtype}:{group}' if vtype in group_vio else f'{vtype}:{vtype}'
+                        grp_list = cons_cfg['g'].setdefault(tag, [[], [], []])
+                        parse_grp_cmd(ln_no, grp_list[int(rid)], cmd_list)
+
+                    elif line.startswith('gr:'):
+                        item, *cmd_list = line[3:].split()
+                        vtype, group, rid = item.split(':') 
+                        if vtype not in group_vio:
+                            group = vtype
+                        vtype_dict = cons_cfg['g'].setdefault(f'{vtype}:', {})
+                        grp_list = vtype_dict.setdefault(group, [[], [], []])
+                        parse_grp_cmd(ln_no, grp_list[int(rid)], cmd_list)
+
+                    elif line.startswith('i:'):
+                        item, *cmd_list = line[2:].split()
+                        vtype, group, rid, ins = item.split(':')
+                        tag = f'{vtype}:{group}:{ins}' if vtype in group_vio else f'{vtype}:{vtype}:{ins}'
+                        ins_list = cons_cfg['p'].setdefault(tag, [[], []])
+                        if rid == '2':
+                            parse_ins_cmd(ins_list[0], cmd_list)
+                            parse_ins_cmd(ins_list[1], cmd_list)
+                        else:
+                            parse_ins_cmd(ins_list[int(rid)], cmd_list)
+
+                    elif line.startswith('ir:'):
+                        item, *cmd_list = line[3:].split()
+                        vtype, group, rid, ins = item.split(':')
+                        tag = f'{vtype}:{group}:' if vtype in group_vio else f'{vtype}:{vtype}:'
+                        grp_dict = cons_cfg['p'].setdefault(tag, {})
+                        ins_list = grp_dict.setdefault(ins, [[], []])
+                        if rid == '2':
+                            parse_ins_cmd(ins_list[0], cmd_list)
+                            parse_ins_cmd(ins_list[1], cmd_list)
+                        else:
+                            parse_ins_cmd(ins_list[int(rid)], cmd_list)
+
+                except SyntaxError:
+                    raise SyntaxError(f"config syntax error (ln:{ln_no})")
+
+    # print(cons_cfg)                 # debug
+    # import pdb; pdb.set_trace()     # debug
+    return grp_col_w, cons_cfg
+#}}}
 
 def parse_grp_cmd(ln_no: int, grp_list: list, cmd_list: list):
     """Parse group command"""  #{{{
@@ -231,16 +227,26 @@ def ins_cons_check(slack: float, cons_list: list) -> (bool, float):
     return is_active, slack
 #}}}
 
-
 def report_cons_summary(rpt_fps: list, cfg_fp: str):
-    """
-    Report the summary of the command 'report_constraint'
-    """
-    cons_cfg = load_cons_cfg(cfg_fp)
-    cons_rpt = ConsReport(cons_cfg)
-    cons_rpt.parse_report(rpt_fps)
-    print(cons_rpt.cons_tables[0][1])
-    import pdb; pdb.set_trace()
+    """Brief for 'report_constraint'"""  #{{{
+    #
+    # Summary Data Structure:
+    #
+    # summary(multi) = {'vtype1': {'grp1': [(wns, tns, nvp), (wns, tns, nvp)],
+    #                              'grp2': [(wns, tns, nvp), (wns, tns, nvp)], ...},
+    #                   'vtype2': {...}, ...}
+    #
+    # summary(single) = {'vtype1': {'grp1': [(wns, tns, nvp)],
+    #                               'grp2': [(wns, tns, nvp)], ...},
+    #                    'vtype2': {...}, ...}
+    #
+    global vio_types, group_vio 
+
+    if cfg_fp is not None:
+        grp_col_w, cons_cfg = load_cons_cfg(cfg_fp)
+        # print(cons_cfg)
+    else:
+        grp_col_w, cons_cfg = 50, {'g': {}, 'p': {}}
 
     IDLE, POS, VT1, VT2 = range(4)
     is_multi = len(rpt_fps) > 1
@@ -443,14 +449,12 @@ def report_cons_summary(rpt_fps: list, cfg_fp: str):
             for cond in cond_set:
                 print(f"  {cond}")
             print()
+#}}}
 
-
-##############################################################################
-### Main
-
+### Main ###
 
 def create_argparse() -> argparse.ArgumentParser:
-    """Create Argument Parser"""
+    """Create Argument Parser"""  #{{{
     parser = argparse.ArgumentParser(
                 formatter_class=argparse.RawTextHelpFormatter,
                 description="PrimeTime Report Analysis\n" + 
@@ -463,10 +467,10 @@ def create_argparse() -> argparse.ArgumentParser:
     parser.add_argument('-c', dest='cfg_fp', metavar='<config>', 
                                 help="configuration file") 
     return parser
-
+#}}}
 
 def main():
-    """Main Function"""
+    """Main Function"""  #{{{
     parser = create_argparse()
     args = parser.parse_args()
     default_cfg = ".pt_ana_cons.setup"
@@ -477,9 +481,7 @@ def main():
 
     rpt_fps = [args.rpt_fp] if args.rpt_fp2 is None else [args.rpt_fp, args.rpt_fp2]
     report_cons_summary(rpt_fps, args.cfg_fp)
-
+#}}}
 
 if __name__ == '__main__':
     main()
-
-
