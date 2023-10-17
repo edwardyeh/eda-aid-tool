@@ -1,0 +1,91 @@
+****************************************
+Report : timing
+        -path_type full_clock
+        -delay_type max
+        -input_pins
+        -nets
+        -max_paths 1
+        -transition_time
+        -capacitance
+        -show_delta
+        -derate
+        -pba_mode exhaustive
+        -sort_by slack
+Design : design
+Version: XXXX
+Date   : XXXX
+****************************************
+
+  Startpoint: chip_top1/module1_A/data_reg_2_0_
+               (rise edge-triggered flip-flop clocked by pclk)
+  Endpoint: chip_top3/module3_A/recv_reg (rise edge-triggered flip-flop clocked by pclk)
+  Path Group: pclk
+  Path Type: max
+  
+  Point                Fanout       Cap    DTrans     Trans    Derate    Delta     Incr      Path
+  ------------------------------------------------------------------------------------------------------
+  clock pclk (rise edge)                                                         0.0000    0.0000
+  clock source delay (propagated)                                                0.1000    0.1000
+  chip_top1/cb_pclk/Z (BUF)
+                                                     0.0200                      0.0100 &  0.1100 r
+  chip_top1/clock_cts/n1 (net)
+                          1      0.0020
+  chip_top1/clk_cell1/I (BUF)
+                                           0.0000    0.0300   1.0620    0.0020   0.0300 &  0.1400 r
+  chip_top1/clk_cell1/Z (BUF)
+                                                     0.0160   1.0308             0.0150 &  0.1550 r
+  chip_top1/clock_cts/n2 (net)
+                          1      0.0030
+  chip_top1/module1_A/data_reg_2_0_/CP (DFF)
+                                           0.0010    0.1000   1.0600    0.0015   0.0110 &  0.1660 r
+  chip_top1/module1_A/data_reg_2_0_/Q0 (DFF)
+                                                     0.0455   1.0500             0.1562 &  0.3222 f
+  chip_top1/module1_A/n100 (net)
+                          1      0.0011
+  chip_top1/buf1/I (BUF)
+                                           0.0000    0.0455   1.0600    0.0010   0.0004 &  0.3226 r
+  chip_top1/buf1/Z (BUF)
+                                                     0.0160   1.0478             0.0160 &  0.3386 r
+  chip_top1/n101 (net)
+                          2      0.0033
+  chip_top2/IO_BUF_C2/I (BUF)
+                                           0.0010    0.0161   1.0600    0.0009   0.0010 &  0.3396 r
+  chip_top2/IO_BUF_C2/Z (BUF)
+                                                     0.0459   1.0365             0.0200 &  0.3596 r
+  chip_top2/n201 (net)
+                          1      0.0338
+  chip_top3/IO_BUF_C3/I (BUF)
+                                           0.0020    0.0510   1.0600    0.0020   0.0109 &  0.3705 r
+  chip_top3/IO_BUF_C3/Z (BUF)
+                                                     0.0416   1.0388             0.0364 &  0.3596 r
+  chip_top3/n301 (net)
+                          1      0.0100
+  chip_top3/module3_A/recv_reg/D (DFF)
+                                           0.0681    0.1301   1.0600    0.0166   0.0879 &  0.4475 r
+  data arrival time                                                                        0.4475
+  
+  clock pclk' (rise edge)                                                        1.0417    1.0417
+  clock source delay (propagated)                                                0.0900    1.1317 
+  chip_top1/cb_pclk/Z (BUF)
+                                                     0.0200                      0.0100 &  1.1417 r
+  chip_top1/clock_cts1/n1 (net)
+                          1      0.0020
+  chip_top1/clk_cell9/I (BUF)
+                                           0.0000    0.0300   1.0620    0.0020   0.0300 &  1.1717 r
+  chip_top1/clk_cell9/Z (BUF)
+                                                     0.0160   1.0308             0.0150 &  1.1867 r
+  chip_top1/clock_cts1/n2 (net)
+                          1      0.0100
+  chip_top3/module3_A/recv_reg/CP (DFF)
+                                           0.0681    0.1301   1.0600    0.0166   0.0100 &  1.1967 r
+  clock reconvergence pessimism                                                  0.0300    1.2267
+  path margin                                                                    1.0000    2.2267
+  clock uncertainty                                                             -0.1050    2.1217
+  library setup time                                          1.0000            -0.0465    2.0752
+  data required time                                                                       2.0752
+  ------------------------------------------------------------------------------------------------------
+  data required time                                                                       2.0752
+  data arrival time                                                                       -0.4475
+  ------------------------------------------------------------------------------------------------------
+  slack (MET)                                                                              1.6277 
+
