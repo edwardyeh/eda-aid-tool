@@ -202,9 +202,9 @@ def create_blk_tree(top: Block):
                                         sub_node.di[0:2] = node.di[0] * -1, node.di[1] * -1
                                         sub_node.di[2:4] = node.di[0:2]
                                     elif m[3] == 'W':
-                                        pass
+                                        print(f"WARNING: Orientation W is not support now. (sub_node.name)")
                                     elif m[3] == 'E':
-                                        pass
+                                        print(f"WARNING: Orientation E is not support now. (sub_node.name)")
                                     elif m[3] == 'FN':
                                         FLIP_LEN_TYPE |= 1
                                         sub_node.di[0:2] = node.di[0] * -1, node.di[1]
@@ -214,9 +214,9 @@ def create_blk_tree(top: Block):
                                         sub_node.di[0:2] = node.di[0], node.di[1] * -1
                                         sub_node.di[3] = node.di[1]
                                     elif m[3] == 'FW':
-                                        pass
+                                        print(f"WARNING: Orientation FW is not support now. (sub_node.name)")
                                     elif m[3] == 'FE':
-                                        pass
+                                        print(f"WARNING: Orientation FE is not support now. (sub_node.name)")
 
                                     break
 
