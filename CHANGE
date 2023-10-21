@@ -198,3 +198,15 @@ v0.26.1
     dc_area_ana:
         1. Remove compare mode.
 
+v0.27.0
+
+    dc_area_ana:
+        1. Refine the coding structure.
+    pt_ana_ts:
+        1. Seperate from pt_rpt_ana.
+        2. Code refaction.
+        3. Add new attributes.
+        4. Support the max delay path and path margin path.
+    para_axis_calc:
+        1. Update warning messages.
+
