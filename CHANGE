@@ -210,3 +210,9 @@ v0.27.0
     para_axis_calc:
         1. Update warning messages.
 
+v0.28.0
+
+    pt_ana_ts:
+        1. Support Scenario.
+        2. Fix clock gating setup record.
+

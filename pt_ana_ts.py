@@ -176,6 +176,8 @@ def report_summary(args, range_list: list):
                                                    path.eed, path.eck))
         print(" Path group: {}".format(path.group))
         print(" Delay type: {}".format(path.type))
+        if path.scen is not None:
+            print(" Scenario:   {}".format(path.scen))
         print(" {}".format("=" * 60))
 
         ## path latency

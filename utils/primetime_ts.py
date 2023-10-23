@@ -72,6 +72,7 @@ class Path:
     eed: str = None    # endpoint clock edge type
     group: str = None  # path group
     type: str = None   # delay type
+    scen: str = None   # Scenario
 
     arr: float = 0.0   # data arrival time
     req: float = 0.0   # data required time
@@ -111,7 +112,6 @@ class TimePath(Path):
     unce: float = 0.0  # clock uncertainty
     crpr: float = 0.0  # CRPR
     lib: float = 0.0   # library time arc
-    gate: float = 0.0  # clock gate delay
     sdt: float = 0.0   # startpoint clock delta
     edt: float = 0.0   # endpoint clock delta
     ddt: float = 0.0   # data path delta
@@ -256,6 +256,10 @@ class TimeReport:
                 is_start = True
             elif tok[0] == 'Endpoint:':
                 path.edp = tok[1]
+            elif tok[0] == 'Scenario:':
+                path.scen = tok[1] 
+            elif tok[0] == 'Verbose':
+                path.scen = tok[3][1:-1] + ' (remote)'
             elif len(tok) > 1 and tok[1] == 'Group:':
                 path.group = tok[2]
             elif len(tok) > 1 and tok[1] == 'Type:':
@@ -398,7 +402,7 @@ class TimeReport:
         is_eof : a bool of the eof check.
         fno    : the read line count of the file.
         """
-        lib_set = {'setup', 'hold', 'removal', 'recovery'}
+        lib_set = {'setup', 'hold', 'removal', 'recovery', 'gating'}
         CKEG, CKLAT, DLAT = range(3)
         state = CKEG
 
@@ -414,8 +418,8 @@ class TimeReport:
             tag0, tag1 = tok[0].lstrip(), tok[1].lstrip()
             if tag1 == 'required':
                 path.req = float(tok[-1])
-                path.elat = (path.req - path.eev - path.crpr 
-                             - path.unce - path.odly - path.gate - path.lib)
+                path.elat = (path.req - path.eev - path.crpr - path.pmarg 
+                             - path.unce - path.odly - path.lib)
                 return False, fno
             elif tag1 == 'reconvergence':
                 path.crpr = float(tok[-2])
@@ -429,8 +433,6 @@ class TimeReport:
                 path.odly = float(tok[-2])
             elif tag1 in lib_set:
                 path.lib = float(tok[-2])
-            elif tag1 == 'gating':
-                path.gate = float(tok[-2])
             elif tag0 == 'max_delay':
                 path.max_dly = float(tok[-2])
                 path.max_dly_en = True
