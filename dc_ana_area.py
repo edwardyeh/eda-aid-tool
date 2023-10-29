@@ -860,10 +860,15 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
             else:
                 bk = [' ' if table_attr.is_sub_sum else ''] * 2
 
-            if len(area_row['path_name']) > path_len:
-                data_row = [area_row['path_name'] + '\n'.ljust(path_len+1)]
+            if table_attr.trace_root == 'sub' and not math.isnan(area_row['rid']):
+                path_name = "[{}]".format(area_row['path_name'])
             else:
-                data_row = [area_row['path_name'].ljust(path_len)]
+                path_name = area_row['path_name']
+
+            if len(path_name) > path_len:
+                data_row = [path_name + '\n'.ljust(path_len+1)]
+            else:
+                data_row = [path_name.ljust(path_len)]
 
             data_row.append(area_norm(area_row['total'], unit, area_fs, None, is_hide).rjust(area_len))
             data_row.append(area_norm(percent_t, unit, "{2}{0:.1%}{3}", None, is_hide).rjust(7))
@@ -897,7 +902,10 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
         for idx in range(group_table.shape[0]):
             area_row = group_table.iloc[idx, :]
 
-            percent_t = area_row['total'] / virtual_top.total_area
+            if table_attr.trace_root == 'sub':
+                percent_t = area_row['total'] / root_total
+            else:
+                percent_t = area_row['total'] / virtual_top.total_area
 
             logic_area = area_row['comb'] + area_row['seq']
 

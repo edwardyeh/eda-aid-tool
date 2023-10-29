@@ -11,7 +11,7 @@ int main(int argc, char **argv)
     int i;
     stringstream cmd;
 
-    cmd << "python -m eda_aid_tool.dc_area_ana";
+    cmd << "python -m eda_aid_tool.dc_ana_area";
 
     for(i = 1; i < argc; i++)
         cmd << " " << argv[i];

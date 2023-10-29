@@ -2,7 +2,7 @@
 CPP_SRC_DIR = .
 
 CC       = g++
-RM       = del
+RM       = rm 
 MKDIR    = mkdir
 ENV      = LINUX
 CFLAGS   = -D$(ENV) -m64

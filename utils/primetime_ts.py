@@ -13,70 +13,43 @@ import re
 from dataclasses import dataclass, field
 from enum import IntEnum
 
+from simpletools.text import Align
+from simpletools.text import SimpleTable
 
+
+@dataclass
 class Pin:
     """Data pin container."""
-    def __init__(self, ln:str=None, pin:str=None, cell:str=None):
-        self._attr = {
-            'ln': ln, 'pin': pin, 'cell': cell, 
-            'phy': None, 'fo': 0, 'cap': 0.0, 
-            'dtran': 0.0, 'tran': 0.0, 'derate': 0.0, 
-            'delta': 0.0, 'incr': 0.0, 'path': 0.0,
-        }
-
-    def __getitem__(self, key):
-        return self._attr[key]
-
-    def __setitem__(self, key, value):
-        self._attr[key] = value
-
-    def __repr__(self):
-        msg_list = [f"{key}: {val}" for key, val in self._attr.items()]
-        msg = "; ".join(msg_list)
-        return f"{msg}"
-
-    @property
-    def ln(self): return self._attr['ln']          # (str ) line number
-    @property                                      
-    def pin(self): return self._attr['pin']        # (str ) full_name of a pin
-    @property                                      
-    def cell(self): return self._attr['cell']      # (str ) cell type
-    @property                                      
-    def phy(self): return self._attr['phy']        # (str ) coordination
-    @property                                      
-    def fo(self): return self._attr['fo']          # (int ) Number of fanout
-    @property                                      
-    def cap(self): return self._attr['cap']        # (float) capacitance
-    @property                                      
-    def dtran(self): return self._attr['dtran']    # (float) delta transition
-    @property                                      
-    def tran(self): return self._attr['tran']      # (float) transition
-    @property                                      
-    def derate(self): return self._attr['derate']  # (float) path derate (OCV)
-    @property                                      
-    def delta(self): return self._attr['delta']    # (float) path delta (SI)
-    @property                                      
-    def incr(self): return self._attr['incr']      # (float) latency increment
-    @property                                      
-    def path(self): return self._attr['path']      # (float) path accumulated latency
+    ln: str = None          # line number
+    name: str = None        # pin name
+    cell: str = None        # cell type
+    phy: str = None         # physical coordination
+    drv: float = -1.0       # cell driving
+    fo: int = 0             # fanout
+    cap: float = 0.0        # capacitance
+    dtran: float = 0.0      # delta transition
+    tran: float = 0.0       # transition
+    derate: float = 0.0     # derate
+    delta: float = 0.0      # delta
+    incr: float = 0.0       # latency increment
+    path: float = 0.0       # path delay
 
 
 @dataclass (slots=True)
 class Path:
     """Basic path container."""
-    stp: str = None    # startpoint
-    sck: str = None    # startpoint clock
-    sed: str = None    # startpoint clock edge type
-    edp: str = None    # endpoint
-    eck: str = None    # endpoint clock
-    eed: str = None    # endpoint clock edge type
-    group: str = None  # path group
-    type: str = None   # delay type
-    scen: str = None   # Scenario
-
-    arr: float = 0.0   # data arrival time
-    req: float = 0.0   # data required time
-    slk: float = 0.0   # timing slack
+    stp: str = None     # startpoint
+    sck: str = None     # startpoint clock
+    sed: str = None     # startpoint clock edge type
+    edp: str = None     # endpoint
+    eck: str = None     # endpoint clock
+    eed: str = None     # endpoint clock edge type
+    group: str = None   # path group
+    type: str = None    # delay type
+    scen: str = None    # Scenario
+    arr: float = 0.0    # data arrival time
+    req: float = 0.0    # data required time
+    slk: float = 0.0    # timing slack
 
 
 @dataclass (slots=True)
@@ -89,20 +62,21 @@ class TimePath(Path):
     egpi: int = None  # index of the endpoint gclock pin in path list
 
     hcd: dict = field(default_factory=dict)  # highlighted cell delay
+    thp: list[Pin] = field(default_factory=list)  # through pin list
 
     idly_en: bool = False  # input delay active
     idly: float = 0.0      # input delay
     sev: float = 0.0       # startpoint clock edge value
     sslat: float = 0.0     # startpoint clock source latency
     slat: float = 0.0      # startpoint clock latency
-    lpath: list = field(default_factory=list)  # launch path pin list
+    lpath: list[Pin] = field(default_factory=list)  # launch path pin list
 
     odly_en: bool = False  # output delay active
     odly: float = 0.0      # output delay
     eev: float = 0.0       # endpoint clock edge value
     eslat: float = 0.0     # endpoint clock source latency
     elat: float = 0.0      # endpoint clock latency
-    cpath: list = field(default_factory=list)  # capture path pin list
+    cpath: list[Pin] = field(default_factory=list)  # capture path pin list
 
     max_dly_en: bool = False  # max delay active
     max_dly: float = 0.0      # max delay
@@ -132,7 +106,7 @@ class TimeReport:
     def __init__(self, cell_ckp:set=None, inst_ckp:set=None, 
                  ickp_re:dict=None, hcd:dict=None, ckt:list=None, 
                  ckm:list=None, ckm_nock:bool=False, dpc:str=None, 
-                 pc:dict=None):
+                 pc:dict=None, cc:dict=None, dc:dict=None):
         """
         Arguments
         ---------
@@ -144,7 +118,9 @@ class TimeReport:
         ckm      : user-defined clock module.
         ckm_nock : attr: ckm with non-clock-cells.
         dpc      : the specific group for the default path.
-        pc       : the path classifications (by regex).
+        pc       : the path classifications by the regular expression.
+        cc       : the cell classify by the regular expression.
+        dc       : the driving classify by regular pattern
         """
         ### attribute
         self._cell_ckp = set() if cell_ckp is None else cell_ckp
@@ -156,6 +132,8 @@ class TimeReport:
         self._ckm_nock = ckm_nock
         self._dpc = dpc
         self._pc = {} if pc is None else pc
+        self._cc = {} if cc is None else cc
+        self._dc = {} if dc is None else dc
         ### data
         self._head = list()  # timing path header
         self.opt = set()     # report option
@@ -354,10 +332,16 @@ class TimeReport:
                         case '(gclock' : st_col = 4
                         case _         : st_col = 2
 
+                if tok_len >= 3 and (tag2:=tok[2].lstrip()) == '<-':
+                    path.thp.append(tag0)
+
                 if tag1 == '(net)':
                     self._parse_pin(path.lpath[-1], tok2, st_col)
                 else:
-                    pin['pin'], pin['cell'] = tag0, tag1[1:-1]
+                    pin.name, pin.cell = tag0, tag1[1:-1]
+                    if 're' in self._dc and (m:=self._dc['re'].fullmatch(pin.cell)):
+                        if len(m.groups()) and (drv:=m.groups()[0]) in self._dc:
+                            pin.drv = self._dc[drv]
                     self._parse_pin(pin, tok2, st_col)
                     path.ddt += pin.delta
                     if tok_len > 2 and tok[2].endswith('(gclock'):
@@ -382,8 +366,8 @@ class TimeReport:
                                 break
                     path.lpath.append(pin)
                     if pv_pin.cell in (hcd_dict:=self._hcd):
-                        pi = pv_pin.pin.split('/')[-1]
-                        po = pin.pin.split('/')[-1]
+                        pi = pv_pin.name.split('/')[-1]
+                        po = pin.name.split('/')[-1]
                         pair = f"{pi}:{po}"
                         if pin.cell in self._hcd and \
                                pair in self._hcd[pin.cell]:
@@ -462,7 +446,7 @@ class TimeReport:
                 if tag1 == '(net)':
                     self._parse_pin(path.cpath[-1], tok2, st_col)
                 else:
-                    pin['pin'], pin['cell'] = tag0, tag1[1:-1]
+                    pin.name, pin.cell = tag0, tag1[1:-1]
                     self._parse_pin(pin, tok2, st_col)
                     path.edt += pin.delta
                     if tok_len > 2 and tok[2].endswith('(gclock'):
@@ -489,21 +473,21 @@ class TimeReport:
                     tpos += len(self._head[tid:=tid+1])
                     if tpos >= cpos:
                         if attr == 'fo':
-                            pin[attr] = int(tok[cid])
+                            pin.__dict__[attr] = int(tok[cid])
                         else:
-                            pin[attr] = float(tok[cid])
+                            pin.__dict__[attr] = float(tok[cid])
                         cpos += len(tok[cid:=cid+1])
 
             ## incr, path, location
-            pin['incr'], cid = float(tok[cid]), cid+1
+            pin.incr, cid = float(tok[cid]), cid+1
             if tok[cid][-1] in self._anno_sym:
                 cid += 1
-            pin['path'], cid = float(tok[cid]), cid+1
+            pin.path, cid = float(tok[cid]), cid+1
             if tok[cid][-1] == 'r' or tok[cid][-1] == 'f':
                 cid += 1
             if 'phy' in self.opt:
                 pos = tok[cid].lstrip()[1:-1]
-                pin['phy'] = [int(x) for x in pos.split(',')]
+                pin.phy = [int(x) for x in pos.split(',')]
         except IndexError:
             pass
         except ValueError:
@@ -515,9 +499,14 @@ class TimeReport:
 
         Returns
         -------
-        gcc_rslt : list[0:2] The gclock check result.
-        scc_rslt : list[0:4] The clock network check result.
-        ctc_rslt : list[0:2] The clock cell type check result.
+        gcc_rslt : The gclock check result. 
+                   format = [result, fail_reason]
+
+        scc_rslt : The clock network check result.
+                   format = [split_level, lineNo_in_spath, lineNo_in_epath]
+
+        ctc_rslt : The clock cell type check result.
+                   format = [result, fail_reason]
         """
         path = self.path[pid]
 
@@ -537,15 +526,15 @@ class TimeReport:
 
         ## gclock path match check
         gcc_rslt, fail_by_ckm, gclist = ['PASS', ''], True, []
-        egset = set([epin.pin for epin in egpath])
-        empty_pin = Pin(ln="", pin="", cell="")
-        same_ckm_pin = Pin(ln="", pin="... same clock module ...", cell="")
+        egset = set([epin.name for epin in egpath])
+        empty_pin = Pin(ln="", name="", cell="")
+        same_ckm_pin = Pin(ln="", name="... same clock module ...", cell="")
 
         if sgpath and egpath:
             sglen, eglen, pvckm_re = len(sgpath), len(egpath), None
             spin, epin, si, ei = sgpath[0], egpath[0], 1, 1
             while True:
-                if spin.pin == epin.pin:
+                if spin.name == epin.name:
                     gclist.append((spin, epin))
                     match (si==sglen, ei==eglen):
                         case (False, False):
@@ -571,8 +560,8 @@ class TimeReport:
                         ckm_list2 = self._ckm
 
                     for ckm_re in ckm_list2:
-                        sckm = True if ckm_re.fullmatch(spin.pin) else False
-                        eckm = True if ckm_re.fullmatch(epin.pin) else False
+                        sckm = True if ckm_re.fullmatch(spin.name) else False
+                        eckm = True if ckm_re.fullmatch(epin.name) else False
                         if sckm and eckm:
                             pvckm_re = ckm_re
                             break
@@ -581,7 +570,7 @@ class TimeReport:
                     fail_by_ckm &= all_ckm
 
                     dummy_pin = same_ckm_pin if all_ckm else empty_pin
-                    if spin.pin in egset:
+                    if spin.name in egset:
                         gclist.append((dummy_pin, epin))
                         epin, ei = egpath[ei], ei+1
                     else:
@@ -597,15 +586,15 @@ class TimeReport:
         if spath and spath[-1].cell in {'inout', 'in'}:
             del spath[-1]
 
-        scc_rslt = (-1, 'N/A', 'N/A')  # (split_level, lineNo_in_spath, lineNo_in_epath)
+        scc_rslt = [-1, 'N/A', 'N/A']
         if spath and epath:
             slen, elen = len(spath), len(epath)
             spin, epin, si, ei = spath[0], epath[0], 1, 1
             while True:
-                if spin.pin != epin.pin:
+                if spin.name != epin.name:
                     break
                 else:
-                    scc_rslt = (scc_rslt[0]+1, spin.ln, epin.ln)
+                    scc_rslt = [scc_rslt[0]+1, spin.ln, epin.ln]
                     if si == slen or ei == elen:
                         break
                     else:
@@ -639,7 +628,7 @@ class TimeReport:
 
                 sc_is_ckm, ec_is_ckm = sc_pass, ec_pass
                 if not cur_pass and self._ckm_nock:
-                    sname, ename = gclist[i][0].pin, gclist[i][1].pin
+                    sname, ename = gclist[i][0].name, gclist[i][1].name
                     if pvckm_re is not None:
                         ckm_list2 = [pvckm_re] + self._ckm
                     else:
@@ -679,7 +668,7 @@ class TimeReport:
                         ckm_list2 = self._ckm
 
                     for ckm_re in ckm_list2:
-                        sc_is_ckm = (True if ckm_re.fullmatch(pin.pin) 
+                        sc_is_ckm = (True if ckm_re.fullmatch(pin.name) 
                                      else False)
                         if sc_is_ckm:
                             pvckm_re = ckm_re
@@ -709,7 +698,7 @@ class TimeReport:
                         ckm_list2 = self._ckm
 
                     for ckm_re in ckm_list2:
-                        ec_is_ckm = (True if ckm_re.fullmatch(pin.pin) 
+                        ec_is_ckm = (True if ckm_re.fullmatch(pin.name) 
                                      else False)
                         if ec_is_ckm:
                             pvckm_re = ckm_re
@@ -733,110 +722,58 @@ class TimeReport:
 
         ## dump gclock compare list
         if is_dump:
-            gc_col_sz = {'ln': 0, 'pin': 0, 'cell': 0}
-            sc_col_sz = {'ln': 0, 'pin': 0, 'cell': 0}
-            ec_col_sz = {'ln': 0, 'pin': 0, 'cell': 0}
-
-            for i in range(len(gclist)):
-                for cid in ('ln', 'pin', 'cell'):
-                    if (len_:=len(gclist[i][0][cid])) > gc_col_sz[cid]:
-                        gc_col_sz[cid] = len_
-                    if (len_:=len(gclist[i][1][cid])) > gc_col_sz[cid]:
-                        gc_col_sz[cid] = len_
-
-            for pin in spath:
-                for cid in ('ln', 'pin', 'cell'):
-                    if (len_:=len(pin[cid])) > sc_col_sz[cid]:
-                        sc_col_sz[cid] = len_
-
-            for pin in epath:
-                for cid in ('ln', 'pin', 'cell'):
-                    if (len_:=len(pin[cid])) > ec_col_sz[cid]:
-                        ec_col_sz[cid] = len_
-
-            for cid, sz in {'ln': 4, 'pin': 10, 'cell': 10}.items():
-                gc_col_sz[cid] = (sz if gc_col_sz[cid] < sz else gc_col_sz[cid])
-                sc_col_sz[cid] = (sz if sc_col_sz[cid] < sz else sc_col_sz[cid])
-                ec_col_sz[cid] = (sz if ec_col_sz[cid] < sz else ec_col_sz[cid])
-
             with open(f"clock_check{pid}.dump", "w") as f:
-                f.write("\n=== GClock Compare:\n")
-                f.write("+-{}-+-{}-+-{}-+-{}----+-{}----+\n".format(
-                            '-' * 4, 
-                            '-' * 2,
-                            '-' * gc_col_sz['ln'],
-                            '-' * gc_col_sz['pin'],
-                            '-' * gc_col_sz['cell']))
-                f.write("| {} | {} | {} | {}    | {}    |\n".format(
-                            'Type'.center(4), 
-                            'CK'.ljust(2), 
-                            'Line'.ljust(gc_col_sz['ln']), 
-                            'Pin'.ljust(gc_col_sz['pin']),
-                            'Cell'.ljust(gc_col_sz['cell'])))
-                f.write("+-{}-+-{}-+-{}-+-{}----+-{}----+\n".format(
-                            '-' * 4, 
-                            '-' * 2,
-                            '-' * gc_col_sz['ln'],
-                            '-' * gc_col_sz['pin'],
-                            '-' * gc_col_sz['cell']))
+                # global clock
+                gc_table = SimpleTable({'type': 'Type', 'isck': 'CK', 
+                                        'ln': 'Line', 'name': 'Pin', 
+                                        'cell': 'Cell'}, rdiv_cnt=2)
                 for i in range(len(gclist)):
-                    f.write("| {} | {} | {} | {}    | {}    |\n".format(
-                                'L'.center(4),
-                                gct_list[i][0].rjust(2),
-                                gclist[i][0].ln.rjust(gc_col_sz['ln']),
-                                gclist[i][0].pin.ljust(gc_col_sz['pin']),
-                                gclist[i][0].cell.ljust(gc_col_sz['cell'])))
-                    f.write("| {} | {} | {} | {}    | {}    |\n".format(
-                                'C'.center(4),
-                                gct_list[i][1].rjust(2),
-                                gclist[i][1].ln.rjust(gc_col_sz['ln']),
-                                gclist[i][1].pin.ljust(gc_col_sz['pin']),
-                                gclist[i][1].cell.ljust(gc_col_sz['cell'])))
-                    f.write("+-{}-+-{}-+-{}-+-{}----+-{}----+\n".format(
-                                '-' * 4, 
-                                '-' * 2,
-                                '-' * gc_col_sz['ln'],
-                                '-' * gc_col_sz['pin'],
-                                '-' * gc_col_sz['cell']))
+                    for j, type_ in enumerate(['L', 'C']):
+                        gc_table.add_row([type_, gct_list[i][j], gclist[i][j].ln, 
+                                          gclist[i][j].name, gclist[i][j].cell])
+                    if i == 0:
+                        keys = gc_table.get_keys()
+                        gc_table.set_col_align(keys.index('type'), Align.TC)
+                        gc_table.set_col_align(keys.index('isck'), Align.TR)
+                        gc_table.set_col_align(keys.index('ln'), Align.TR)
+
+                f.write("\n=== GClock Compare:\n")
+                gc_table.print_table(f)
                 f.write("\n")
 
-                scan_list = []
+                # launch source
                 if sct_list:
-                    scan_list.append(('Launch', sct_list, sc_col_sz))
-                if ect_list:
-                    scan_list.append(('Capture', ect_list, ec_col_sz))
+                    sc_table = SimpleTable({'isck': 'CK', 'ln': 'Line', 
+                                            'name': 'Pin', 'cell': 'Cell'})
+                    for i, data in enumerate(sct_list):
+                        pin, status = data
+                        sc_table.add_row([status, pin.ln, pin.name, pin.cell])
+                        if i == 0:
+                            keys = sc_table.get_keys()
+                            sc_table.set_col_align(keys.index('isck'), Align.TR)
+                            sc_table.set_col_align(keys.index('ln'), Align.TR)
 
-                for ctype, cell_list, col_sz in scan_list:
-                    f.write(f"=== Non-CK type cell ({ctype} source):\n")
-                    f.write("+-{}-+-{}-+-{}----+-{}----+\n".format(
-                                '-' * 2,
-                                '-' * col_sz['ln'],
-                                '-' * col_sz['pin'],
-                                '-' * col_sz['cell']))
-                    f.write("| {} | {} | {}    | {}    |\n".format(
-                                'CK'.ljust(2), 
-                                'Line'.ljust(col_sz['ln']), 
-                                'Pin'.ljust(col_sz['pin']),
-                                'Cell'.ljust(col_sz['cell'])))
-                    f.write("+-{}-+-{}-+-{}----+-{}----+\n".format(
-                                '-' * 2,
-                                '-' * col_sz['ln'],
-                                '-' * col_sz['pin'],
-                                '-' * col_sz['cell']))
-                    for pin, ctc_status in cell_list:
-                        f.write("| {} | {} | {}    | {}    |\n".format(
-                                    ctc_status.rjust(2),
-                                    pin.ln.rjust(col_sz['ln']),
-                                    pin.pin.ljust(col_sz['pin']),
-                                    pin.cell.ljust(col_sz['cell'])))
-                    f.write("+-{}-+-{}-+-{}----+-{}----+\n".format(
-                                '-' * 2,
-                                '-' * col_sz['ln'],
-                                '-' * col_sz['pin'],
-                                '-' * col_sz['cell']))
+                    f.write(f"=== Non-CK type cell (launch source):\n")
+                    sc_table.print_table(f)
                     f.write("\n")
 
-        scc_rslt = (scc_rslt[0]+1, *scc_rslt[1:])
+                # capture source
+                if ect_list:
+                    ec_table = SimpleTable({'isck': 'CK', 'ln': 'Line', 
+                                            'name': 'Pin', 'cell': 'Cell'})
+                    for i, data in enumerate(ect_list):
+                        pin, status = data
+                        ec_table.add_row([status, pin.ln, pin.name, pin.cell])
+                        if i == 0:
+                            keys = ec_table.get_keys()
+                            ec_table.set_col_align(keys.index('isck'), Align.TR)
+                            ec_table.set_col_align(keys.index('ln'), Align.TR)
+
+                    f.write(f"=== Non-CK type cell (capture source):\n")
+                    ec_table.print_table(f)
+                    f.write("\n")
+
+        scc_rslt = [scc_rslt[0]+1, *scc_rslt[1:]]
         return gcc_rslt, scc_rslt, ctc_rslt
 
     def get_path_segment(self, pid: int=0) -> dict:
@@ -865,7 +802,7 @@ class TimeReport:
             if tag is None:
                 new_tag = self._dpc
                 for key, ps_re in self._pc.items():
-                    if (m:=ps_re.fullmatch(cell.pin)):
+                    if (m:=ps_re.fullmatch(cell.name)):
                         new_tag = key
                         break
                 tag = new_tag
@@ -883,10 +820,10 @@ class TimeReport:
                 else:
                     lat_sum += cell.incr
                     dt_sum += cell.delta
-            elif self._pc[tag].fullmatch(cell.pin) is None:
+            elif self._pc[tag].fullmatch(cell.name) is None:
                 new_tag = self._dpc
                 for key, ps_re in self._pc.items():
-                    if (m:=ps_re.fullmatch(cell.pin)):
+                    if (m:=ps_re.fullmatch(cell.name)):
                         new_tag = key
                         break
                 if new_tag != tag:
@@ -920,7 +857,7 @@ class TimeReport:
             if tag is None:
                 new_tag = self._dpc
                 for key, ps_re in self._pc.items():
-                    if (m:=ps_re.fullmatch(cell.pin)):
+                    if (m:=ps_re.fullmatch(cell.name)):
                         new_tag = key
                         break
                 tag = new_tag
@@ -934,10 +871,10 @@ class TimeReport:
                 else:
                     lat_sum += cell.incr
                     dt_sum += cell.delta
-            elif self._pc[tag].fullmatch(cell.pin) is None:
+            elif self._pc[tag].fullmatch(cell.name) is None:
                 new_tag = self._dpc
                 for key, ps_re in self._pc.items():
-                    if (m:=ps_re.fullmatch(cell.pin)):
+                    if (m:=ps_re.fullmatch(cell.name)):
                         new_tag = key
                         break
                 if new_tag != tag:

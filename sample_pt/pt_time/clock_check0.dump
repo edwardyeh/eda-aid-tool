@@ -1,0 +1,57 @@
+
+=== GClock Compare:
++------+----+------+--------------------------------+----------+
+| Type | CK | Line | Pin                            | Cell     |
++------+----+------+--------------------------------+----------+
+|  L   |    |   24 | chip_top1/i_ip1/i_mpll/CLK_480 | mpll_top |
+|  C   |    |   50 | chip_top1/i_ip1/i_mpll/CLK_480 | mpll_top |
++------+----+------+--------------------------------+----------+
+|  L   |    |   25 | chip_top1/clk_gcell1/I         | CKBUF    |
+|  C   |    |   51 | chip_top1/clk_gcell1/I         | CKBUF    |
++------+----+------+--------------------------------+----------+
+|  L   |    |   26 | chip_top1/clk_gcell1/Z         | CKBUF    |
+|  C   |    |   52 | chip_top1/clk_gcell1/Z         | CKBUF    |
++------+----+------+--------------------------------+----------+
+|  L   |    |   27 | chip_top1/clk_mux1/I0          | CKMUX    |
+|  C   |    |   53 | chip_top1/clk_mux1/I0          | CKMUX    |
++------+----+------+--------------------------------+----------+
+|  L   |    |   28 | chip_top1/clk_mux1/Z           | CKMUX    |
+|  C   |    |   54 | chip_top1/clk_mux1/Z           | CKMUX    |
++------+----+------+--------------------------------+----------+
+|  L   |    |   29 | chip_top1/clk_gcell2/I         | CKBUF    |
+|  C   |    |   55 | chip_top1/clk_gcell2/I         | CKBUF    |
++------+----+------+--------------------------------+----------+
+|  L   |    |   30 | chip_top1/clk_gcell2/Z         | CKBUF    |
+|  C   |    |   56 | chip_top1/clk_gcell2/Z         | CKBUF    |
++------+----+------+--------------------------------+----------+
+|  L   |    |   31 | chip_top1/cb_pclk/I            | CKBUF    |
+|  C   |    |   57 | chip_top1/cb_pclk/I            | CKBUF    |
++------+----+------+--------------------------------+----------+
+|  L   |    |   32 | chip_top1/cb_pclk/Z            | CKBUF    |
+|  C   |    |   58 | chip_top1/cb_pclk/Z            | CKBUF    |
++------+----+------+--------------------------------+----------+
+
+=== Non-CK type cell (launch source):
++----+------+--------------------------------------+-------+
+| CK | Line | Pin                                  | Cell  |
++----+------+--------------------------------------+-------+
+|    |   33 | chip_top1/clk_ucell1/I               | CKBUF |
+|    |   34 | chip_top1/clk_ucell1/Z               | CKBUF |
+|    |   35 | chip_top1/clk_ucell2/I               | CKBUF |
+|    |   36 | chip_top1/clk_ucell2/Z               | CKBUF |
+|    |   37 | chip_top1/clk_ucell3/I               | CKBUF |
+|    |   38 | chip_top1/clk_ucell3/Z               | CKBUF |
+|    |   39 | chip_top1/module1_A/data_reg_2_0_/CP | DFF   |
++----+------+--------------------------------------+-------+
+
+=== Non-CK type cell (capture source):
++----+------+---------------------------------+-------+
+| CK | Line | Pin                             | Cell  |
++----+------+---------------------------------+-------+
+|    |   59 | chip_top1/clk_ucell1/I          | CKBUF |
+|    |   60 | chip_top1/clk_ucell1/Z          | CKBUF |
+|    |   61 | chip_top1/clk_ucell4/I          | CKBUF |
+|    |   62 | chip_top1/clk_ucell4/Z          | CKBUF |
+|    |   63 | chip_top3/module3_A/recv_reg/CP | DFF   |
++----+------+---------------------------------+-------+
+

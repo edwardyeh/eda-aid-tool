@@ -11,7 +11,7 @@ int main(int argc, char **argv)
     int i;
     stringstream cmd;
 
-    cmd << "python -m eda_aid_tool.pt_vio_extract";
+    cmd << "python -m eda_aid_tool.pt_ana_cons";
 
     for(i = 1; i < argc; i++)
         cmd << " " << argv[i];
