@@ -861,7 +861,7 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
                 bk = [' ' if table_attr.is_sub_sum else ''] * 2
 
             if table_attr.trace_root == 'sub' and not math.isnan(area_row['rid']):
-                path_name = "[{}]".format(area_row['path_name'])
+                path_name = "<{}>".format(area_row['path_name'])
             else:
                 path_name = area_row['path_name']
 

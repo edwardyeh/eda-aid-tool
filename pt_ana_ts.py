@@ -587,10 +587,14 @@ def show_time_bar(path: TimePath, path_opt: set, cons_cfg: dict,
                         iy2 = [sdb[1][i] for i in ix2]
                         axs.stem(ix2, iy2, 'o-')
                         # axs.plot(ix2, iy2, 'o-', lw=1)
+                        dy = (my:=max(sdb[1])) / 4.0
+                        axs.set_ylim(-dy, my+dy*1.5)
                     else:
                         axs.set_ylim(0, 4)
                 else:
                     axs.set_title(sdb[0])
+                    dy = (my:=max(sdb[1])) / 4.0  
+                    axs.set_ylim(min(sdb[1]), my+dy)
 
                 axs.grid(axis='y', which='both', ls=':', c='grey')
                 axs.set_xticks(level, [])
