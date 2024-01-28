@@ -27,11 +27,11 @@ re:<pattern>                            # use regular expression to choose insta
 
 === Group Summation ========================================
 
-grp[gid]:"<group_name>"                 # set group name for the specific area group (gid: group ID, default 0)
-<inst_path> add[gid]                    # add area to the specific area group
-<inst_path> add[gid]:"<group_name>"     # add area to the specific area group and rename this group
-<inst_path> sub[gid]                    # substract area from the specific area group
-<inst_path> sub[gid]:"<group_name>"     # substract area from the specific area group and rename this group
+grp<gid>:"<group_name>"                 # set group name for the specific area group (gid: group ID)
+<inst_path> add<gid>                    # add area to the specific area group
+<inst_path> add<gid>:"<group_name>"     # add area to the specific area group and rename this group
+<inst_path> sub<gid>                    # substract area from the specific area group
+<inst_path> sub<gid>:"<group_name>"     # substract area from the specific area group and rename this group
 
 === Instance Rename ========================================
 

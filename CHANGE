@@ -220,6 +220,9 @@ v0.28.1.beta
 
     dc_area_ana:
         1. Change the bracket type of the sub-root.
+        2. Refine the flow and the data structure.
+        3. Remove the code of the compare mode.
+        4. Support add or sub an instance to more than two groups. 
     pt_ana_ts:
         1. Refine the range of the bar view y-axis.
 
