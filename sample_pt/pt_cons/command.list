@@ -1,12 +1,15 @@
 
 === Attribute ==============================================
 
-group_column_width: <size>              # set group column width
+group_column_width: <size>              # set group column width (default: 38)
+wns_width: <size>                       # set WNS column width   (default: 12)
+tns_width: <size>                       # set TNS column width   (default: 12)
+nvp_width: <size>                       # set NVP column width   (default: 6)
 
 === Path Choose (Violation Report) =========================    
 
 p:<type>:<group>:<path>:<rid>           # use regular expression to choose path
-                                          <rid> = l-left, r-right, a-all
+                                            - report ID <rid> : l-left, r-right, a-all
 
 === Path Operation =========================================
 
@@ -25,18 +28,23 @@ p:<type>:<group>:<path>:<rid>           # use regular expression to choose path
 === Group Choose (Summary Report) ==========================
 
 g:<type>:<group>:<rid>                  # use regular expression to choose group
-                                          <rid> = l-left, r-right, d-diff
+                                            - report ID <rid> : l-left, r-right, d-diff
 
-=== Group Operation (Summary) ==============================
+=== Group Operation (Summary Report) =======================
 
-<group> w:<codition>                    # threshould alarm:
+<group> w:<codition>[:<flag>]           # threshould alarm:
                                             - condition format : <target><operation><value>
-                                            - target           : wns, tns, nvp
-                                            - operation        : >, <, ==, >=, <=
-                                            - value type       : float
+                                              - target         : wns, tns, nvp
+                                              - operation      : >, <, ==, >=, <=
+                                              - value type     : float
+                                            - flag             : message flag
+
+=== Group Message (Summary Report) =========================
+
+gtag:<flag>: <message>                  # line comment
+gmsg:<flag>: <message>                  # condition comment
 
 === User Group (Violation Report) ==========================
 
 ug:<type>:<group>:<path> <user_group>:<is_reserve>
-
 

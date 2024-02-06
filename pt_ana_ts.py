@@ -49,6 +49,7 @@ def load_times_cfg(cfg_fp) -> dict:
         'slack_on_report':                       ('slk_on_rpt'     , True),
         'clock_uncertainty_on_report':           ('unce_on_rpt'    , False),
         'library_required_on_report':            ('lib_on_rpt'     , False),
+        'datapath_level_on_report':              ('dplv_on_rpt'    , False),
         'clock_skew_on_report':                  ('ck_skew_on_rpt' , True),
         'segment_data_latency_on_report':        ('seg_dlat_on_rpt', True),
         "segment_data_delta_on_report":          ('seg_ddt_on_rpt' , True),
@@ -220,6 +221,10 @@ def report_summary(args, range_list: list):
                 print(" {:26}{: 5.4f}".format("path margin:", path.pmarg))
             for tag, val in path.hcd.items():
                 print(" {}{: 5.4f}".format(f"{tag}:".ljust(26), val))
+            if cons_cfg['dplv_on_rpt']:
+                print(" {:26}{: 5.4f}".format(
+                    "datapath level:", len(path.lpath)-path.spin-1))
+
             print(" {}".format("=" * 60))
 
         ## clock latency & check

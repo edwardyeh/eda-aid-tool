@@ -13,8 +13,7 @@ import re
 from dataclasses import dataclass, field
 from enum import IntEnum
 
-from simpletools.text import Align
-from simpletools.text import SimpleTable
+from simpletools.text import (Align, SimpleTable)
 
 
 @dataclass
@@ -520,7 +519,7 @@ class TimeReport:
         if path.egpi is not None:
             egpi = path.egpi + 1
             egpath = path.cpath[0:egpi]
-            epath = path.cpath[egpi:path.spin+1]
+            epath = path.cpath[egpi:]
         else:
             egpath, epath = [], path.cpath
 
