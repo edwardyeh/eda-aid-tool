@@ -18,7 +18,7 @@ from dataclasses import dataclass, field
 from enum import IntEnum
 from typing import Any
 
-from simpletools.text import Align, Array, Border, Cell, SimpleTable
+from simpletools.text import Align, Array, Border, SimpleTable
 from .utils.common import PKG_VERSION, DC_AREA_VER
 
 VERSION = f"dc_ana_area version {DC_AREA_VER} ({PKG_VERSION})"
@@ -757,30 +757,30 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
 
     root_total = 0.0
     for r in range(atable.max_row-1,-1,-1):
-        atable[r,'total':'pbox'].align = [Align.TR] * 7
-        if atable[r,'hide'].value:
+        atable.attr[r,'total':'pbox'].align = [Align.TR] * 7
+        if atable[r,'hide']:
             if table_attr.trace_root == 'leaf':
                 atable.del_row(r)
             else:
-                value = " - " if atable[r,'sub_sum'].value else "-"
-                atable[r,'ptotal':'pbox'].value = [value] * 2
-                atable[r,'ptotal':'pbox'].fs = ["{}"] * 2
+                value = " - " if atable[r,'sub_sum'] else "-"
+                atable[r,'ptotal':'pbox'] = [value] * 2
+                atable.attr[r,'ptotal':'pbox'].fs = ["{}"] * 2
         else:
-            atable[r,'logic'].value = atable[r,'comb'] + atable[r,'seq']
-            atable[r,'ptotal':'pbox'].fs = [perc_fs] * 2
+            atable[r,'logic'] = atable[r,'comb'] + atable[r,'seq']
+            atable.attr[r,'ptotal':'pbox'].fs = [perc_fs] * 2
 
             if table_attr.trace_root == 'sub':
-                if atable[r,'rid'].value is not None:
-                    atable[r,'name'].value = f"<{atable[r,'name'].value}>"
-                    root_total = atable[r,'total'].value
-                atable[r,'ptotal'].value = atable[r,'total'] / root_total
+                if atable[r,'rid'] is not None:
+                    atable[r,'name'] = f"<{atable[r,'name']}>"
+                    root_total = atable[r,'total']
+                atable[r,'ptotal'] = atable[r,'total'] / root_total
             else:
-                atable[r,'ptotal'].value = atable[r,'total'] / vtotal
+                atable[r,'ptotal'] = atable[r,'total'] / vtotal
 
             if (hier_area:=atable[r,'logic']+atable[r,'bbox']) > 0:
-                atable[r,'pbox'].value = atable[r,'bbox'] / hier_area
+                atable[r,'pbox'] = atable[r,'bbox'] / hier_area
             else:
-                atable[r,'pbox'].value = 0
+                atable[r,'pbox'] = 0
 
     col_area_norm(atable, 'total', table_attr, is_hide_chk=True)
     for key in ('comb', 'seq', 'bbox', 'logic'):
@@ -818,21 +818,21 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
 
     if gtable.max_row > 0:
         for r in range(gtable.max_row):
-            gtable[r,'sub_sum'].value = True
-            gtable[r,'logic'].value = gtable[r,'comb'] + gtable[r,'seq']
+            gtable[r,'sub_sum'] = True
+            gtable[r,'logic'] = gtable[r,'comb'] + gtable[r,'seq']
 
             if table_attr.trace_root == 'sub' and sub_root_cnt > 1:
-                gtable[r,'ptotal'].value = 'NA'
-                gtable[r,'ptotal'].fs = '{}'
+                gtable[r,'ptotal'] = 'NA'
+                gtable.attr[r,'ptotal'].fs = '{}'
             elif table_attr.trace_root == 'sub' and sub_root_cnt == 1:
-                gtable[r,'ptotal'].value = gtable[r,'total'] / root_total
+                gtable[r,'ptotal'] = gtable[r,'total'] / root_total
             else:
-                gtable[r,'ptotal'].value = gtable[r,'total'] / vtotal
+                gtable[r,'ptotal'] = gtable[r,'total'] / vtotal
 
             if (hier_area:=gtable[r,'logic']+gtable[r,'bbox']) > 0:
-                gtable[r,'pbox'].value = gtable[r,'bbox'] / hier_area
+                gtable[r,'pbox'] = gtable[r,'bbox'] / hier_area
             else:
-                gtable[r,'pbox'].value = 0
+                gtable[r,'pbox'] = 0
 
         col_area_norm(gtable, 'total', table_attr)
         gtable.set_col_attr('total', align=Align.TR)
@@ -842,10 +842,10 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
         for key in ('ptotal', 'pbox'):
             gtable.set_col_attr(key, fs=perc_fs, align=Align.TR)
 
-        size = max([len(x) for x in gtable.index.key])
-        for key in gtable.index.key:
-            gtable[key,'name'].value = \
-                "{}: {}".format(key.rjust(size), gtable[key,'name'].value)
+        size = max([len(x) for x in gtable.index.id.keys()])
+        for key in gtable.index.id.keys():
+            gtable[key,'name'] = \
+                "{}: {}".format(key.rjust(size), gtable[key,'name'])
 
     ### sync column width ###
 
@@ -898,8 +898,8 @@ def show_hier_area(design_db: DesignDB, table_attr: TableAttr):
     atable.header['attr'].border = Border(top=False,bottom=False,
                                           left=False, right=False)
     for r in (0, atable.max_row-1):
-        atable[r,'attr'].border = Border(top=False,bottom=False,
-                                         left=False,right=False)
+        atable.attr[r,'attr'].border = Border(top=False,bottom=False,
+                                              left=False,right=False)
     atable.header['attr'].title = ""
     atable.print(column=hlist)
 
@@ -1081,30 +1081,30 @@ def show_bbox_area(design_db: DesignDB, table_attr: TableAttr):
 
     root_total = 0.0
     for r in range(atable.max_row-1,-1,-1):
-        atable[r,'total':'pbox'].align = [Align.TR] * 7
-        if atable[r,'hide'].value:
+        atable.attr[r,'total':'pbox'].align = [Align.TR] * 7
+        if atable[r,'hide']:
             if table_attr.trace_root == 'leaf':
                 atable.del_row(r)
             else:
-                value = " - " if atable[r,'sub_sum'].value else "-"
-                atable[r,'ptotal':'pbox'].value = [value] * 2
-                atable[r,'ptotal':'pbox'].fs = ["{}"] * 2
+                value = " - " if atable[r,'sub_sum'] else "-"
+                atable[r,'ptotal':'pbox'] = [value] * 2
+                atable.attr[r,'ptotal':'pbox'].fs = ["{}"] * 2
         else:
-            atable[r,'logic'].value = atable[r,'comb'] + atable[r,'seq']
-            atable[r,'ptotal':'pbox'].fs = [perc_fs] * 2
+            atable[r,'logic'] = atable[r,'comb'] + atable[r,'seq']
+            atable.attr[r,'ptotal':'pbox'].fs = [perc_fs] * 2
 
             if table_attr.trace_root == 'sub':
-                if atable[r,'rid'].value is not None:
-                    atable[r,'name'].value = f"<{atable[r,'name'].value}>"
-                    root_total = atable[r,'total'].value
-                atable[r,'ptotal'].value = atable[r,'total'] / root_total
+                if atable[r,'rid'] is not None:
+                    atable[r,'name'] = f"<{atable[r,'name']}>"
+                    root_total = atable[r,'total']
+                atable[r,'ptotal'] = atable[r,'total'] / root_total
             else:
-                atable[r,'ptotal'].value = atable[r,'total'] / vtotal
+                atable[r,'ptotal'] = atable[r,'total'] / vtotal
 
             if (hier_area:=atable[r,'logic']+atable[r,'bbox']) > 0:
-                atable[r,'pbox'].value = atable[r,'bbox'] / hier_area
+                atable[r,'pbox'] = atable[r,'bbox'] / hier_area
             else:
-                atable[r,'pbox'].value = 0
+                atable[r,'pbox'] = 0
 
     col_area_norm(atable, 'total', table_attr, is_hide_chk=True)
     for key in ('comb', 'seq', 'bbox', 'logic'):
@@ -1169,8 +1169,8 @@ def show_bbox_area(design_db: DesignDB, table_attr: TableAttr):
     atable.header['attr'].border = Border(top=False,bottom=False,
                                           left=False,right=False)
     for r in (0, atable.max_row-1):
-        atable[r,'attr'].border = Border(top=False,bottom=False,
-                                         left=False,right=False)
+        atable.attr[r,'attr'].border = Border(top=False,bottom=False,
+                                              left=False,right=False)
     atable.header['attr'].title = ""
     atable.print(column=hlist)
     print()
@@ -1212,20 +1212,20 @@ def col_area_norm(table: SimpleTable, col_key, table_attr: TableAttr,
                   is_sub_sum: bool=False, is_hide_chk: bool=False):
     """Normalize area for the specific column and update the f-string."""
     for r in range(table.max_row):
-        if is_hide_chk and table[r,'hide'].value:
-            value = " - " if table[r,'sub_sum'].value else "-"
-            table[r,col_key].value = value
-            table[r,col_key].fs = "{}"
+        if is_hide_chk and table[r,'hide']:
+            value = " - " if table[r,'sub_sum'] else "-"
+            table[r,col_key] = value
+            table.attr[r,col_key].fs = "{}"
         else:
-            table[r,col_key].value, fs = \
-                area_norm(table[r,col_key].value, table_attr)
+            table[r,col_key], fs = \
+                area_norm(table[r,col_key], table_attr)
             if is_sub_sum:
-                if table[r,'sub_sum'].value:
-                    table[r,col_key].fs = f"({fs})"
+                if table[r,'sub_sum']:
+                    table.attr[r,col_key].fs = f"({fs})"
                 else:
-                    table[r,col_key].fs = f" {fs} "
+                    table.attr[r,col_key].fs = f" {fs} "
             else:
-                table[r,col_key].fs = fs
+                table.attr[r,col_key].fs = fs
 
 
 ### Main Function ###
