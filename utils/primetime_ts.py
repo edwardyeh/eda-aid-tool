@@ -8,6 +8,7 @@ Global Function for PrimeTime Report Analysis
 """
 import copy
 import gzip
+import math
 import os
 import re
 from dataclasses import dataclass, field
@@ -246,12 +247,12 @@ class TimeReport:
         else:
             return True, fno
 
-        ## parse launch data path
+        ## parse launch path
         is_eof, fno = self._parse_lpath(fp, fno, path)
         if is_eof:
             return True, fno
 
-        ## parse launch data path
+        ## parse capture path
         is_eof, fno = self._parse_cpath(fp, fno, path)
         if is_eof:
             return True, fno
@@ -262,6 +263,9 @@ class TimeReport:
                 continue
             elif tok[0] == 'slack':
                 path.slk = float(tok[2])
+                break
+            elif len(tok) >= 3 and tok[2][:-1] == 'unconstrainted':
+                path.slk = math.inf
                 break
         else:
             return True, fno
@@ -394,9 +398,12 @@ class TimeReport:
             return True, fno
 
         while line:
+            if line.lstrip().startswith('---'):
+                return False, fno
             if not (tok:=self._path_re.findall(line)):
                 line, fno = fp.readline(), fno+1
                 continue
+
             # print("[parse cpath]", tok)  # debug
             tag0, tag1 = tok[0].lstrip(), tok[1].lstrip()
             if tag1 == 'required':
