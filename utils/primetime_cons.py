@@ -90,7 +90,7 @@ class ConsReport:
     def __init__(self, gcol_w: int=50, 
                  wns_w: int=16, tns_w: int=16, nvp_w: int=6, 
                  path_cfg: dict=None, grp_cfg: dict=None, ugrp_cfg: dict=None,
-                 gtag_cfg: dict=None, gmsg_cfg: dict=None):
+                 gtag_cfg: dict=None, gmsg_cfg: dict=None, plot_grp: str=None):
         """
         Parameters
         ----------
@@ -112,6 +112,8 @@ class ConsReport:
             Tags for group configurations.
         gmsg_cfg : dict, optional
             Messages for group configurations.
+        plot_grp : str, optional
+            Plot analysis histgram of the specific path group.
         """
         ### attributes
         self.gcol_w = gcol_w
@@ -127,6 +129,9 @@ class ConsReport:
         ### data
         self.cons_tables = []
         self.sum_tables = {}
+        ### plot
+        self.plot_grp = plot_grp
+        self.plot_data = []
 
         self._parse_cfg_cmd()
 
@@ -391,6 +396,9 @@ class ConsReport:
 
         for rid in range(rcnt):
             ctable = self.cons_tables[rid]
+            if self.plot_grp is not None:
+                self.plot_data.append([])
+
             for r in range(ctable.max_row):
                 # create new group table for the new violation type
                 if (vtype:=ctable[r,'type']) not in stable:
@@ -444,16 +452,20 @@ class ConsReport:
                 if (upgroup:=ctable[r, 'ugroup']) is not None:
                     if not ctable[r, 'is_og_rsv']:
                         is_del = True
-                    update_gtable(rid, rcnt, ugtable, f'{vtype}:{upgroup}', 
-                                  f'(user) {upgroup}', ctable[r,'slk'])
+                    gkey, slk = f'{vtype}:{upgroup}', ctable[r,'slk']
+                    update_gtable(rid, rcnt, ugtable, gkey, f'(user) {upgroup}', slk)
+                    if self.plot_grp is not None and self.plot_grp == gkey:
+                        self.plot_data[rid].append(slk)
 
                 # get data value and update to the table
                 # delete check priority: 
                 #   is_og_rsv > is_rsv > is_del
                 is_del |= ctable[r,'is_del'] and not ctable[r,'is_rsv']
                 if not is_del:
-                    update_gtable(rid, rcnt, gtable, f'{vtype}:{pgroup}', 
-                                  pgroup, ctable[r,'slk'])
+                    gkey, slk = f'{vtype}:{pgroup}', ctable[r,'slk']
+                    update_gtable(rid, rcnt, gtable, gkey, pgroup, slk)
+                    if self.plot_grp is not None and self.plot_grp == gkey:
+                        self.plot_data[rid].append(slk)
 
         ## group config check
         for vtype, gtable in stable.items():

@@ -10,8 +10,14 @@
 #
 import argparse
 import gzip
+import math
 import os
 import re
+
+import numpy as np
+import matplotlib as mpl
+import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 
 from .utils.common import PKG_VERSION, PT_CONS_VER
 from .utils.primetime_cons import (ConsPathOp, ConsGroupOp, ConsUGroupOp, 
@@ -39,7 +45,6 @@ cmp_ta = set(('w:wns', 'w:tns', 'w:nvp', 'r:slk', 'd:slk'))
 
 ##############################################################################
 ### Function
-
 
 def load_cons_cfg(cfg_fp) -> dict:
     """
@@ -197,7 +202,8 @@ def print_cons_cfg(cons_cfg: dict, end: bool=False):
         exit(1)
 
 
-def report_cons_summary(rpt_fps: list, cfg_fp: str):
+def report_cons_summary(rpt_fps: list, cfg_fp: str, bgrp: str=None, 
+                        bsca: float=0.1):
     """
     Report the summary of the command 'report_constraint'
     """
@@ -210,10 +216,12 @@ def report_cons_summary(rpt_fps: list, cfg_fp: str):
                           grp_cfg=cons_cfg['g'],
                           ugrp_cfg=cons_cfg['ug'],
                           gtag_cfg=cons_cfg['gtag'],
-                          gmsg_cfg=cons_cfg['gmsg'])
+                          gmsg_cfg=cons_cfg['gmsg'],
+                          plot_grp=bgrp)
 
     cons_rpt.parse_report(rpt_fps)
     tnum = len(cons_rpt.cons_tables)
+    # import pdb; pdb.set_trace()
 
     ## for debug
     # for i in range(tnum):
@@ -222,6 +230,41 @@ def report_cons_summary(rpt_fps: list, cfg_fp: str):
     # print()
 
     is_multi = len(rpt_fps) > 1
+
+    if bgrp is not None:
+        plot_data = cons_rpt.plot_data
+
+        if is_multi:
+            data = plot_data[0] + plot_data[1]
+            min_xbin = math.floor(min(data) / bsca) * bsca
+            max_xbin = math.ceil(max(data) / bsca) * bsca
+            fig, axs = plt.subplots((cy:=2), (cx:=1), constrained_layout=True)
+        else:
+            min_xbin = math.floor(min(plot_data[0]) / bsca) * bsca
+            max_xbin = math.ceil(max(plot_data[0]) / bsca) * bsca
+            fig, axs = plt.subplots((cy:=1), (cx:=1), constrained_layout=True)
+
+        xbins = np.arange(min_xbin, max_xbin+bsca, step=bsca)
+
+        axs = plt.subplot(cy, cx, 1)
+        axs.hist(plot_data[0], bins=xbins, color='#84bd00', histtype='bar', 
+                 ec='k', rwidth=1, alpha=.6)
+        axs.set_xlim(min_xbin, max_xbin)
+        axs.yaxis.set_major_locator(MultipleLocator(1))
+        axs.set_ylabel("endpoints")
+        axs.set_title(bgrp)
+
+        if is_multi:
+            axs = plt.subplot(cy, cx, 2)
+            axs.hist(plot_data[1], bins=xbins, color='#84bd00', histtype='bar', 
+                     ec='k', rwidth=1, alpha=.6)
+            axs.set_xlim(min_xbin, max_xbin)
+            axs.yaxis.set_major_locator(MultipleLocator(1))
+            axs.set_ylabel("endpoints")
+
+        axs.set_xlabel("slack")
+        plt.show()
+        return
 
     print()
     if is_multi:
@@ -271,6 +314,11 @@ def create_argparse() -> argparse.ArgumentParser:
     parser.add_argument('rpt_fp2', nargs='?', help="report path (right for compare)") 
     parser.add_argument('-c', dest='cfg_fp', metavar='<config>', 
                                 help="configuration file") 
+    parser.add_argument('-bg', dest='bgrp', metavar='<path_group>', 
+                                help="select a path group to analysis distribution.") 
+    parser.add_argument('-bs', dest='bsca', metavar='<scale>', type=float, default=0.1, 
+                                help="define bar chart scale.") 
+
     return parser
 
 
@@ -286,7 +334,7 @@ def main():
 
     rpt_fps = ([args.rpt_fp] if args.rpt_fp2 is None 
                 else [args.rpt_fp, args.rpt_fp2])
-    report_cons_summary(rpt_fps, args.cfg_fp)
+    report_cons_summary(rpt_fps, args.cfg_fp, args.bgrp, args.bsca)
 
 
 if __name__ == '__main__':
