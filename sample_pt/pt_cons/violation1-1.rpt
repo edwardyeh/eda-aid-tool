@@ -68,20 +68,20 @@
                       Required        Actual
    Pin                min period      min period          Slack                   
    -------------------------------------------------------------------------------
-   clk_period (cpu_clk rise)  
+   clk_period   
                       2.1813          0.5087              -1.6727  (VIOLATED)     
-   clk_period_2l (cpu_clk rise)
+   clk_period_2l 
                       0.3717         -0.2594              -0.6311  (VIOLATED)     
-   clk_period_3l (cpu_clk rise)
+   clk_period_3l 
                       0.2026          0.1609              -0.0417  
                                                                    (VIOLATED)     
-   clk2_period (vpe_clk rise) 
+   clk2_period  
                       0.2055          0.1667              -0.0389  (VIOLATED)     
-   clk2_period_2l (vpe_clk rise)
+   clk2_period_2l 
                       0.2050          0.1683              -0.0367  (VIOLATED)     
-   clk2_period (vpe_clk fall)  
+   clk2_period   
                       1.1813          0.5087              -0.6727  (VIOLATED)     
-   clk2_period_3l (vpe_clk fall)
+   clk2_period_3l 
                       0.2026          0.1609              -0.0417  
                                                                    (VIOLATED)     
 

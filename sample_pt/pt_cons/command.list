@@ -1,7 +1,7 @@
 
 === Attribute ==============================================
 
-group_column_width: <size>              # set group column width (default: 38)
+group_column_width: <size>              # set group column width (default: 48)
 wns_width: <size>                       # set WNS column width   (default: 12)
 tns_width: <size>                       # set TNS column width   (default: 12)
 nvp_width: <size>                       # set NVP column width   (default: 6)
@@ -9,42 +9,36 @@ nvp_width: <size>                       # set NVP column width   (default: 6)
 === Path Choose (Violation Report) =========================    
 
 p:<type>:<group>:<path>:<rid>           # use regular expression to choose path
-                                            - report ID <rid> : l-left, r-right, a-all
+
+- path : regular expression pattern for path specify
+- rid  : report ID (value: l-left, r-right, a-all) 
 
 === Path Operation =========================================
 
-<inst_path> s:<value>                   # add slack offset to the specific instances
-<inst_path> r                           # reserve the instance
-<inst_path> d                           # remove the instance
+<inst_path> u:[condition]:<ugroup>      # move to user-defined group if condition match
 
-<inst_path> r:<condition>               # condition reserve/remove:
-<inst_path> d:<condition>                   - condition format : <target><operation><value>
-                                            - target           : slk
-                                            - operation        : >, <, ==, >=, <=
-                                            - value type       : float
-
-## The priority of the command: s > r > d
+- condition format : <target><operation><value>
+    - target     : act, slk
+    - operation  : >, <, ==, >=, <=
+    - value type : float
 
 === Group Choose (Summary Report) ==========================
 
 g:<type>:<group>:<rid>                  # use regular expression to choose group
-                                            - report ID <rid> : l-left, r-right, d-diff
+                                            
+- group : regular expression pattern for group specify
+- rid   : report ID (value: l-left, r-right, d-diff)
 
 === Group Operation (Summary Report) =======================
 
-<group> w:<codition>[:<flag>]           # threshould alarm:
-                                            - condition format : <target><operation><value>
-                                              - target         : wns, tns, nvp
-                                              - operation      : >, <, ==, >=, <=
-                                              - value type     : float
-                                            - flag             : message flag
+<group> h:[condition]:<tag>             # highlight group (one-character tag)
+<group> m:[condition]:<message_tag>     # add group message
 
-=== Group Message (Summary Report) =========================
+- condition format : <target><operation><value>
+    - target     : wns, tns, nvp
+    - operation  : >, <, ==, >=, <=
+    - value type : float
 
-gtag:<flag>: <message>                  # line comment
-gmsg:<flag>: <message>                  # condition comment
+=== Define Message =========================================
 
-=== User Group (Violation Report) ==========================
-
-ug:<type>:<group>:<path> <user_group>:<is_reserve>
-
+mtag:<message_tag>: <message>

@@ -51,7 +51,7 @@
    Pin                min period      min period          Slack                   Clock
    --------------------------------------------------------------------------------------
    clk_period (high)  1.1813          0.5087              -1.6727  (VIOLATED)     cpu_clk
-   clk_period (high)  1.1813          0.5087              -0.6727  (VIOLATED)     cpu_clk
+   clk_period (low)   1.1813          0.5087              -0.6727  (VIOLATED)     cpu_clk
    clk_period_2l (high)
                       0.3717         -0.2594              -0.6311  (VIOLATED)     cpu_clk
    clk_period_3l (high)

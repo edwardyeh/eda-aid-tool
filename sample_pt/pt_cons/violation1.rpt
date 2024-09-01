@@ -17,6 +17,8 @@ Date   : xxxx
                       11.6807         17.4380             -5.7573  (VIOLATED)
    clk1_long_name2    
                       10.6807         17.4380             -6.7573  (VIOLATED)
+   clk1_long_name3    
+                       0.4007          0.4007              0.0000  (VIOLATED: increase significant digits)
  
  
    max_delay/setup ('clk2' group)
@@ -86,6 +88,8 @@ Date   : xxxx
    clk2_period_3l (vpe_clk fall)
                       0.2026          0.1609              -0.0417  
                                                                    (VIOLATED)     vpe_clk
+   clk3_period_4l (vpe_clk fall)   
+                      1.0000          1.0000               0.0000  (VIOLATED: increase significant digits) ise_clk
 
 
 1
