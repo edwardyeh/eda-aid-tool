@@ -10,6 +10,7 @@ import copy
 import gzip
 import os
 import re
+from collections import defaultdict
 from dataclasses import dataclass, field
 from enum import IntEnum
 from re import Pattern as RePat
@@ -50,6 +51,8 @@ CMP_OP = { '>' : lambda a, b: a > b,
 @dataclass (slots=False)
 class _ConsPathOp:
     re: RePat = None
+    l:  list[Any] = field(init=False)
+    r:  list[Any] = field(init=False)
     def __post_init__(self):
         # cmd: [fno, opteration]
         self.l = [(0, 'u')]
@@ -62,6 +65,9 @@ class _ConsPathOp:
 @dataclass (slots=False)
 class _ConsGroupOp:
     re: RePat = None
+    l:  list[Any] = field(init=False)
+    r:  list[Any] = field(init=False)
+    d:  list[Any] = field(init=False)
     def __post_init__(self):
         # cmd: [fno, opteration]
         self.l = [(0, 'h'), (0, 'm')]
@@ -120,7 +126,7 @@ def _load_cons_cfg(cfg_fp : str) -> dict:
         The config dictionary base on the config data structure.
     """
     attr = {
-        'group_column_width': ('gcol_w', 48),
+        'group_column_width': ('gcol_w', 36),
         'wns_width': ('wns_w', 12),
         'tns_width': ('tns_w', 12),
         'nvp_width': ('nvp_w', 6),
@@ -189,15 +195,15 @@ def _load_cons_cfg(cfg_fp : str) -> dict:
 def _print_cons_cfg(cons_cfg: dict, end: bool=False):
     for type_, content in cons_cfg.items():
         if type_ == 'p':
-            print("\n=== cons_cfg (path)")
+            print("\n=== cons_cfg (path, dictionary)")
             for key, value in cons_cfg['p'].items():
                 print(f"{key}: {value}")
         elif type_ == 'g':
-            print("\n=== cons_cfg (group)")
+            print("\n=== cons_cfg (group, dictionary)")
             for key, value in cons_cfg['g'].items():
                 print(f"{key}: {value}")
         elif type_ == 'm':
-            print("\n=== cons_cfg (message)")
+            print("\n=== cons_cfg (message, dictionary)")
             for key, value in cons_cfg['m'].items():
                 print(f"{key}: {value}")
         else:
@@ -208,34 +214,36 @@ def _print_cons_cfg(cons_cfg: dict, end: bool=False):
     import pdb; pdb.set_trace()
 
 
-class PathTableTitle(IntEnum):
+class PTT(IntEnum):  # PathTableTitle
     PIN, SC, REQ, ACT, SLK, ORGP = range(6)
 
 
-class GroupTableTitle(IntEnum):
-    GRP = 0
-    LW, LT, LN = range(1, 4)
-    RW, RT, RN = range(4, 7)
-    DW, DT, DN = range(7, 10)
-    MAK, COM = range(10, 12)
+class GTT(IntEnum):  # GroupTableTitle
+    MAK, GRP = range(0, 2)
+    LW, LT, LN = range(2, 5)
+    RW, RT, RN = range(5, 8)
+    DW, DT, DN = range(8, 11)
 
 
 @dataclass (slots=False)
 class GroupTable:
-    name: str
-    user: bool
+    name:   str
+    user:   bool
     modify: list[bool]
     ptable: list[list]
+    sum:    list[Any] = field(init=False)
     def __post_init__(self):
-        self.summary = [self.name] + [0.0] * 9 + [''] * 2
+        if len(self.modify) == 2:
+            self.sum = ['', self.name] + [0.0] * 9 + ['']
+        else:
+            self.sum = ['', self.name] + [0.0] * 3 + ['']
     def update_diff(self):
-        for l, r, d in zip(*[range(1, 4), range(4, 7), range(7, 10)]):
-            self.summary[d] = self.summary[l] - self.summary[r]
+        for l, r, d in zip(*[range(2, 5), range(5, 8), range(8, 11)]):
+            self.sum[d] = self.sum[l] - self.sum[r]
 
 
 def _print_cons_table(table: dict):
-    """"Print constraint table (for debug)."""
-    gtt = GroupTableTitle
+    """"Print constraint table."""
     print()
     for vtype, vtable in table.items():
         print(f"###### Violation: {vtype}\n")
@@ -250,37 +258,23 @@ def _print_cons_table(table: dict):
             gtitle = f"== Group: {gtable.name}"
             print(f"{gtitle:30}(modify:{gtable.modify})")
             for rid, ptable in enumerate(gtable.ptable):
-                divide = sst.Divider(lsh=sst.Lsh(), bound=sst.Bound('+-', '-+'),
-                                     cross=['-+-'] * 6, col_len=[12, 2, 3, 3, 3, 4],
-                                     border='-' * 6)
-                tblock = sst.Block(lsh=sst.Lsh(), bound=sst.Bound('| ', ' |'),
-                                   border=[' | '] * 6, col_len=divide.col_len,
-                                   align='l' * 6, 
-                                   data=[[f'PIN (RID:{rid:2})', 'SC', 'REQ', 'ACT', 'SLK', 'ORGP']])
-                dblock = sst.Block(lsh=sst.Lsh(), bound=sst.Bound('| ', ' |'),
-                                   border=[' | '] * 6, col_len=divide.col_len,
-                                   align='l' * 6, data=ptable)
-                dblock.update_col_len()
-                print_table = sst.SimpleTable()
-                print_table.table.append(divide)
-                print_table.table.append(tblock)
-                print_table.table.append(divide)
-                print_table.table.append(dblock)
-                print_table.table.append(divide)
-                print()
-                print_table.draw()
+                title_va = [f'PIN (RID:{rid:2})', 'SC', 'REQ', 'ACT', 'SLK', 'ORGP']
+                title_fs = ['{}', '{}', '{:< .4f}', '{:< .4f}', '{:< .4f}', '']
+                title_len = [len(s) for s in title_va]
+                title_len[2:5] = [10] * 3
+
+                data = sst.Block(data=ptable, col_len=title_len, fs=title_fs)
+                title = sst.Block(data=[title_va], col_len=data.col_len)
+                data.divider = (div:=sst.Divider(data.col_len))
+                data.update_col_len()
+                sst.SimpleTable([div, title, div, data, div]).draw()
+
                 if rid == 1:
                     print(">>> Summary(WNS|TNS|NVP): {: 9.4f}, {: 9.4f}, {: 9.4f}".format(
-                            gtable.summary[gtt.RW],
-                            gtable.summary[gtt.RT],
-                            gtable.summary[gtt.RN],
-                         ))
+                            *gtable.sum[GTT.RW:GTT.RN+1]))
                 else:
                     print(">>> Summary(WNS|TNS|NVP): {: 9.4f}, {: 9.4f}, {: 9.4f}".format(
-                            gtable.summary[gtt.LW],
-                            gtable.summary[gtt.LT],
-                            gtable.summary[gtt.LN],
-                         ))
+                            *gtable.sum[GTT.LW:GTT.LN+1]))
             print()
     exit(1)
 
@@ -313,10 +307,9 @@ class ConsReport:
         self.cfg_grp = cons_cfg['g']
         self.cfg_msg = cons_cfg['m']
         ### data
-        self.gtitle = GroupTableTitle
-        self.cons_num = 0
-        self.cons_table = {} 
-        # self.sum_tables = {}
+        self.is_multi = False
+        self.cons_table = defaultdict(dict) 
+        self.sum_tables = {}
         ### plot
         # self.plot_grp = plot_grp
         # self.plot_data = []
@@ -330,9 +323,9 @@ class ConsReport:
         rpt_fps : list[str]
             A list of the file path of constraint reports. (max number: 2)
         """
-        ST_IDLE, ST_PREFIX, ST_PARSING = range(3)
-        grp_re = re.compile(r"(?P<t>[\w\/]+)(?:\s+\('(?P<g>[\w\/]+)'\sgroup\))?")
-        self.cons_num = len(rpt_fps[:2])
+        PRE, IDLE, TITLE, VT1, VT2 = range(5)
+        self.is_multi = len(rpt_fps[:2]) > 1
+        state = PRE
 
         for fid, rpt_fp in enumerate(rpt_fps[:2]):
             if os.path.splitext(rpt_fp)[1] == '.gz':
@@ -340,338 +333,314 @@ class ConsReport:
             else:
                 fp = open(rpt_fp)
 
-            state, is_dmsa = ST_IDLE, False
-            line, fno = fp.readline(), 1
-            while line:
-                line = line.strip()
-                if not (toks:=line.split()):
-                    pass
-                elif state == ST_IDLE and toks[0][0] == '*':
-                    state = ST_PREFIX
-                elif state == ST_PREFIX and toks[0][0] == '*':
-                    state = ST_PARSING
-                elif state == ST_PREFIX and toks[0] == 'Design':
-                    if toks[1] == 'multi_scenario':
-                        is_dmsa = True
-                elif state == ST_PARSING:
-                    m = grp_re.fullmatch(line)
-                    if m and m['t'] in CONS_TYPE:
-                        group = '**default**' if m['g'] is None else m['g']
-                        fno = self._parse_group(fid, fp, fno, m['t'], group, is_dmsa)
-                line, fno = fp.readline(), fno+1
-            fp.close()
+            # state, is_dmsa, path = ST_IDLE, False, []
+            for line in fp:
+                toks = line.split()
+                toks_len = len(toks)
 
-        _print_cons_table(self.cons_table)    # debug
-        # self._create_sum_table()
+                if state == PRE and toks_len and toks[0] == 'Design':
+                    is_dmsa = True if toks[2] == 'multi_scenario' else False
+                    state = IDLE
 
-    def _parse_group(self, fid: int, fp, fno: int, vtype: str, group: str, 
-                     is_dmsa: bool) -> int:
-        """
-        Parsing a violation group.
+                elif state == IDLE and toks_len and toks[0] in CONS_TYPE:
+                    vtype = toks[0]
+                    group = toks[1][2:-1] if toks_len > 1 else '**default**'
+                    state, ttable = TITLE, self.cons_table[vtype]
 
-        Parameters
-        ----------
-        fid : int
-            File id of the report.
-        fp : file
-            File object of the report.
-        fno : int
-            Current line number of the report (before parsing).
-        vtype : str
-            Violation type of the group
-        group : str
-            Path group name
-        is_dmsa : bool 
-            If current report is a DMSA report?
-
-        Returns
-        -------
-        fno : int
-            Current line number of the report (after parsing).
-        """
-        start_par = False   # start parsing
-        start_ana = False   # start path analysis
-
-        ttable = self.cons_table.setdefault(vtype, {})
-        if group in ttable:
-            gtable = ttable[group]
-        else:
-            modify = [False] * self.cons_num
-            ptable = [[] for i in range(self.cons_num)]
-            ttable[group] = (gtable:=GroupTable(group, False, modify, ptable))
-
-        path = []
-        line, fno = fp.readline(), fno+1
-        while line:
-            toks = line.strip().split()
-            if start_par:
-                path.extend(toks)
-            if not start_par:
-                if toks and toks[0][0] == '-':
-                    start_par = True
-            elif not toks:
-                break
-            elif path[-1] == '(VIOLATED)':
-                start_ana, cid, pulse_chk = True, -2, False
-            elif path[-1] == 'digits)':
-                start_ana, cid, pulse_chk = True, -5, False
-            elif len(path) >= 2 and path[-2] == '(VIOLATED)':
-                start_ana, cid, pulse_chk = True, -3, True
-            elif len(path) >= 2 and path[-2] == 'digits)':
-                start_ana, cid, pulse_chk = True, -6, True
-
-            if start_ana:
-                slk, cid = float(path[cid]), cid-1
-                act, cid = float(path[cid]), cid-1
-                req, cid = float(path[cid]), cid-1 
-                sc, cid = (path[cid], cid-1) if is_dmsa else ("", cid)
-
-                if pulse_chk:
-                    pulse_type = ' '.join(path[1:cid+1])[1:-1].split()[-1]
-                    pgroup = f"{path[-1]},{pulse_type}"
-                    if pgroup in ttable:
-                        gtable2 = ttable[pgroup]
+                elif state == TITLE and toks_len:
+                    if toks[0][0] == '-':
+                        wns, tns, nvp = 0.0, 0.0, 0
+                        if pre_toks[-1] == 'Clock':
+                            state, path = VT2, []
+                            # print(f"=== (debug_info) VT2: {vtype}, {group}")
+                        else:
+                            if group in ttable:
+                                gtable = ttable[group]
+                            elif self.is_multi:
+                                modify, ptable = [False, False], [[], []]
+                                gtable = GroupTable(group, False, modify, ptable)
+                                ttable[group] = gtable
+                            else:
+                                gtable = GroupTable(group, False, [False], [[]])
+                                ttable[group] = gtable
+                            cfg_path = []
+                            if (key:=f"{vtype}:{group}") in self.cfg_path:
+                                cfg_path.extend(self.cfg_path[key])
+                            if (key:=f"{vtype}:*") in self.cfg_path:
+                                cfg_path.extend(self.cfg_path[key])
+                            state, path = VT1, []
+                            # print(f"=== (debug_info) VT1: {vtype}, {group}")
                     else:
-                        modify = [False] * self.cons_num
-                        ptable = [[] for i in range(self.cons_num)]
-                        ttable[pgroup] = (gtable2:=GroupTable(pgroup, False, modify, ptable))
-                else:
-                    gtable2 = gtable
+                        pre_toks = toks.copy()
 
-                pin = path[0]
-                start_ana, path = False, []
+                elif state == VT1:
+                    if toks_len:
+                        path.extend(toks)
+                        if path[-1] == '(VIOLATED)':
+                            is_act, cid = True, -2
+                        elif path[-1] == 'digits)':
+                            is_act, cid = True, -5
 
-                ### path config check
-                key1 = f"{vtype}:{group}"
-                key2 = f"{vtype}:*"
-                cfg_path = (self.cfg_path.get(key1, []) + 
-                            self.cfg_path.get(key2, []))                
-                ugroup = None
+                        if is_act:
+                            slk, cid = float(path[cid]), cid-1
+                            act, cid = float(path[cid]), cid-1
+                            req, cid = float(path[cid]), cid-1 
+                            sc = path[cid] if is_dmsa else ""
+                            pin = path[0]
 
-                for cfg in cfg_path:
-                    if cfg.re.fullmatch(pin):
-                        for ln, *cmd in cfg[fid]:
-                            if ln and cmd[0] == 'u':
-                                # check if path move to user group
-                                if CMP_OP[cmd[2]](slk, cmd[3]):
-                                    ugroup = cmd[4]
+                            ### path config check
+                            ugroup = None
+                            for cfg in cfg_path:
+                                if cfg.re.fullmatch(pin):
+                                    for ln, *cmd in cfg[fid]:
+                                        if ln and cmd[0] == 'u':
+                                            # check if path move to user group
+                                            if len(cmd) == 2:
+                                                ugroup = cmd[1]
+                                            elif cmd[1] == 'slk' and CMP_OP[cmd[2]](slk, cmd[3]):
+                                                ugroup = cmd[4]
+                                            elif cmd[1] == 'act' and CMP_OP[cmd[2]](act, cmd[3]):
+                                                ugroup = cmd[4]
 
-                if ugroup is not None:
-                    org_group = gtable2.name
-                    gtable2.modify[fid] = True
-                    if ugroup in ttable:
-                        gtable2 = ttable[ugroup]
+                            ### add data to path table
+                            if ugroup is not None:
+                                gtable.modify[fid] = True
+                                org_group = gtable.name
+                                if ugroup in ttable:
+                                    gtable2 = ttable[ugroup]
+                                elif self.is_multi:
+                                    modify, ptable = [False, False], [[], []]
+                                    gtable2 = GroupTable(ugroup, True, modify, ptable)
+                                    ttable[ugroup] = gtable2
+                                else:
+                                    gtable2 = GroupTable(ugroup, True, [False], [[]])
+                                    ttable[ugroup] = gtable2
+                                gtable2.ptable[fid].append([pin, sc, req, act, slk, org_group])
+                                ### add data to sum table
+                                if fid == 1:
+                                    if gtable2.sum[GTT.RW] > slk:
+                                        gtable2.sum[GTT.RW] = slk
+                                    gtable2.sum[GTT.RT] += slk
+                                    gtable2.sum[GTT.RN] += 1
+                                else:
+                                    if gtable2.sum[GTT.LW] > slk:
+                                        gtable2.sum[GTT.LW] = slk
+                                    gtable2.sum[GTT.LT] += slk
+                                    gtable2.sum[GTT.LN] += 1
+                            else:
+                                gtable.ptable[fid].append([pin, sc, req, act, slk, ""])
+                                ### add data to sum table
+                                if wns > slk:
+                                    wns = slk
+                                tns += slk
+                                nvp += 1
+
+                            is_act, path = False, []
                     else:
-                        modify = [False] * self.cons_num
-                        ptable = [[] for i in range(self.cons_num)]
-                        ttable[ugroup] = (gtable2:=GroupTable(ugroup, True, modify, ptable))
-                    gtable2.ptable[fid].append([pin, sc, req, act, slk, org_group])
+                        if fid == 1:
+                            gtable.sum[GTT.RW] = wns
+                            gtable.sum[GTT.RT] = tns
+                            gtable.sum[GTT.RN] = nvp
+                        else:
+                            gtable.sum[GTT.LW] = wns
+                            gtable.sum[GTT.LT] = tns
+                            gtable.sum[GTT.LN] = nvp
+                        state = IDLE
+
+                elif state == VT2:
+                    if toks_len:
+                        path.extend(toks)
+                        if path[-2] == '(VIOLATED)':
+                            is_act, cid = True, -3
+                        elif path[-2] == 'digits)':
+                            is_act, cid = True, -6
+
+                        if is_act:
+                            slk, cid = float(path[cid]), cid-1
+                            act, cid = float(path[cid]), cid-1
+                            req, cid = float(path[cid]), cid-1 
+                            sc = path[cid] if is_dmsa else ""
+                            pin = path[0]
+
+                            ### get group for specific clock
+                            pulse_type = ' '.join(path[1:cid+1])[1:-1].split()[-1]
+                            group2 = f"{path[-1]},{pulse_type}"
+                            if group2 != group:
+                                group = group2
+                                if group in ttable:
+                                    gtable = ttable[group]
+                                elif self.is_multi:
+                                    modify, ptable = [False, False], [[], []]
+                                    gtable = GroupTable(group, False, modify, ptable)
+                                    ttable[group] = gtable
+                                else:
+                                    gtable = GroupTable(group, False, [False], [[]])
+                                    ttable[group] = gtable
+                                cfg_path = []
+                                if (key:=f"{vtype}:{group}") in self.cfg_path:
+                                    cfg_path.extend(self.cfg_path[key])
+                                if (key:=f"{vtype}:*") in self.cfg_path:
+                                    cfg_path.extend(self.cfg_path[key])
+
+                            ### path config check
+                            ugroup = None
+                            for cfg in cfg_path:
+                                if cfg.re.fullmatch(pin):
+                                    for ln, *cmd in cfg[fid]:
+                                        if ln and cmd[0] == 'u':
+                                            # check if path move to user group
+                                            if cmd[1] == 'slk' and CMP_OP[cmd[2]](slk, cmd[3]):
+                                                ugroup = cmd[4]
+                                            elif cmd[1] == 'act' and CMP_OP[cmd[2]](act, cmd[3]):
+                                                ugroup = cmd[4]
+
+                            ### add data to path table
+                            if ugroup is not None:
+                                org_group = gtable.name
+                                if ugroup in ttable:
+                                    gtable2 = ttable[ugroup]
+                                elif self.is_multi:
+                                    modify, ptable = [False, False], [[], []]
+                                    gtable2 = GroupTable(ugroup, True, modify, ptable)
+                                    ttable[ugroup] = gtable2
+                                else:
+                                    gtable2 = GroupTable(ugroup, True, [False], [[]])
+                                    ttable[ugroup] = gtable2
+                                gtable2.ptable[fid].append([pin, sc, req, act, slk, org_group])
+                            else:
+                                gtable2 = gtable
+                                gtable2.ptable[fid].append([pin, sc, req, act, slk, ""])
+
+                            ### add data to sum table
+                            if fid == 1:
+                                if gtable2.sum[GTT.RW] > slk:
+                                    gtable2.sum[GTT.RW] = slk
+                                gtable2.sum[GTT.RT] += slk
+                                gtable2.sum[GTT.RN] += 1
+                            else:
+                                if gtable2.sum[GTT.LW] > slk:
+                                    gtable2.sum[GTT.LW] = slk
+                                gtable2.sum[GTT.LT] += slk
+                                gtable2.sum[GTT.LN] += 1
+
+                            is_act, path = False, []
+                    else:
+                        state = IDLE
+        
+        self._update_summary()
+        # _print_cons_table(self.cons_table)    # debug
+
+    def _update_summary(self):
+        """Update summary information."""
+        for vtype, vtable in self.cons_table.items():
+            for gname, gt in vtable.items():
+                if self.is_multi:
+                    gt.update_diff()
+                for cfg in self.cfg_grp.get(vtype, []):
+                    if cfg.re.fullmatch(gname):
+                        self._group_cfg_check(gt, GTT.LW, cfg['l'])
+                        if self.is_multi:
+                            self._group_cfg_check(gt, GTT.RW, cfg['r'])
+                            self._group_cfg_check(gt, GTT.DW, cfg['d'])
+
+    def _group_cfg_check(self, gt, wns_id, cfg):
+        wns, tns, nvp = range(wns_id, wns_id+3)
+        for ln, *cmd in cfg:
+            if ln and cmd[0] == 'h':
+                if len(cmd) == 2:
+                    gt.sum[GTT.MAK] = cmd[-1]
+                elif cmd[1] == 'wns' and CMP_OP[cmd[2]](gt.sum[wns], cmd[3]):
+                    gt.sum[GTT.MAK] = cmd[-1]
+                elif cmd[1] == 'tns' and CMP_OP[cmd[2]](gt.sum[tns], cmd[3]):
+                    gt.sum[GTT.MAK] = cmd[-1]
+                elif cmd[1] == 'nvp' and CMP_OP[cmd[2]](gt.sum[nvp], cmd[3]):
+                    gt.sum[GTT.MAK] = cmd[-1]
+            elif ln and cmd[0] == 'm':
+                if len(cmd) == 2:
+                    gt.sum[-1] = f"{self.cfg_msg[cmd[-1]]},"
+                elif cmd[1] == 'wns' and CMP_OP[cmd[2]](gt.sum[wns], cmd[3]):
+                    gt.sum[-1] = f"{self.cfg_msg[cmd[-1]]},"
+                elif cmd[1] == 'tns' and CMP_OP[cmd[2]](gt.sum[tns], cmd[3]):
+                    gt.sum[-1] = f"{self.cfg_msg[cmd[-1]]},"
+                elif cmd[1] == 'nvp' and CMP_OP[cmd[2]](gt.sum[nvp], cmd[3]):
+                    gt.sum[-1] = f"{self.cfg_msg[cmd[-1]]},"
+
+    def print_summary(self):
+        """Print summary for single report."""
+        head  = f"   {'Group'.ljust(self.gcol_w)}"
+        head += f"   {'WNS'.ljust(self.wns_w)}"
+        head += f"   {'TNS'.ljust(self.tns_w)}"
+        head += f"   {'NVP'.ljust(self.nvp_w)}  "
+
+        div_len = self.gcol_w + self.wns_w + self.tns_w + self.nvp_w + 9
+        div = "   " + "=" * div_len
+
+        data_fs  = f"{{:3}}{{:{self.gcol_w}}}   "
+        data_fs += f"{{:< {self.wns_w}.4f}}   "
+        data_fs += f"{{:< {self.tns_w}.4f}}   "
+        data_fs += f"{{:<{self.nvp_w}.0f}}  {{}}"
+
+        for vtype, vtable in self.cons_table.items():
+            print("====== {}".format(vtype))
+            print(head, div, sep='\n')
+            ugt = []
+            for gt in vtable.values():
+                if vtype in NOGRP_CONS and len(vtable) == 1:
+                    gt.sum[GTT.GRP] = vtype
+                if gt.user:
+                    ugt.append(gt)
                 else:
-                    gtable2.ptable[fid].append([pin, sc, req, act, slk, ""])
+                    msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
+                    print(data_fs.format(*gt.sum[GTT.MAK:GTT.LN+1], msg))
+            for gt in ugt:
+                    msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
+                    print(data_fs.format(*gt.sum[GTT.MAK:GTT.LN+1], msg))
+            print()
 
-                if fid == 1:
-                    if gtable2.summary[self.gtitle.RW] > slk:
-                        gtable2.summary[self.gtitle.RW] = slk
-                    gtable2.summary[self.gtitle.RT] += slk
-                    gtable2.summary[self.gtitle.RN] += 1
+    def print_summary2(self):
+        """Print summary for multi reports."""
+        shead_f = lambda x: "=+={}== {}==={}".format("".ljust(self.wns_w, '='),
+                                                      x.ljust(self.tns_w, '='),
+                                                     "".ljust(self.nvp_w, '=')) 
+
+        shead = "   {}{}{}{}=+".format("".ljust(self.gcol_w, '='),
+                                       shead_f("Left "),
+                                       shead_f("Right "),
+                                       shead_f("Diff "))
+
+        head = " | {}   {}   {}".format("WNS".ljust(self.wns_w),
+                                        "TNS".ljust(self.tns_w),
+                                        "NVP".ljust(self.nvp_w))
+        head = "   {0}{1}{1}{1} |".format("Group".ljust(self.gcol_w), head)
+
+        div = "=" * (self.wns_w + self.tns_w + self.nvp_w + 9)
+        div = "   " + "=" * self.gcol_w + div * 3 + "=+"
+
+        data_fs  = f" | {{:< {self.wns_w}.4f}}"
+        data_fs += f"   {{:< {self.tns_w}.4f}}"
+        data_fs += f"   {{:<{self.nvp_w}.0f}}"
+        data_fs  = f"{{:3}}{{:{self.gcol_w}}}" + data_fs * 2 \
+                   + f" | {{:< {self.wns_w}.4f}}" \
+                   + f"   {{:< {self.tns_w}.4f}}" \
+                   + f"   {{:<+{self.nvp_w}.0f}} | {{}}"
+
+        for vtype, vtable in self.cons_table.items():
+            print("====== {}".format(vtype))
+            print(shead, head, div, sep='\n')
+            # print(head)
+            # print(div)
+            ugt = []
+            for gt in vtable.values():
+                if vtype in NOGRP_CONS and len(vtable) == 1:
+                    gt.sum[GTT.GRP] = vtype
+                if gt.user:
+                    ugt.append(gt)
                 else:
-                    if gtable2.summary[self.gtitle.LW] > slk:
-                        gtable2.summary[self.gtitle.LW] = slk
-                    gtable2.summary[self.gtitle.LT] += slk
-                    gtable2.summary[self.gtitle.LN] += 1
-
-            line, fno = fp.readline(), fno+1
-        return fno
-
-#     def _create_sum_table(self):
-#         """
-#         Create summary table.
-#         """
-#         stable = self.sum_tables
-#         ustable = {}
-#         hid = None      # header id
-
-#         def update_gtable(rid: int, rcnt: int, gtable: SimpleTable, 
-#                           rkey: str, pgroup: str, slk: float):
-#             """
-#             Parameters
-#             ----------
-#             rid : int
-#                 Report ID.
-#             rcnt : int
-#                 Number of constraint reports.
-#             gtable : SimpleTable
-#                 Group table.
-#             rkey : str
-#                 Row hash key.
-#             pgroup : str
-#                 Path group name
-#             slk : float
-#                 Path slack
-#             """
-#             if rkey not in gtable.index.id:
-#                 gtable.add_row(
-#                     key=rkey, title='', 
-#                     data=[pgroup, slk, slk, 1, 0, 0, 0, 0, 0, 0],
-#                     border=Border(False, False, False, False))
-#                 gtable.attr[-1, COM].border.set(
-#                         False, False, False, False)
-#                 if rcnt > 1:
-#                     for ckey in (LW, LT, RW, RT, DW, DT):
-#                         gtable.attr[-1, ckey].fs = '{: .4f}'
-#                     for ckey in (LW, RW, DW):
-#                         gtable.attr[-1, ckey].border.left = True
-#                     for ckey in (LN, RN, DN):
-#                         gtable.attr[-1, ckey].fs = '{: d}'
-#                         gtable.attr[-1, ckey].border.right = True
-#                 else:
-#                     for ckey in (LW, LT):
-#                         gtable.attr[-1, ckey].fs = '{: .4f}'
-#             else:
-#                 if rid == 0:
-#                     if slk < gtable[rkey, LW]:
-#                         gtable[rkey, LW] = slk
-#                     gtable[rkey, LT] += slk
-#                     gtable[rkey, LN] += 1 
-#                 else:
-#                     if slk < gtable[rkey, RW]:
-#                         gtable[rkey, RW] = slk
-#                     gtable[rkey, RT] += slk
-#                     gtable[rkey, RN] += 1 
-
-#         top_bor = False if (rcnt:=len(self.cons_table)) == 1 else True
-#         table_bor = Border(top_bor, False, False, False)
-#         head_bor = Border(left=False, right=False)
-
-#         for rid in range(rcnt):
-#             ctable = self.cons_table[rid]
-#             if self.plot_grp is not None:
-#                 self.plot_data.append([])
-
-#             for r in range(ctable.max_row):
-#                 # create new group table for the new violation type
-#                 if (vtype:=ctable[r,'type']) not in stable:
-#                     gtable = SimpleTable(heads=self._sum_hd, border=table_bor,
-#                                          lsh=2, hpat='=', hcpat='=', 
-#                                          cpat_force_on=True)
-#                     gtable.set_head_attr(border=head_bor)
-
-#                     # gen column id tag
-#                     if hid is None:
-#                         hid = gtable.header.id
-#                         GRP, COM = hid['group'], hid['comm']
-#                         LW, LT, LN = hid['lwns'], hid['ltns'], hid['lnvp']
-#                         RW, RT, RN = hid['rwns'], hid['rtns'], hid['rnvp']
-#                         DW, DT, DN = hid['dwns'], hid['dtns'], hid['dnvp']
-
-#                     # adjust table style
-#                     gtable.header[COM].border.set(
-#                             False, False, False, False)
-#                     gtable.set_col_attr(GRP, width=self.gcol_w)
-
-#                     if rcnt > 1:
-#                         for key in (LW, RW, DW):
-#                             gtable.set_col_attr(key, width=self.wns_w)
-#                             gtable.header[key].border.left = True
-#                         for key in (LT, RT, DT):
-#                             gtable.set_col_attr(key, width=self.tns_w)
-#                         for key in (LN, RN, DN):
-#                             gtable.set_col_attr(key, width=self.nvp_w)
-#                             gtable.header[key].border.right = True
-#                     else:
-#                         gtable.set_col_attr(LW, width=self.wns_w)
-#                         gtable.set_col_attr(LT, width=self.tns_w)
-#                         gtable.set_col_attr(LN, width=self.nvp_w)
-
-#                     stable[vtype] = gtable
-#                     ustable[vtype] = (ugtable:=copy.deepcopy(gtable))
-#                 else:
-#                     gtable, ugtable = stable[vtype], ustable[vtype]
-
-#                 # dicide group name
-#                 if vtype in self._nogrp_cons:
-#                     pgroup = vtype
-#                 elif vtype in self._clk_cons:
-#                     pgroup = "({1:4}) {0}".format(*ctable[r,'attr'].split(','))
-#                 else:
-#                     pgroup = ctable[r,'group']
-
-#                 # user group check
-#                 is_del = False
-#                 if (upgroup:=ctable[r, 'ugroup']) is not None:
-#                     if not ctable[r, 'is_og_rsv']:
-#                         is_del = True
-#                     gkey, slk = f'{vtype}:{upgroup}', ctable[r,'slk']
-#                     update_gtable(rid, rcnt, ugtable, gkey, f'(user) {upgroup}', slk)
-#                     if self.plot_grp is not None and self.plot_grp == gkey:
-#                         self.plot_data[rid].append(slk)
-
-#                 # get data value and update to the table
-#                 # delete check priority: 
-#                 #   is_og_rsv > is_rsv > is_del
-#                 is_del |= ctable[r,'is_del'] and not ctable[r,'is_rsv']
-#                 if not is_del:
-#                     gkey, slk = f'{vtype}:{pgroup}', ctable[r,'slk']
-#                     update_gtable(rid, rcnt, gtable, gkey, pgroup, slk)
-#                     if self.plot_grp is not None and self.plot_grp == gkey:
-#                         self.plot_data[rid].append(slk)
-
-#         ## group config check
-#         for vtype, gtable in stable.items():
-#             # merge user group table
-#             if vtype in ustable:
-#                 for row in ustable[vtype]._table:
-#                     gtable.add_row(
-#                         key=f'{vtype}:{row[0]}', title='',
-#                         data=row,
-#                         border=Border(False, False, False, False))
-
-#             # update title if single report mode
-#             if rcnt == 1:
-#                 for key in (LW, LT, LN):
-#                     title = gtable.header[key].title
-#                     gtable.header[key].title = title[2:]
-#             else:
-#                 for row in gtable._table:
-#                     row[DW] = row[LW] - row[RW]
-#                     row[DT] = row[LT] - row[RT]
-#                     row[DN] = row[LN] - row[RN]
-
-#             if (gclist:=self.grp_cfg.get(vtype)):
-#                 # condition check
-#                 for row in gtable._table:
-#                     for gcons in gclist:
-#                         if gcons.re.fullmatch(row[GRP]):
-#                             for i, (ln, cmd) in enumerate(gcons.l):
-#                                 cid = hid[f"l{cmd[1]}"]
-#                                 if self._cmp_op[cmd[2]](row[cid], cmd[3]):
-#                                     tag = f"w{ln}L{i}"
-#                                     if cmd[4] != None and cmd[4] in self.gtag_cfg:
-#                                         row[COM] += ", {}: {}".format(tag, self.gtag_cfg[cmd[4]])
-#                                     else:
-#                                         row[COM] += ", {}".format(tag)
-#                                     if cmd[4] != None and cmd[4] in self.gmsg_cfg:
-#                                         cond = "{}:{}{}".format(*cmd[1:4])
-#                                         self.comm_set.add("{:10}{:20}{}".format(f"{tag}:", cond, self.gmsg_cfg[cmd[4]]))
-#                                     else:
-#                                         self.comm_set.add("{0:10}{1}:{2}{3}".format(f"{tag}:", *cmd[1:]))
-
-#                             if rcnt > 1:
-#                                 for i, (ln, cmd) in enumerate(gcons.r):
-#                                     cid = hid[f"r{cmd[1]}"]
-#                                     if self._cmp_op[cmd[2]](row[cid], cmd[3]):
-#                                         row[COM] += ", {}".format(msg:=f"w{ln}R{i}")
-#                                         self.comm_set.add("{0:10}{1}:{2}{3}".format(f"{msg}:", *cmd[1:]))
-
-#                                 for i, (ln, cmd) in enumerate(gcons.d):
-#                                     cid = hid[f"d{cmd[1]}"]
-#                                     if self._cmp_op[cmd[2]](row[cid], cmd[3]):
-#                                         row[COM] += ", {}".format(msg:=f"w{ln}D{i}")
-#                                         self.comm_set.add("{0:10}{1}:{2}{3}".format(f"{msg}:", *cmd[1:]))
-
-#                 # adjust comment string
-#                 for row in gtable._table:
-#                     if (msg:=row[COM]) != "":
-#                         row[COM] = f"({msg[2:]})"
+                    msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
+                    print(data_fs.format(*gt.sum[GTT.MAK:GTT.DN+1], msg))
+            for gt in ugt:
+                    msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
+                    print(data_fs.format(*gt.sum[GTT.MAK:GTT.DN+1], msg))
+            print()
 
 

@@ -12,6 +12,7 @@ import argparse
 import gzip
 import os
 import re
+import time
 
 from .utils.common import PKG_VERSION, PT_CONS_VER
 
@@ -292,21 +293,25 @@ def report_cons_summary(rpt_fps: list, cfg_fp: str):
                     item.extend(toks)
                     if item[-1] == '(VIOLATED)':
                         is_active, slack = True, float(item[-2])
+                    elif item[-1] == 'digits)':
+                        is_active, slack = True, float(item[-5])
+
+                    if is_active:
                         if len(cons_cfg['p']) != 0:
                             tag = f'{vtype}:{group}:{item[0]}'
-                            if is_active and tag in cons_cfg['p']:
+                            if tag in cons_cfg['p']:
                                 is_active, slack = ins_cons_check(slack, cons_cfg['p'][tag][fid])
                             tag = f'{vtype}::{item[0]}'
-                            if is_active and tag in cons_cfg['p']:
+                            if tag in cons_cfg['p']:
                                 is_active, slack = ins_cons_check(slack, cons_cfg['p'][tag][fid])
                             tag = f'{vtype}:{group}:'
-                            if is_active and tag in cons_cfg['p']:
+                            if tag in cons_cfg['p']:
                                 for ipat, inst_list in cons_cfg['p'][tag].items():
                                     if re.fullmatch(ipat, item[0]):
                                         is_active, slack = ins_cons_check(slack, inst_list[fid])
                                         break
                             tag = f'{vtype}::'
-                            if is_active and tag in cons_cfg['p']:
+                            if tag in cons_cfg['p']:
                                 for ipat, inst_list in cons_cfg['p'][tag].items():
                                     if re.fullmatch(ipat, item[0]):
                                         is_active, slack = ins_cons_check(slack, inst_list[fid])
@@ -316,7 +321,7 @@ def report_cons_summary(rpt_fps: list, cfg_fp: str):
                             nvp += 1
                             if slack < wns:
                                 wns = slack
-                        item = []
+                        is_active, item = False, []
                 else:
                     group_list[fid] = (wns, tns, nvp)
                     stage = IDLE
@@ -326,6 +331,11 @@ def report_cons_summary(rpt_fps: list, cfg_fp: str):
                 if toks_len != 0:
                     item.extend(toks)
                     if item[-2] == '(VIOLATED)':
+                        is_active, slack = True, float(item[-3])
+                    elif item[-2] == 'digits)':
+                        is_active, slack = True, float(item[-6])
+                    ###
+                    if is_active:
                         if group != item[-1]:
                             if group != "":
                                 group_list[fid][0] += wns
@@ -339,23 +349,21 @@ def report_cons_summary(rpt_fps: list, cfg_fp: str):
                             else:
                                 group_list = vtype_dict.setdefault(group, [[0.0, 0.0, 0]])
 
-                        is_active, slack = True, float(item[-3])
-
                         if len(cons_cfg['p']) != 0:
                             tag = f'{vtype}:{group}:{item[0]}'
-                            if is_active and tag in cons_cfg['p']:
+                            if tag in cons_cfg['p']:
                                 is_active, slack = ins_cons_check(slack, cons_cfg['p'][tag][fid])
                             tag = f'{vtype}::{item[0]}'
-                            if is_active and tag in cons_cfg['p']:
+                            if tag in cons_cfg['p']:
                                 is_active, slack = ins_cons_check(slack, cons_cfg['p'][tag][fid])
                             tag = f'{vtype}:{group}:'
-                            if is_active and tag in cons_cfg['p']:
+                            if tag in cons_cfg['p']:
                                 for ipat, inst_list in cons_cfg['p'][tag].items():
                                     if re.fullmatch(ipat, item[0]):
                                         is_active, slack = ins_cons_check(slack, inst_list[fid])
                                         break
                             tag = f'{vtype}::'
-                            if is_active and tag in cons_cfg['p']:
+                            if tag in cons_cfg['p']:
                                 for ipat, inst_list in cons_cfg['p'][tag].items():
                                     if re.fullmatch(ipat, item[0]):
                                         is_active, slack = ins_cons_check(slack, inst_list[fid])
@@ -365,7 +373,7 @@ def report_cons_summary(rpt_fps: list, cfg_fp: str):
                             nvp += 1
                             if slack < wns:
                                 wns = slack
-                        item = []
+                        is_active, item = False, []
                 else:
                     group_list[fid][0] += wns
                     group_list[fid][1] += tns
@@ -484,7 +492,10 @@ def main():
             args.cfg_fp = default_cfg
 
     rpt_fps = [args.rpt_fp] if args.rpt_fp2 is None else [args.rpt_fp, args.rpt_fp2]
+    t1 = time.perf_counter()
     report_cons_summary(rpt_fps, args.cfg_fp)
+    t2 = time.perf_counter()
+    print(f"=== Runtime: {t2-t1}")
 #}}}
 
 if __name__ == '__main__':

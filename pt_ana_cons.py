@@ -13,6 +13,7 @@ import gzip
 import math
 import os
 import re
+import time
 
 import numpy as np
 import matplotlib as mpl
@@ -180,8 +181,22 @@ def main():
                 else [args.rpt_fp, args.rpt_fp2])
 
     report = ConsReport(args.cfg_fp)
+    # t1 = time.perf_counter()
     report.parse_report(rpt_fps)
-    print_cons_table(report.cons_table)
+    # t2 = time.perf_counter()
+    # print(f"=== Runtime: {t2-t1}")
+
+    if report.is_multi:
+        print()
+        print(f"Left:  {os.path.abspath(rpt_fps[0])}")
+        print(f"Right: {os.path.abspath(rpt_fps[1])}")
+        print()
+        print(f"Diff = Left - Right")
+        print()
+        report.print_summary2()
+    else:
+        print(f"\nReport:  {os.path.abspath(rpt_fps[0])}\n")
+        report.print_summary()
 
 
 if __name__ == '__main__':
