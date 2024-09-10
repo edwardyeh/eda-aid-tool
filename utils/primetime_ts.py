@@ -14,7 +14,7 @@ import re
 from dataclasses import dataclass, field
 from enum import IntEnum
 
-from simpletools.text import (Align, SimpleTable)
+import simpletools.simpletable as sst
 
 
 @dataclass
@@ -730,53 +730,45 @@ class TimeReport:
         if is_dump:
             with open(f"clock_check{pid}.dump", "w") as f:
                 # global clock
-                gc_table = SimpleTable({'type': 'Type', 'isck': 'CK', 
-                                        'ln': 'Line', 'name': 'Pin', 
-                                        'cell': 'Cell'}, rdiv_cnt=2)
+                head_va = ['T', 'CK', 'Ln', 'Pin', 'Cell']
+                data = sst.Block([['']*5], [len(i) for i in head_va])
+                head = sst.Block([head_va], data.col_len)
+                data.divider = (div:=sst.Divider(data.col_len))
+                data.div_cnt = 2
+                del data.data[0]
+
+                f.write("\n====== GClock Compare\n")
                 for i in range(len(gclist)):
                     for j, type_ in enumerate(['L', 'C']):
-                        gc_table.add_row([type_, gct_list[i][j], gclist[i][j].ln, 
+                        data.data.append([type_, gct_list[i][j], gclist[i][j].ln, 
                                           gclist[i][j].name, gclist[i][j].cell])
-                    if i == 0:
-                        keys = gc_table.get_keys()
-                        gc_table.set_col_align(keys.index('type'), Align.TC)
-                        gc_table.set_col_align(keys.index('isck'), Align.TR)
-                        gc_table.set_col_align(keys.index('ln'), Align.TR)
-
-                f.write("\n=== GClock Compare:\n")
-                gc_table.print_table(f)
+                data.update_col_len()
+                sst.SimpleTable([div, head, div, data, div]).draw(f)
                 f.write("\n")
 
                 # launch source
-                if sct_list:
-                    sc_table = SimpleTable({'isck': 'CK', 'ln': 'Line', 
-                                            'name': 'Pin', 'cell': 'Cell'})
-                    for i, data in enumerate(sct_list):
-                        pin, status = data
-                        sc_table.add_row([status, pin.ln, pin.name, pin.cell])
-                        if i == 0:
-                            keys = sc_table.get_keys()
-                            sc_table.set_col_align(keys.index('isck'), Align.TR)
-                            sc_table.set_col_align(keys.index('ln'), Align.TR)
+                head_va = ['CK', 'Ln', 'Pin', 'Cell']
+                data = sst.Block([['']*4], [len(i) for i in head_va])
+                head = sst.Block([head_va], data.col_len)
+                div = sst.Divider(data.col_len)
+                del data.data[0]
 
-                    f.write(f"=== Non-CK type cell (launch source):\n")
-                    sc_table.print_table(f)
+                if sct_list:
+                    f.write(f"====== Non-CK type cell (launch source)\n")
+                    for i, (pin, status) in enumerate(sct_list):
+                        data.data.append([status, pin.ln, pin.name, pin.cell])
+                    data.update_col_len()
+                    sst.SimpleTable([div, head, div, data, div]).draw(f)
                     f.write("\n")
 
                 # capture source
                 if ect_list:
-                    ec_table = SimpleTable({'isck': 'CK', 'ln': 'Line', 
-                                            'name': 'Pin', 'cell': 'Cell'})
-                    for i, data in enumerate(ect_list):
-                        pin, status = data
-                        ec_table.add_row([status, pin.ln, pin.name, pin.cell])
-                        if i == 0:
-                            keys = ec_table.get_keys()
-                            ec_table.set_col_align(keys.index('isck'), Align.TR)
-                            ec_table.set_col_align(keys.index('ln'), Align.TR)
-
-                    f.write(f"=== Non-CK type cell (capture source):\n")
-                    ec_table.print_table(f)
+                    data.data = []
+                    f.write(f"====== Non-CK type cell (capture source)\n")
+                    for i, (pin, status) in enumerate(ect_list):
+                        data.data.append([status, pin.ln, pin.name, pin.cell]) 
+                    data.update_col_len()
+                    sst.SimpleTable([div, head, div, data, div]).draw(f)
                     f.write("\n")
 
         scc_rslt = [scc_rslt[0]+1, *scc_rslt[1:]]

@@ -11,7 +11,7 @@ DC_AREA_VER = "1.0.0.a1"
 IP_FLAT_VER = "1.0.0.a1"
 PT_CONS_VER = "1.0.0.b1"
 PT_TB_VER   = "1.0.0.a1"
-PT_TS_VER   = "1.0.0.a9"
+PT_TS_VER   = "1.0.0.b1"
 PT_ANA_VER  = "1.0.0.a1"
 
 
