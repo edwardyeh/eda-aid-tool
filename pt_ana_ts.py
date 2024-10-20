@@ -7,6 +7,7 @@
 # Copyright (C) 2023 Yeh, Hsin-Hsien <yhh76227@gmail.com>
 #
 import argparse
+import csv
 import gzip
 import os
 import re
@@ -14,6 +15,8 @@ import re
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+
+from decimal import Decimal, ROUND_HALF_UP
 
 from .utils.common import PKG_VERSION, PT_TS_VER
 from .utils.primetime_ts import Pin, TimePath, TimeReport
@@ -41,22 +44,23 @@ class Palette:
 def load_times_cfg(cfg_fp) -> dict:
     """Load configuration."""
     attr = {
-        'clock_check_enable':                    ('ckc_en'         , False),
-        'delta_sum_enable':                      ('dts_en'         , False),
-        'path_segment_enable':                   ('seg_en'         , False),
-        'ckm_with_non_clock_cell':               ('ckm_nock'       , False),
-        'through_pin_on_report':                 ('thp_on_rpt'     , False),
-        'slack_on_report':                       ('slk_on_rpt'     , True),
-        'clock_uncertainty_on_report':           ('unce_on_rpt'    , False),
-        'library_required_on_report':            ('lib_on_rpt'     , False),
-        'datapath_level_on_report':              ('dplv_on_rpt'    , False),
-        'clock_skew_on_report':                  ('ck_skew_on_rpt' , True),
-        'segment_data_latency_on_report':        ('seg_dlat_on_rpt', True),
-        "segment_data_delta_on_report":          ('seg_ddt_on_rpt' , True),
-        'segment_launch_clk_latency_on_report':  ('seg_slat_on_rpt', True),
-        'segment_launch_clk_delta_on_report':    ('seg_sdt_on_rpt' , True),
-        'segment_capture_clk_latency_on_report': ('seg_elat_on_rpt', True),
-        'segment_capture_clk_delta_on_report':   ('seg_edt_on_rpt' , True),
+        'clock_check_enable':                       ('ckc_en'           , False),
+        'delta_sum_enable':                         ('dts_en'           , False),
+        'path_segment_enable':                      ('seg_en'           , False),
+        'ckm_with_non_clock_cell':                  ('ckm_nock'         , False),
+        'through_pin_on_report':                    ('thp_on_rpt'       , False),
+        'slack_on_report':                          ('slk_on_rpt'       , True),
+        'clock_uncertainty_on_report':              ('unce_on_rpt'      , False),
+        'library_required_on_report':               ('lib_on_rpt'       , False),
+        'datapath_level_on_report':                 ('dplv_on_rpt'      , False),
+        'clock_skew_on_report':                     ('ck_skew_on_rpt'   , True),
+        'segment_data_latency_on_report':           ('seg_dlat_on_rpt'  , True),
+        "segment_data_delta_on_report":             ('seg_ddt_on_rpt'   , True),
+        'segment_launch_clk_latency_on_report':     ('seg_llat_on_rpt'  , True),
+        'segment_launch_clk_delta_on_report':       ('seg_ldt_on_rpt'   , True),
+        'segment_capture_clk_latency_on_report':    ('seg_clat_on_rpt'  , True),
+        'segment_capture_clk_delta_on_report':      ('seg_cdt_on_rpt'   , True),
+        'segment_capture_clk_latency_include_crpr': ('seg_clat_inc_crpr', True),
     }
 
     cons_cfg = dict(attr.values())
@@ -117,7 +121,7 @@ def load_times_cfg(cfg_fp) -> dict:
                         if v1 == 'r':
                             cons_cfg['dc']['re'] = re.compile(v2)
                         else:
-                            cons_cfg['dc'][v2] = float(v1)
+                            cons_cfg['dc'][v2] = Decimal(v1)
                     elif key == 'hcd':
                         toks = value.split('"') 
                         if len(toks) > 1:
@@ -165,8 +169,21 @@ def report_summary(args, range_list: list):
                 print(line)
         return
 
+    csv_row, csv_table = {}, []
+    if args.csv_fp is not None:
+        if args.csv_ctype is not None:
+            csv_head = ['ln'] + args.csv_ctype
+        else:
+            csv_head = ['ln', 'arr', 'req', 'slk']
+        if 'slat' in csv_head:
+            csv_head = (csv_head[:(idx:=csv_head.index('slat'))] 
+                        + ['sllat', 'sclat', 'bllat', 'bclat'] 
+                        + csv_head[idx+1:])
+        csv_row = dict([(s, None) for s in csv_head])
+        csv_table.append([s.upper() for s in csv_head])
+
     for pid, path in enumerate(time_rpt.path):
-        #import pdb; pdb.set_trace()
+        # import pdb; pdb.set_trace()
         splen = len(stp:=path.lpath[path.spin].name)
         if (plen:=len(edp:=path.lpath[-1].name)) < splen:
             plen = splen
@@ -197,9 +214,9 @@ def report_summary(args, range_list: list):
         print(" {}".format("=" * 60))
 
         ## path latency
+        dlat = path.arr - path.idly - path.llat - path.sev
         if cons_cfg['slk_on_rpt']:
-            print(" {:26}{: 5.4f}".format(
-                "data latency:", path.arr-path.idly-path.slat-path.sev))
+            print(" {:26}{: 5.4f}".format( "data latency:", dlat))
             print(" {:26}{: 5.4f}".format("arrival:", path.arr))
             print(" {:26}{: 5.4f}".format("required:", path.req))
             print(" {:26}{: 5.4f}".format("slack:", path.slk))
@@ -229,22 +246,18 @@ def report_summary(args, range_list: list):
 
         ## clock latency & check
         is_clk_on_rpt = False
+        skew = path.llat - path.clat - path.crpr
 
         if cons_cfg['ck_skew_on_rpt']:
             is_clk_on_rpt = True
             if not path.max_dly_en:
-                print(" {:26}{: 5.4f}".format("launch clock edge value:", 
-                                              path.sev))
-                print(" {:26}{: 5.4f}".format("capture clock edge value:", 
-                                              path.eev))
-            print(" {:26}{: 5.4f}".format("launch clock latency:", 
-                                          path.slat))
+                print(" {:26}{: 5.4f}".format("launch clock edge value:", path.sev))
+                print(" {:26}{: 5.4f}".format("capture clock edge value:", path.eev))
+            print(" {:26}{: 5.4f}".format("launch clock latency:", path.llat))
             if not path.max_dly_en:
-                print(" {:26}{: 5.4f}".format("capture clock latency:", 
-                                              path.elat))
+                print(" {:26}{: 5.4f}".format("capture clock latency:", path.clat))
                 print(" {:26}{: 5.4f}".format("crpr:", path.crpr))
-                print(" {:26}{: 5.4f}".format("clock skew:", 
-                                              path.slat-path.elat-path.crpr))
+                print(" {:26}{: 5.4f}".format("clock skew:", skew))
 
         if (args.ckc_en or cons_cfg['ckc_en']) and not path.max_dly_en:
             if is_clk_on_rpt:
@@ -280,22 +293,22 @@ def report_summary(args, range_list: list):
             if 'delta' in time_rpt.opt:
                 ddt_val = "{: 5.4f}".format(path.ddt)
                 if not {'pfc', 'pfce'}.isdisjoint(time_rpt.opt):
-                    sdt_val = "{:5.4f}".format(path.sdt)
-                    edt_val = "{:5.4f}".format(path.edt)
+                    ldt_val = "{:5.4f}".format(path.ldt)
+                    cdt_val = "{:5.4f}".format(path.cdt)
                 else:
-                    sdt_val, edt_val = 'N/A', 'N/A'
+                    ldt_val, cdt_val = 'N/A', 'N/A'
             else:
-                ddt_val, sdt_val, edt_val = 'N/A', 'N/A', 'N/A'
+                ddt_val, ldt_val, cdt_val = 'N/A', 'N/A', 'N/A'
 
             print(" {:26}{} : {} : {}".format("total delta (D:L:C):", 
-                                              ddt_val, sdt_val, edt_val))
+                                              ddt_val, ldt_val, cdt_val))
             print(" {}".format("=" * 60))
 
         ## path segment
-        if args.seg_en or cons_cfg['seg_en'] and not len(cons_cfg['pc']):
+        if (args.seg_en or cons_cfg['seg_en']) and not len(cons_cfg['pc']):
             print(" Segment: path classify patterns is unexisted.")
             print(" {}".format("=" * 60))
-        elif args.seg_en or cons_cfg['seg_en'] and len(cons_cfg['pc']):
+        elif (args.seg_en or cons_cfg['seg_en']) and len(cons_cfg['pc']):
             seg_dict = time_rpt.get_path_segment(pid)
 
             if 'pf' in time_rpt.opt:
@@ -328,37 +341,75 @@ def report_summary(args, range_list: list):
 
             if not is_ckseg_pass:
                 # launch clock latency & delta
-                if cons_cfg['seg_slat_on_rpt'] or cons_cfg['seg_sdt_on_rpt']:
+                if cons_cfg['seg_llat_on_rpt'] or cons_cfg['seg_ldt_on_rpt']:
                     print(" {}".format("-" * 60))
-                if cons_cfg['seg_slat_on_rpt']:
+                if cons_cfg['seg_llat_on_rpt']:
                     print(" launch clk latency:  ", end='')
-                    print("SC:{: .4f} ".format(path.sslat), end='')
-                    for tag, val in seg_dict['slat']:
+                    print("SC:{: .4f} ".format(path.sllat), end='')
+                    for tag, val in seg_dict['llat']:
                         print("{}:{: .4f} ".format(tag, val), end='')
                     print()
-                if cons_cfg['seg_sdt_on_rpt']:
+                if cons_cfg['seg_ldt_on_rpt']:
                     print(" launch clk delta:    ", end='')
-                    for tag, val in seg_dict['sdt']:
+                    for tag, val in seg_dict['ldt']:
                         print("{}:{: .4f} ".format(tag, val), end='')
                     print()
 
                 # capture clock latency & delta
-                if cons_cfg['seg_elat_on_rpt'] or cons_cfg['seg_edt_on_rpt']:
+                if cons_cfg['seg_clat_on_rpt'] or cons_cfg['seg_cdt_on_rpt']:
                     print(" {}".format("-" * 60))
-                if cons_cfg['seg_elat_on_rpt']:
+                if cons_cfg['seg_clat_on_rpt']:
                     print(" capture clk latency: ", end='')
-                    print("SC:{: .4f} ".format(path.eslat), end='')
-                    for tag, val in seg_dict['elat']:
+                    if cons_cfg['seg_clat_inc_crpr']:
+                        sclat = path.sclat + path.crpr
+                    else:
+                        sclat = path.sclat
+                    print("SC:{: .4f} ".format(sclat), end='')
+                    for tag, val in seg_dict['clat']:
                         print("{}:{: .4f} ".format(tag, val), end='')
-                    print()
-                if cons_cfg['seg_edt_on_rpt']:
+                    if cons_cfg['seg_clat_inc_crpr']:
+                        print(" (include crpr)")
+                    else:
+                        print()
+                if cons_cfg['seg_cdt_on_rpt']:
                     print(" capture clk delta:   ", end='')
-                    for tag, val in seg_dict['edt']:
+                    for tag, val in seg_dict['cdt']:
                         print("{}:{: .4f} ".format(tag, val), end='')
                     print()
 
             print(" {}".format("=" * 60))
+        elif args.csv_fp is not None and 'slat' in args.csv_ctype:
+            seg_dict = time_rpt.get_path_segment(pid)
+
         print()
+
+        ## create csv
+        if args.csv_fp is not None:
+            for key in csv_row.keys():
+                if key == 'stp':
+                    csv_row[key] = stp
+                elif key == 'edp':
+                    csv_row[key] = edp
+                elif key == 'dlat':
+                    csv_row[key] = dlat
+                elif key == 'sclat' and cons_cfg['seg_clat_inc_crpr']:
+                    csv_row[key] = path.sclat + path.crpr
+                elif key == 'bllat':
+                    csv_row[key] = path.llat - path.sllat
+                elif key == 'bclat':
+                    csv_row[key] = path.clat - path.sclat
+                elif key == 'skew':
+                    csv_row[key] = skew
+                else:
+                    csv_row[key] = path.__dict__[key]
+            csv_table.append(list(csv_row.values()))
+
+    ## export csv
+    if args.csv_fp is not None:
+        with open(args.csv_fp, 'w', newline='') as csvf:
+            spamw = csv.writer(csvf, delimiter=' ')
+            for row in csv_table:
+                spamw.writerow(row)
 
     ## show time bar chart
     bar_dtype = set()  # data type of bar charts
@@ -870,6 +921,30 @@ def create_argparse() -> argparse.ArgumentParser:
                             help="bar view data type set defined in the config file") 
     parser.add_argument('-barr', dest='bar_rev', action='store_true', 
                             help="axis reverse for bar view\n ")
+    parser.add_argument('-csv', dest='csv_fp', metavar='<path>', 
+                            help="export CSV file") 
+    parser.add_argument('-csvc', dest='csv_ctype', metavar='<pat>', nargs='*', 
+                            choices=['stp', 'edp', 
+                                     'dlat', 'arr', 'req', 'slk', 'unce', 'lib', 
+                                     'llat', 'clat', 'slat', 'crpr', 'skew',
+                                     'ddt', 'ldt', 'cdt'],
+                            help="CSV column type:\n" +
+                                 "  stp  - startpoint\n" +
+                                 "  edp  - endpoint\n" +
+                                 "  dlat - data latency\n" +
+                                 "  arr  - arrival time\n" +
+                                 "  req  - required time\n" +
+                                 "  slk  - slack\n" +
+                                 "  unce - clock uncertainty\n" +
+                                 "  lib  - library setup/hold time\n" +
+                                 "  llat - launch clock latency\n" +
+                                 "  clat - capture clock latency\n" +
+                                 "  slat - clock source latency\n" +
+                                 "  crpr - CRPR\n" +
+                                 "  skew - clock skew\n" +
+                                 "  ddt  - data delta\n" +
+                                 "  ldt  - launch clock delta\n" +
+                                 "  cdt  - capture clock delta\n" ) 
     return parser
 
 

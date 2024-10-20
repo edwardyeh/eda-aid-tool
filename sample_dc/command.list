@@ -1,55 +1,41 @@
 
-=== Environment Command ====================================
+=== Attribute ==============================================
 
-default_path_length:<num>               # set instance path column size
-design_name: <did>-<design_name> ...    # indicate design name for the design (did: design ID)
-
-
-=== Instance Choose ========================================
-
-<inst_path>                             # choose one instance
-<inst_path> inf                         # choose instances by break down to leaf nodes from the specific instance
-<inst_path> l<num>                      # choose instances by break down <num> levels from the specific instance
-re:<pattern>                            # use regular expression to choose instances
-
-=== Instance Operation =====================================
-
-<inst_path> sum                         # leaf trace and sum the areas from the specific instance
-<inst_path> hide                        # hide the instance from the area display
-<inst_path> hide:"<condition>"          # condition hide:
-                                            - condition format   : "<target> <operation> <compare value>"
-                                            - target             : at (area total), pt (percent total)
-                                            - support operation  : >, <, ==, >=, <=
-                                            - compare value type : int or float
-
-<inst_path> sr[:<sr_name>]              # set sub-root for sub-tree trace mode
-                                        # replace instance path by <sr_name> if set
+inst_column_width: <size>               # Set instance column width (default: 32)
 
 === Group Summation ========================================
 
-grp<gid>:"<group_name>"                 # set group name for the specific area group (gid: group ID)
-<inst_path> add<gid>                    # add area to the specific area group
-<inst_path> add<gid>:"<group_name>"     # add area to the specific area group and rename this group
-<inst_path> sub<gid>                    # substract area from the specific area group
-<inst_path> sub<gid>:"<group_name>"     # substract area from the specific area group and rename this group
+g:<gid>:<group_name>                    # Create a summation group (gid: group ID)
 
-=== Instance Rename ========================================
+=== Instance Choose ========================================
 
-tag:<inst_path> <tag_name>              # replace instance path by <tag_name> (only for path/inst view)
-inst:<inst_path> <inst_name>            # replace instance name by <inst_name>
+p:[did]:<path>[:option]                 # Choose instance by the absolute path
+r:[did]:<path>[:option]                 # Choose instance by the regular expression
 
-## priority (path/inst view) : sr > tag > inst
-## priority (tree view)      : sr > inst
+- did : design id
+    - keep empty means choose path from all designs
 
-=== Instanced Choose (Multi-Design Mode) ===================
+- option
+    - inf : choose instances by break down to leaf nodes from the specific instance
+    - <n> : choose instances by break down n levels from the specific instance
 
-[<did>:]<inst_path>                     # choose one instance in the design <did>
-[<did>:]<inst_path> inf                 # choose instances with inifite break down in the design <did>
-[<did>:]<inst_path> l<num>              # choose instances with <num> level break down in the design <did>
-re[did]:<pattern>                       # use regular expression to choose instances in the design <did>
+=== Instance Operation =====================================
 
-tag[did]:<inst_path> <tag_name>         # replace instance path by <tag_name> (only for path/inst view)
-inst[did]:<inst_path> <inst_name>       # replace instance name by <inst_name>
+<inst_path> sum                         # Leaf trace and sum the areas from the specific instance
+<inst_path> sr                          # Separate and become a sub design tree from the main design tree 
+<inst_path> rn:<name>                   # Rename instance path
+                                            - path/inst view : replace instance path
+                                            - tree view      : replace basename
 
-## full search all designs with the indicate instance without set design ID ##
+<inst_path> add:<gid>                   # Add area to the specific group
+<inst_path> sub:<gid>                   # Substract area from the specific group
+
+<inst_path> show[:condition]            # show the instance from the area display
+<inst_path> hide[:condition]            # Hide the instance from the area display
+
+- condition format : <target><operation><value>
+    - target     : att (absolute total), ptt (percent total)
+    - operation  : >, <, ==, >=, <=
+    - value type : float
+- priority : show > hide > default
 

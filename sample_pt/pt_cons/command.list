@@ -42,3 +42,4 @@ g:<type>:<group>:<rid>                  # use regular expression to choose group
 === Define Message =========================================
 
 mtag:<message_tag>: <message>
+

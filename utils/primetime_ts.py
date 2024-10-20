@@ -12,6 +12,7 @@ import math
 import os
 import re
 from dataclasses import dataclass, field
+from decimal import Decimal, ROUND_HALF_UP
 from enum import IntEnum
 
 import simpletools.simpletable as sst
@@ -20,39 +21,40 @@ import simpletools.simpletable as sst
 @dataclass
 class Pin:
     """Data pin container."""
-    ln: str = None          # line number
-    name: str = None        # pin name
-    cell: str = None        # cell type
-    phy: str = None         # physical coordination
-    drv: float = -1.0       # cell driving
-    fo: int = 0             # fanout
-    cap: float = 0.0        # capacitance
-    dtran: float = 0.0      # delta transition
-    tran: float = 0.0       # transition
-    derate: float = 0.0     # derate
-    delta: float = 0.0      # delta
-    incr: float = 0.0       # latency increment
-    path: float = 0.0       # path delay
+    ln:     str     = None             # line number
+    name:   str     = None             # pin name
+    cell:   str     = None             # cell type
+    phy:    str     = None             # physical coordination
+    drv:    Decimal = Decimal('-1.0')  # cell driving
+    fo:     int     = 0                # fanout
+    cap:    Decimal = Decimal('0.0')   # capacitance
+    dtran:  Decimal = Decimal('0.0')   # delta transition
+    tran:   Decimal = Decimal('0.0')   # transition
+    derate: Decimal = Decimal('0.0')   # derate
+    delta:  Decimal = Decimal('0.0')   # delta
+    incr:   Decimal = Decimal('0.0')   # latency increment
+    path:   Decimal = Decimal('0.0')   # path delay
 
 
-@dataclass (slots=True)
+@dataclass
 class Path:
     """Basic path container."""
-    stp: str = None     # startpoint
-    sck: str = None     # startpoint clock
-    sed: str = None     # startpoint clock edge type
-    edp: str = None     # endpoint
-    eck: str = None     # endpoint clock
-    eed: str = None     # endpoint clock edge type
-    group: str = None   # path group
-    type: str = None    # delay type
-    scen: str = None    # Scenario
-    arr: float = 0.0    # data arrival time
-    req: float = 0.0    # data required time
-    slk: float = 0.0    # timing slack
+    ln:    int     = None            # startpoint line number
+    stp:   str     = None            # startpoint
+    sck:   str     = None            # startpoint clock
+    sed:   str     = None            # startpoint clock edge type
+    edp:   str     = None            # endpoint
+    eck:   str     = None            # endpoint clock
+    eed:   str     = None            # endpoint clock edge type
+    group: str     = None            # path group
+    type:  str     = None            # delay type
+    scen:  str     = None            # Scenario
+    arr:   Decimal = Decimal('0.0')  # data arrival time
+    req:   Decimal = Decimal('0.0')  # data required time
+    slk:   Decimal = Decimal('0.0')  # timing slack
 
 
-@dataclass (slots=True)
+@dataclass
 class TimePath(Path):
     """
     A time path of a report from the command 'report_timing'.
@@ -61,34 +63,34 @@ class TimePath(Path):
     sgpi: int = None  # index of the startpoint gclock pin in path list
     egpi: int = None  # index of the endpoint gclock pin in path list
 
-    hcd: dict = field(default_factory=dict)  # highlighted cell delay
+    hcd: dict      = field(default_factory=dict)  # highlighted cell delay
     thp: list[Pin] = field(default_factory=list)  # through pin list
 
-    idly_en: bool = False  # input delay active
-    idly: float = 0.0      # input delay
-    sev: float = 0.0       # startpoint clock edge value
-    sslat: float = 0.0     # startpoint clock source latency
-    slat: float = 0.0      # startpoint clock latency
-    lpath: list[Pin] = field(default_factory=list)  # launch path pin list
+    idly_en: bool      = False                        # input delay active
+    idly:    Decimal   = Decimal('0.0')               # input delay
+    sev:     Decimal   = Decimal('0.0')               # startpoint clock edge value
+    sllat:   Decimal   = Decimal('0.0')               # launch clock source latency
+    llat:    Decimal   = Decimal('0.0')               # launch clock latency
+    lpath:   list[Pin] = field(default_factory=list)  # launch path pin list
 
-    odly_en: bool = False  # output delay active
-    odly: float = 0.0      # output delay
-    eev: float = 0.0       # endpoint clock edge value
-    eslat: float = 0.0     # endpoint clock source latency
-    elat: float = 0.0      # endpoint clock latency
-    cpath: list[Pin] = field(default_factory=list)  # capture path pin list
+    odly_en: bool      = False                        # output delay active
+    odly:    Decimal   = Decimal('0.0')               # output delay
+    eev:     Decimal   = Decimal('0.0')               # endpoint clock edge value
+    sclat:   Decimal   = Decimal('0.0')               # capture clock source latency
+    clat:    Decimal   = Decimal('0.0')               # capture clock latency
+    cpath:   list[Pin] = field(default_factory=list)  # capture path pin list
 
-    max_dly_en: bool = False  # max delay active
-    max_dly: float = 0.0      # max delay
-    pmarg_en: bool = False    # path margin active
-    pmarg: float = 0.0        # path margin
+    max_dly_en: bool    = False           # max delay active
+    max_dly:    Decimal = Decimal('0.0')  # max delay
+    pmarg_en:   bool    = False           # path margin active
+    pmarg:      Decimal = Decimal('0.0')  # path margin
 
-    unce: float = 0.0  # clock uncertainty
-    crpr: float = 0.0  # CRPR
-    lib: float = 0.0   # library time arc
-    sdt: float = 0.0   # startpoint clock delta
-    edt: float = 0.0   # endpoint clock delta
-    ddt: float = 0.0   # data path delta
+    unce: Decimal = Decimal('0.0')  # clock uncertainty
+    crpr: Decimal = Decimal('0.0')  # CRPR
+    lib:  Decimal = Decimal('0.0')  # library time arc
+    ldt:  Decimal = Decimal('0.0')  # launch clock delta
+    cdt:  Decimal = Decimal('0.0')  # capture clock delta
+    ddt:  Decimal = Decimal('0.0')  # data path delta
 
 
 class TimeReport:
@@ -230,6 +232,7 @@ class TimeReport:
             if is_start and tok[0][0] == '-':
                 break
             elif tok[0] == 'Startpoint:':
+                path.ln = fno
                 path.stp = tok[1]
                 is_start = True
             elif tok[0] == 'Endpoint:':
@@ -262,7 +265,7 @@ class TimeReport:
             if not (tok:=line.strip().split()):
                 continue
             elif tok[0] == 'slack':
-                path.slk = float(tok[2])
+                path.slk = Decimal(tok[-1])
                 break
             elif len(tok) >= 3 and tok[2][:-1] == 'unconstrainted':
                 path.slk = math.inf
@@ -296,29 +299,29 @@ class TimeReport:
             # print("[parse lpath]", tok)  # debug
             tag0, tag1 = tok[0].lstrip(), tok[1].lstrip()
             if tag1 == 'arrival':
-                path.arr = float(tok[-1])
+                path.arr = Decimal(tok[-1])
                 if path.spin is None:
                     path.spin = 0
                     print(" [WARNING] Cannot detect the startpoint," + 
                           " use 1st cell pin default.\n")
-                path.slat = path.lpath[path.spin].path - path.sev - path.idly
-                path.ddt -= path.sdt
+                path.llat = path.lpath[path.spin].path - path.sev - path.idly
+                path.ddt -= path.ldt
                 return False, fno
             elif tag1 == 'external':
                 path.idly_en = True
-                path.idly = float(tok[-3])
+                path.idly = Decimal(tok[-3])
                 add_ckp = True
             elif state == CKEG and tag0 == 'clock':
                 path.sck = tag1
                 path.sed = tok[2].lstrip()[1:]
                 if len(tok) == 4:
                     tok, fno = fp.readline().strip().split(), fno+1
-                path.sev = float(tok[-2])
+                path.sev = Decimal(tok[-2])
                 state = CKLAT
             elif state == CKLAT and tag0 == 'clock':
                 if len(tok) == 4:
                     tok, fno = fp.readline().strip().split(), fno+1
-                path.sslat = float(tok[-2])
+                path.sllat = Decimal(tok[-2])
                 state = DLAT
             else:
                 pin = Pin(ln=str(fno))
@@ -350,22 +353,22 @@ class TimeReport:
                     if tok_len > 2 and tok[2].endswith('(gclock'):
                         path.spin = len(path.lpath)
                         path.sgpi = path.spin
-                        path.sdt = path.ddt
+                        path.ldt = path.ddt
                     elif add_ckp:
                         path.spin = len(path.lpath)
-                        path.sdt = path.ddt
+                        path.ldt = path.ddt
                         add_ckp = False
                     elif tag0.split('/')[-1] in self._cell_ckp:
                         path.spin = len(path.lpath)
-                        path.sdt = path.ddt
+                        path.ldt = path.ddt
                     elif tag0 in self._inst_ckp:
                         path.spin = len(path.lpath)
-                        path.sdt = path.ddt
+                        path.ldt = path.ddt
                     else:
                         for ickp_re in self._ickp_re:
                             if ickp_re.fullmatch(tag0):
                                 path.spin = len(path.lpath)
-                                path.sdt = path.ddt
+                                path.ldt = path.ddt
                                 break
                     path.lpath.append(pin)
                     if pv_pin.cell in (hcd_dict:=self._hcd):
@@ -407,36 +410,36 @@ class TimeReport:
             # print("[parse cpath]", tok)  # debug
             tag0, tag1 = tok[0].lstrip(), tok[1].lstrip()
             if tag1 == 'required':
-                path.req = float(tok[-1])
-                path.elat = (path.req - path.eev - path.crpr - path.pmarg 
+                path.req = Decimal(tok[-1])
+                path.clat = (path.req - path.eev - path.crpr - path.pmarg 
                              - path.unce - path.odly - path.lib)
                 return False, fno
             elif tag1 == 'reconvergence':
-                path.crpr = float(tok[-2])
+                path.crpr = Decimal(tok[-2])
             elif tag1 == 'margin':
                 path.pmarg_en = True
-                path.pmarg = float(tok[-2])
+                path.pmarg = Decimal(tok[-2])
             elif tag1 == 'uncertainty':
-                path.unce = float(tok[-2])
+                path.unce = Decimal(tok[-2])
             elif tag1 == 'external':
                 path.odly_en = True
-                path.odly = float(tok[-2])
+                path.odly = Decimal(tok[-2])
             elif tag1 in lib_set:
-                path.lib = float(tok[-2])
+                path.lib = Decimal(tok[-2])
             elif tag0 == 'max_delay':
-                path.max_dly = float(tok[-2])
+                path.max_dly = Decimal(tok[-2])
                 path.max_dly_en = True
             elif state == CKEG and tag0 == 'clock':
                 path.eck = tag1
                 path.eed = tok[2].lstrip()[1:]
                 if len(tok) == 4:
                     tok, fno = fp.readline().strip().split(), fno+1
-                path.eev = float(tok[-2])
+                path.eev = Decimal(tok[-2])
                 state = CKLAT
             elif state == CKLAT and tag0 == 'clock':
                 if len(tok) == 4:
                     tok, fno = fp.readline().strip().split(), fno+1
-                path.eslat = float(tok[-2])
+                path.sclat = Decimal(tok[-2])
                 state = DLAT
             elif state == DLAT:
                 pin = Pin(ln=str(fno))
@@ -454,7 +457,7 @@ class TimeReport:
                 else:
                     pin.name, pin.cell = tag0, tag1[1:-1]
                     self._parse_pin(pin, tok2, st_col)
-                    path.edt += pin.delta
+                    path.cdt += pin.delta
                     if tok_len > 2 and tok[2].endswith('(gclock'):
                         path.egpi = len(path.cpath)
                     path.cpath.append(pin)
@@ -481,14 +484,14 @@ class TimeReport:
                         if attr == 'fo':
                             pin.__dict__[attr] = int(tok[cid])
                         else:
-                            pin.__dict__[attr] = float(tok[cid])
+                            pin.__dict__[attr] = Decimal(tok[cid])
                         cpos += len(tok[cid:=cid+1])
 
             ## incr, path, location
-            pin.incr, cid = float(tok[cid]), cid+1
+            pin.incr, cid = Decimal(tok[cid]), cid+1
             if tok[cid][-1] in self._anno_sym:
                 cid += 1
-            pin.path, cid = float(tok[cid]), cid+1
+            pin.path, cid = Decimal(tok[cid]), cid+1
             if tok[cid][-1] == 'r' or tok[cid][-1] == 'f':
                 cid += 1
             if 'phy' in self.opt:
@@ -782,16 +785,16 @@ class TimeReport:
         -------
         A dictionary include 6 classified lists:
 
-          slat_list : the launch clock latency list.
-          elat_list : the capture clock latency list.
+          llat_list : the launch clock latency list.
+          clat_list : the capture clock latency list.
           dlat_list : the data latency list.
-          sdt_list  : the launch clock delta list.
-          edt_list  : the capture clock delta list.
+          ldt_list  : the launch clock delta list.
+          cdt_list  : the capture clock delta list.
           ddt_list  : the data delta list.
         """
         path = self.path[pid]
-        slat_list, sdt_list = [], []
-        elat_list, edt_list = [], []
+        llat_list, ldt_list = [], []
+        clat_list, cdt_list = [], []
         dlat_list, ddt_list = [], []
 
         lat_sum, dt_sum = 0, 0
@@ -809,8 +812,8 @@ class TimeReport:
                     lat_sum, dt_sum = cell.incr, cell.delta
                 elif new_tag is not None:
                     if is_clk:
-                        slat_list.append(['TP', lat_sum])
-                        sdt_list.append(['TP', dt_sum])
+                        llat_list.append(['TP', lat_sum])
+                        ldt_list.append(['TP', dt_sum])
                     else:
                         dlat_list.append(['TP', lat_sum])
                         ddt_list.append(['TP', dt_sum])
@@ -826,8 +829,8 @@ class TimeReport:
                         break
                 if new_tag != tag:
                     if is_clk:
-                        slat_list.append([tag, lat_sum])
-                        sdt_list.append([tag, dt_sum])
+                        llat_list.append([tag, lat_sum])
+                        ldt_list.append([tag, dt_sum])
                     else:
                         dlat_list.append([tag, lat_sum])
                         ddt_list.append([tag, dt_sum])
@@ -841,8 +844,8 @@ class TimeReport:
 
             key = 'TP' if tag == None else tag
             if cid == path.spin:
-                slat_list.append([key, lat_sum])
-                sdt_list.append([key, dt_sum])
+                llat_list.append([key, lat_sum])
+                ldt_list.append([key, dt_sum])
                 tag, is_1st, is_clk = None, True, False 
                 lat_sum, dt_sum = 0, 0
 
@@ -863,8 +866,8 @@ class TimeReport:
                     is_1st = False
                     lat_sum, dt_sum = cell.incr, cell.delta
                 elif new_tag is not None:
-                    elat_list.append(['TP', lat_sum])
-                    edt_list.append(['TP', dt_sum])
+                    clat_list.append(['TP', lat_sum])
+                    cdt_list.append(['TP', dt_sum])
                     lat_sum, dt_sum = cell.incr, cell.delta
                 else:
                     lat_sum += cell.incr
@@ -876,8 +879,8 @@ class TimeReport:
                         new_tag = key
                         break
                 if new_tag != tag:
-                    elat_list.append([tag, lat_sum])
-                    edt_list.append([tag, dt_sum])
+                    clat_list.append([tag, lat_sum])
+                    cdt_list.append([tag, dt_sum])
                     tag, lat_sum, dt_sum = new_tag, cell.incr, cell.delta
                 else:
                     lat_sum += cell.incr
@@ -887,11 +890,11 @@ class TimeReport:
                 dt_sum += cell.delta
 
         key = 'TP' if tag == None else tag
-        elat_list.append([key, lat_sum])
-        edt_list.append([key, dt_sum])
+        clat_list.append([key, lat_sum])
+        cdt_list.append([key, dt_sum])
 
-        return {'slat': slat_list, 'sdt': sdt_list,
-                'elat': elat_list, 'edt': edt_list,
+        return {'llat': llat_list, 'ldt': ldt_list,
+                'clat': clat_list, 'cdt': cdt_list,
                 'dlat': dlat_list, 'ddt': ddt_list}
 
 
