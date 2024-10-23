@@ -595,10 +595,13 @@ def show_time_bar(path: TimePath, path_opt: set, cons_cfg: dict,
                            for label in labels]
                 level = range(0, len(sdb[1]))
 
-                max_dy = max(sdb[1])
-                min_dy = 0 if (min_dy:=min(sdb[1])) > 0 else min_dy
+                max_dy = Decimal(str(max(sdb[1])))
+                min_dy = Decimal(str(min(sdb[1])))
+                if min_dy > 0:
+                    min_dy = 0
+
                 dy_off = 4 if (is_ct_proc and not is_dc) else (max_dy-min_dy)
-                dx, dy_rt = -0.5, 0.5
+                dx, dy_rt = Decimal('-0.5'), Decimal('0.5')
                 dy = min_dy + dy_off * dy_rt
 
                 xlist = [*level]
@@ -617,9 +620,11 @@ def show_time_bar(path: TimePath, path_opt: set, cons_cfg: dict,
                            else bar_info['ce'][x][ix].name)
                     if is_ct_proc:
                         val = f"lib: {bar_info['ce'][x][ix].cell}"
-                        iy = -(max(sdb[1])/4.0) if is_dc else 1.0
+                        iy = -Decimal(str(max(sdb[1]))) / 4
+                        if not is_dc:
+                            iy = 1
                     else:
-                        val = "val: {:.4f}".format(iy:=sdb[1][ix])
+                        val = "val: {:.4f}".format(iy:=Decimal(str(sdb[1][ix])))
 
                     comm = "pin: {}\n{}\nln: {}".format(
                                 name, val, bar_info['ce'][x][ix].ln)
@@ -643,14 +648,14 @@ def show_time_bar(path: TimePath, path_opt: set, cons_cfg: dict,
                         iy2 = [sdb[1][i] for i in ix2]
                         axs.stem(ix2, iy2, 'o-')
                         # axs.plot(ix2, iy2, 'o-', lw=1)
-                        dy = (my:=max(sdb[1])) / 4.0
-                        axs.set_ylim(-dy, my+dy*1.5)
+                        dy = (my:=Decimal(str(max(sdb[1])))) / 4
+                        axs.set_ylim(-dy, my+dy*Decimal('1.5'))
                     else:
                         axs.set_ylim(0, 4)
                 else:
                     axs.set_title(sdb[0])
-                    dy = (my:=max(sdb[1])) / 4.0  
-                    axs.set_ylim(min(sdb[1]), my+dy)
+                    dy = (my:=Decimal(str(max(sdb[1])))) / 4
+                    axs.set_ylim(Decimal(str(min(sdb[1]))), my+dy)
 
                 axs.grid(axis='y', which='both', ls=':', c='grey')
                 axs.set_xticks(level, [])
