@@ -351,7 +351,7 @@ class ConsReport:
                     if toks[0][0] == '-':
                         wns, tns, nvp = 0.0, 0.0, 0
                         if pre_toks[-1] == 'Clock':
-                            state, path = VT2, []
+                            state, path, is_act = VT2, [], False
                             # print(f"=== (debug_info) VT2: {vtype}, {group}")
                         else:
                             if group in ttable:
@@ -368,7 +368,7 @@ class ConsReport:
                                 cfg_path.extend(self.cfg_path[key])
                             if (key:=f"{vtype}:*") in self.cfg_path:
                                 cfg_path.extend(self.cfg_path[key])
-                            state, path = VT1, []
+                            state, path, is_act = VT1, [], False
                             # print(f"=== (debug_info) VT1: {vtype}, {group}")
                     else:
                         pre_toks = toks.copy()
