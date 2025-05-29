@@ -3,17 +3,10 @@
 
 inst_column_width: <size>               # Set instance column width (default: 32)
 
-=== Group Summation ========================================
-
-g:<gid>:<group_name>                    # Create a summation group (gid: group ID)
-
 === Instance Choose ========================================
 
-p:[did]:<path>[:option]                 # Choose instance by the absolute path
-r:[did]:<path>[:option]                 # Choose instance by the regular expression
-
-- did : design id
-    - keep empty means choose path from all designs
+p:<path>[:option]                       # Choose instance by the absolute path
+r:<path>[:option]                       # Choose instance by the regular expression
 
 - option
     - inf : choose instances by break down to leaf nodes from the specific instance
@@ -27,9 +20,6 @@ r:[did]:<path>[:option]                 # Choose instance by the regular express
                                             - path/inst view : replace instance path
                                             - tree view      : replace basename
 
-<inst_path> add:<gid>                   # Add area to the specific group
-<inst_path> sub:<gid>                   # Substract area from the specific group
-
 <inst_path> show[:condition]            # show the instance from the area display
 <inst_path> hide[:condition]            # Hide the instance from the area display
 
@@ -38,4 +28,13 @@ r:[did]:<path>[:option]                 # Choose instance by the regular express
     - operation  : >, <, ==, >=, <=
     - value type : float
 - priority : show > hide > default
+
+=== Group Summation ========================================
+
+g:<gid>:<group_name>                    # Create a summation group (gid: group ID)
+
+=== Group Operation ========================================
+
+<inst_path> add:<gid>                   # Add area to the specific group
+<inst_path> sub:<gid>                   # Substract area from the specific group
 

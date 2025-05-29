@@ -6,14 +6,18 @@ wns_width: <size>                       # set WNS column width   (default: 12)
 tns_width: <size>                       # set TNS column width   (default: 12)
 nvp_width: <size>                       # set NVP column width   (default: 6)
 
+auto_resize_column_width: <bool>        # default: true
+
 === Path Choose (Violation Report) =========================    
 
 p:<type>:<group>:<path>:<rid>           # use regular expression to choose path
 
-- path : regular expression pattern for path specify
-- rid  : report ID (value: l-left, r-right, a-all) 
+- type  : violation type
+- group : regular expression pattern for group specify
+- path  : regular expression pattern for path specify
+- rid   : report ID (value: l-left, r-right, a-all)
 
-=== Path Operation =========================================
+=== Path Operation (Summary Report) ========================
 
 <inst_path> u:[condition]:<ugroup>      # move to user-defined group if condition match
 
@@ -22,22 +26,34 @@ p:<type>:<group>:<path>:<rid>           # use regular expression to choose path
     - operation  : >, <, ==, >=, <=
     - value type : float
 
+- ugroup : user group name
+
 === Group Choose (Summary Report) ==========================
 
 g:<type>:<group>:<rid>                  # use regular expression to choose group
                                             
+- type  : violation type
 - group : regular expression pattern for group specify
 - rid   : report ID (value: l-left, r-right, d-diff)
 
 === Group Operation (Summary Report) =======================
 
-<group> h:[condition]:<tag>             # highlight group (one-character tag)
-<group> m:[condition]:<message_tag>     # add group message
+<group> t:<tag>                         # add group tag
+<group> s:[condition]:<status>          # add group status (one-character tag)
+<group> m:[condition]:<message>         # add group comment message
 
 - condition format : <target><operation><value>
     - target     : wns, tns, nvp
     - operation  : >, <, ==, >=, <=
     - value type : float
+
+- status  : one-character tag at line start
+- message : message tag at line end
+
+=== Group classification (Summary Report) ==================
+
+<group> c:<class_tag>                   # classify group by user-defined tag 
+                                          base on the violation type
 
 === Define Message =========================================
 

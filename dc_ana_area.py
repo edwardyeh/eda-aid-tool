@@ -384,6 +384,382 @@ def parse_cfg_cmd(node: Node, cmd_list: list[str], scan_lv: float, lv_list: list
             parse_cfg_cmd(wrap.node, cmd_list, scan_lv, lv_list) 
 
 
+def show_hier_area():
+    """Show hierarchical area."""
+    global table_attr, design_db
+
+    ## create group table and remove hide node ##
+    virtual_top = design_db.virtual_top
+    vtotal = virtual_top.total_area
+    dslist = design_db.design_list
+    gtable = design_db.group_table
+    is_sub_sum = table_attr.is_sub_sum
+    area_fs = table_attr.area_fs
+    perc_fs = "{:6.1%}"
+    path_lv = 0
+
+    # for design in dslist:
+    #     for level in range((last_lv := len(design.level_list)-1), -1, -1):
+    #         for node in design.level_list[level]:
+    #             if node.gid_dict:
+    #                 if node.sub_bbox_area is None:
+    #                     sub_area_sum(node)
+    #                 for gid, sign in node.gid_dict.items():
+    #                     gtable[f'{gid}','total':'bbox'] += Array(
+    #                         [sign * node.total_area,
+    #                          sign * node.sub_comb_area,
+    #                          sign * node.sub_seq_area,
+    #                          sign * node.sub_bbox_area])
+    #             if node.is_hide or not node.is_show:
+    #                 if len(node.scans) == 0 and node.parent is not None:
+    #                     node.parent.scans.remove(node)
+    #                 else:
+    #                     node.is_show = False
+    #     if last_lv > path_lv:
+    #         path_lv = last_lv
+
+    # if table_attr.proc_mode == 'norm':
+    #     path_lv = virtual_top.max_lv
+
+    # lv_digi = len(str(path_lv))
+
+    # ## create area table ##
+
+    # design_db.area_table = (atable:=SimpleTable(design_db.ahead))
+
+    # is_multi = len(dslist) > 1
+    # is_virtual_en = is_multi and table_attr.trace_root != 'sub'
+
+    # if table_attr.is_show_level:
+    #     path_name = '({}) {}'.format('T'.rjust(lv_digi), virtual_top.top_node)
+    # else:
+    #     path_name = f'{virtual_top.top_node}'
+
+    # if is_virtual_en:
+    #     atable.add_row(None, '', [
+    #         'virtual_top',          # item
+    #         virtual_top.total_area, # total
+    #         virtual_top.comb_area,  # comb
+    #         virtual_top.seq_area,   # seq
+    #         virtual_top.bbox_area,  # bbox
+    #         0.0,                    # logic
+    #         0.0,                    # ptotal
+    #         0.0,                    # pbox
+    #         True,                   # sub_sum
+    #         False,                  # hide
+    #         None,                   # did
+    #         None,                   # rid
+    #         None,                   # level
+    #         '',                     # attr
+    #         path_name               # name
+    #     ])
+
+    #     last_did = -1
+    #     for did, design in enumerate(dslist):
+    #         if design.top_node.is_show or len(design.top_node.scans) > 0:
+    #             last_did = did
+
+    # for did, design in enumerate(dslist):
+    #     if table_attr.trace_root == 'sub':
+    #         root_list = design.root_list
+    #     else:
+    #         root_list = [design.top_node]
+
+    #     for rid, root_node in enumerate(root_list):
+    #         if not root_node.is_show and len(root_node.scans) == 0:
+    #             continue
+
+    #         scan_stack = [root_node]
+    #         sym_list = []
+    #         while len(scan_stack):
+    #             node = scan_stack.pop()
+    #             if table_attr.view_type == 'tree':
+    #                 try:
+    #                     if node is root_node:
+    #                         if is_virtual_en:
+    #                             if did == last_did:
+    #                                 sym = f"{ESYM}{did}:"
+    #                                 sym_list.append("  ")
+    #                             else:
+    #                                 sym = f"{ISYM}{did}:"
+    #                                 sym_list.append(BSYM)
+    #                         else:
+    #                             sym = ""
+    #                     elif scan_stack[-1].level < node.level:
+    #                         sym = "".join(sym_list+[ESYM])
+    #                         if len(node.scans):
+    #                             sym_list.append("  ")
+    #                         else:
+    #                             sym_lv = scan_stack[-1].level - node.level
+    #                             sym_list = sym_list[:sym_lv]
+    #                     else:
+    #                         for idx in range(len(scan_stack)-1, -1, -1):
+    #                             next_node = scan_stack[idx]
+    #                             if (next_node.level == node.level
+    #                                     and not next_node.is_hide):
+    #                                 sym = "".join(sym_list+[ISYM])
+    #                                 break
+    #                             elif next_node.level < node.level:
+    #                                 sym = "".join(sym_list+[ESYM])
+    #                                 break
+    #                         else:
+    #                             sym = "".join(sym_list+[ESYM])
+
+    #                         if len(node.scans):
+    #                             sym_list.append(BSYM)
+    #                 except Exception:
+    #                     sym = "".join(sym_list+[ESYM])
+    #                     if len(node.scans):
+    #                         sym_list.append("  ")
+
+    #                 if (table_attr.trace_root == 'sub'
+    #                         and node.sr_name is not None):
+    #                     path_name = "".join((sym, node.sr_name))
+    #                 elif node.inst_name is None:
+    #                     path_name = "".join((sym, node.bname))
+    #                 else:
+    #                     path_name = "".join((sym, node.inst_name))
+    #             elif table_attr.view_type == 'inst':
+    #                 if (table_attr.trace_root == 'sub'
+    #                         and node.sr_name is not None):
+    #                     path_name = node.sr_name
+    #                 elif node.tag_name is not None:
+    #                     path_name = node.tag_name
+    #                 else:
+    #                     if node.inst_name is not None:
+    #                         path_name = node.inst_name
+    #                     else:
+    #                         path_name = node.bname
+
+    #                     if is_multi:
+    #                         path_name = f"{did}:{path_name}"
+    #             else:
+    #                 if (table_attr.trace_root == 'sub'
+    #                         and node.sr_name is not None):
+    #                     path_name = node.sr_name
+    #                 elif node.tag_name is not None:
+    #                     path_name = node.tag_name
+    #                 else:
+    #                     bname = (node.bname if node.inst_name is None
+    #                                 else node.inst_name)
+    #                     path_name = (bname if node.level < 2
+    #                                     else f"{node.dname}/{bname}")
+    #                     if is_multi:
+    #                         if node.level > 0:
+    #                             path_name = f"{root_node.bname}/{path_name}"
+    #                         path_name = f"{did}:{path_name}"
+
+    #             if table_attr.is_show_level:
+    #                 if table_attr.trace_root == 'sub':
+    #                     level = node.level - root_node.level
+    #                 else:
+    #                     level = node.level
+    #                 path_name = '({}) {}'.format(str(level).rjust(lv_digi),
+    #                                              path_name)
+
+    #             if node.gid_dict:
+    #                 attr = "*"
+    #                 for gid, sign in node.gid_dict.items():
+    #                     sign = '+' if sign > 0 else '-'
+    #                     attr += f"{gid}{sign}"
+    #             else:
+    #                 attr = ""
+
+    #             if node.is_sub_sum:
+    #                 comb_area = node.sub_comb_area
+    #                 seq_area = node.sub_seq_area
+    #                 bbox_area = node.sub_bbox_area
+    #             else:
+    #                 comb_area = node.comb_area
+    #                 seq_area = node.seq_area
+    #                 bbox_area = node.bbox_area
+
+    #             atable.add_row(None, '', [
+    #                 ','.join([node.dname, node.bname]),     # item
+    #                 node.total_area,                        # total
+    #                 comb_area,                              # comb
+    #                 seq_area,                               # seq
+    #                 bbox_area,                              # bbox
+    #                 0.0,                                    # logic
+    #                 0.0,                                    # ptotal
+    #                 0.0,                                    # pbox
+    #                 node.is_sub_sum,                        # sub_sum
+    #                 not node.is_show,                       # hide
+    #                 did,                                    # did
+    #                 rid if node == root_node else None,     # rid
+    #                 node.level,                             # level
+    #                 attr,                                   # attr
+    #                 path_name                               # name
+    #             ])
+
+    #             if table_attr.is_reorder:
+    #                 scan_stack.extend(
+    #                     sorted(node.scans, key=lambda x:x.total_area))
+    #             else:
+    #                 scan_stack.extend(
+    #                     sorted(node.scans, key=lambda x:x.bname, reverse=True))
+
+    # root_total = 0.0
+    # for r in range(atable.max_row-1,-1,-1):
+    #     atable.attr[r,'total':'pbox'].align = [Align.TR] * 7
+    #     if atable[r,'hide']:
+    #         if table_attr.trace_root == 'leaf':
+    #             atable.del_row(r)
+    #         else:
+    #             value = " - " if atable[r,'sub_sum'] else "-"
+    #             atable[r,'ptotal':'pbox'] = [value] * 2
+    #             atable.attr[r,'ptotal':'pbox'].fs = ["{}"] * 2
+    #     else:
+    #         atable[r,'logic'] = atable[r,'comb'] + atable[r,'seq']
+    #         atable.attr[r,'ptotal':'pbox'].fs = [perc_fs] * 2
+
+    #         if table_attr.trace_root == 'sub':
+    #             if atable[r,'rid'] is not None:
+    #                 atable[r,'name'] = f"<{atable[r,'name']}>"
+    #                 root_total = atable[r,'total']
+    #             atable[r,'ptotal'] = atable[r,'total'] / root_total
+    #         else:
+    #             atable[r,'ptotal'] = atable[r,'total'] / vtotal
+
+    #         if (hier_area:=atable[r,'logic']+atable[r,'bbox']) > 0:
+    #             atable[r,'pbox'] = atable[r,'bbox'] / hier_area
+    #         else:
+    #             atable[r,'pbox'] = 0
+
+    # col_area_norm(atable, 'total', table_attr, is_hide_chk=True)
+    # for key in ('comb', 'seq', 'bbox', 'logic'):
+    #     col_area_norm(atable, key, table_attr, is_sub_sum=is_sub_sum,
+    #                   is_hide_chk=True)
+    # ## show area report ##
+
+    # unit = table_attr.unit
+
+    # area_t = virtual_top.total_area
+    # area_l = virtual_top.comb_area + virtual_top.seq_area
+    # area_b = virtual_top.bbox_area
+
+    # area_t2, fs = area_norm(area_t, table_attr)
+    # area_l2, *_ = area_norm(area_l, table_attr)
+    # area_b2, *_ = area_norm(area_b, table_attr)
+
+    # area_str_t = fs.format(area_t2)
+    # area_str_l = fs.format(area_l2).rjust(str_len:=len(area_str_t))
+    # area_str_b = fs.format(area_b2).rjust(str_len)
+
+    # print()
+    # print(f" Top Summary ".center(32, '='))
+    # print("  total: {} ({:>6.1%})".format(area_str_t, 1.0))
+    # print("  logic: {} ({:>6.1%})".format(area_str_l, area_l / area_t))
+    # print("   bbox: {} ({:>6.1%})".format(area_str_b, area_b / area_t))
+    # print("=" * 32)
+
+    # if table_attr.is_sub_sum:
+    #     print("\n() : Sub-tree Area Summation")
+
+    # print(f"\nratio: {str(table_attr.ratio)}  unit: {unit.info}\n")
+
+    # ### update group table ###
+
+    # if gtable.max_row > 0:
+    #     for r in range(gtable.max_row):
+    #         gtable[r,'sub_sum'] = True
+    #         gtable[r,'logic'] = gtable[r,'comb'] + gtable[r,'seq']
+
+    #         if table_attr.trace_root == 'sub' and sub_root_cnt > 1:
+    #             gtable[r,'ptotal'] = 'NA'
+    #             gtable.attr[r,'ptotal'].fs = '{}'
+    #         elif table_attr.trace_root == 'sub' and sub_root_cnt == 1:
+    #             gtable[r,'ptotal'] = gtable[r,'total'] / root_total
+    #         else:
+    #             gtable[r,'ptotal'] = gtable[r,'total'] / vtotal
+
+    #         if (hier_area:=gtable[r,'logic']+gtable[r,'bbox']) > 0:
+    #             gtable[r,'pbox'] = gtable[r,'bbox'] / hier_area
+    #         else:
+    #             gtable[r,'pbox'] = 0
+
+    #     col_area_norm(gtable, 'total', table_attr)
+    #     gtable.set_col_attr('total', align=Align.TR)
+    #     for key in ('comb', 'seq', 'bbox', 'logic'):
+    #         col_area_norm(gtable, key, table_attr, is_sub_sum=is_sub_sum)
+    #         gtable.set_col_attr(key, align=Align.TR)
+    #     for key in ('ptotal', 'pbox'):
+    #         gtable.set_col_attr(key, fs=perc_fs, align=Align.TR)
+
+    #     size = max([len(x) for x in gtable.index.id.keys()])
+    #     for key in gtable.index.id.keys():
+    #         gtable[key,'name'] = \
+    #             "{}: {}".format(key.rjust(size), gtable[key,'name'])
+
+    # ### sync column width ###
+
+    # if table_attr.view_type == 'path' and not table_attr.is_nosplit:
+    #     plen = table_attr.path_col_size
+    #     atable.set_col_attr('name', width=plen, is_sep=True)
+    # else:
+    #     plen = atable.get_col_width('name')
+    #     if plen < table_attr.path_col_size:
+    #         plen = table_attr.path_col_size
+    #         atable.set_col_attr('name', width=plen)
+
+    # if gtable.max_row > 0:
+    #     glen = gtable.get_col_width('name')
+    #     if glen > plen:
+    #         plen = glen
+    #         atable.set_col_attr('name', width=plen)
+    #     else:
+    #         gtable.set_col_attr('name', width=plen)
+
+    # for key in ('total', 'comb', 'seq', 'bbox', 'logic'):
+    #     plen = atable.get_col_width(key)
+    #     if plen < DEFAULT_AREA_COL_SIZE:
+    #         atable.set_col_attr(key, width=(plen:=DEFAULT_AREA_COL_SIZE))
+    #     if gtable.max_row > 0:
+    #         glen = gtable.get_col_width(key)
+    #         if glen > plen:
+    #             plen = glen
+    #             atable.set_col_attr(key, width=plen)
+    #         else:
+    #             gtable.set_col_attr(key, width=plen)
+
+    # ### print table ###
+
+    # hlist = ['name', 'total', 'ptotal']
+    # if not table_attr.is_brief:
+    #     hlist += ['comb', 'seq'] if table_attr.is_logic_sep else ['logic']
+    #     hlist += ['bbox', 'pbox']
+    # hlist += ['attr']
+
+    # atable.set_head_attr(border=Border(left=False,right=False))
+    # for r in range(ed:=atable.max_row-1):
+    #     atable.set_row_attr(r, border=Border(left=False,right=False))
+    # if gtable.max_row > 0:
+    #     atable.set_row_attr(ed, border=Border(left=False,right=False,
+    #                                           bottom=False))
+    # else:
+    #     atable.set_row_attr(ed, border=Border(left=False,right=False))
+
+    # atable.header['attr'].border = Border(top=False,bottom=False,
+    #                                       left=False, right=False)
+    # for r in (0, atable.max_row-1):
+    #     atable.attr[r,'attr'].border = Border(top=False,bottom=False,
+    #                                           left=False,right=False)
+    # atable.header['attr'].title = ""
+    # atable.print(column=hlist)
+
+    # if gtable.max_row > 0:
+    #     gtable.set_head_attr(border=Border(left=False,right=False))
+    #     for r in range(ed:=gtable.max_row-1):
+    #         gtable.set_row_attr(r, border=Border(left=False,right=False))
+    #     gtable.set_row_attr(ed, border=Border(left=False,right=False,
+    #                                           bottom=False))
+    #     gtable.print(column=hlist[:-1])
+    # else:
+    #     print()
+
+
+
+
 ##############################################################################
 ### Main Process
 
@@ -514,7 +890,7 @@ def main():
 
     ### Main process ###
     
-    design_db.vtop = (vtop:=Design(top_node=args.vtop_name))
+    design_db.vtop = (virtual_top:=Design(top_node=args.vtop_name))
     design_db.design_list = (design_list:=load_area())
 
     if args.proc_mode == 'adv':
@@ -523,17 +899,16 @@ def main():
     # if len(design_list) > 1 and table_attr.trace_root != 'sub':
     #     table_attr.is_sub_sum = True    # for virtual top display
 
-    # for design in design_list:
-    #     virtual_top.total_area += design.total_area
-    #     virtual_top.comb_area += design.comb_area
-    #     virtual_top.seq_area += design.seq_area
-    #     virtual_top.bbox_area += design.bbox_area
+    for design in design_list:
+        virtual_top.total_area += design.total_area
+        virtual_top.comb_area += design.comb_area
+        virtual_top.seq_area += design.seq_area
+        virtual_top.bbox_area += design.bbox_area
+        if design.max_lv >= virtual_top.max_lv:
+            virtual_top.max_lv = design.max_lv
 
-    #     if design.max_lv >= virtual_top.max_lv:
-    #         virtual_top.max_lv = design.max_lv
-
-    # if table_attr.proc_mode == 'norm' or table_attr.proc_mode == 'adv':
-    #     show_hier_area(design_db, table_attr)
+    if args.proc_mode == 'norm' or args.proc_mode == 'adv':
+        show_hier_area()
     # elif table_attr.proc_mode == 'bbox':
     #     show_bbox_area(design_db, table_attr)
 
