@@ -1,61 +1,61 @@
 
-=== Attribute ==============================================
+### Atrribute ##################################################################
 
-group_column_width: <size>              # set group column width (default: 48)
-wns_width: <size>                       # set WNS column width   (default: 12)
-tns_width: <size>                       # set TNS column width   (default: 12)
-nvp_width: <size>                       # set NVP column width   (default: 6)
+grp_width: <int>                        # Column width of group (default: 48)
+wns_width: <int>                        # Column width of WNS   (default: 12) 
+tns_width: <int>                        # Column width of TNS   (default: 12)
+nvp_width: <int>                        # Column width of NVP   (default:  6)
 
-auto_resize_column_width: <bool>        # default: true
+PS. "grp_width" will auto resizing if the attribute undefined. 
 
-=== Path Choose (Violation Report) =========================    
+clean_sign_enable: <true|false>         # Enable clean signature (default: false, for compare mode)
+clean_sign:        <string>             # Define clean signature (default: ***)
 
-p:<type>:<group>:<path>:<rid>           # use regular expression to choose path
+### Path Choose from the Violation Report ######################################
 
-- type  : violation type
-- group : regular expression pattern for group specify
-- path  : regular expression pattern for path specify
-- rid   : report ID (value: l-left, r-right, a-all)
+p:<type>:<group>:<path>                 # Use the regular expression to choose paths
 
-=== Path Operation (Summary Report) ========================
+    type        Violation type
+    group       Violation group
+    path        Regular expression for path specify
 
-<inst_path> u:[condition]:<ugroup>      # move to user-defined group if condition match
+### Path Operation #############################################################
 
-- condition format : <target><operation><value>
-    - target     : act, slk
-    - operation  : >, <, ==, >=, <=
-    - value type : float
+<path> u:[condition]:<ugroup>           # Move the path to the user-defined group if the condition match
 
-- ugroup : user group name
+    condition   format: <target><operation><value>
+                    target:    req/act/slk          # required/actual/slack     
+                    operation: [>, <, ==, >=, <=]
+                    value:     <float>
+    ugroup      Name of the user-defined group
 
-=== Group Choose (Summary Report) ==========================
+    PS: Always match if the condition undefined.
 
-g:<type>:<group>:<rid>                  # use regular expression to choose group
-                                            
-- type  : violation type
-- group : regular expression pattern for group specify
-- rid   : report ID (value: l-left, r-right, d-diff)
+### Group Choose from the Summary Report #######################################
 
-=== Group Operation (Summary Report) =======================
+g:<type>:<group>                        # Use the regular expression to choose groups
 
-<group> t:<tag>                         # add group tag
-<group> s:[condition]:<status>          # add group status (one-character tag)
-<group> m:[condition]:<message>         # add group comment message
+    type        Violation type
+    group       Regular expression for group specify
 
-- condition format : <target><operation><value>
-    - target     : wns, tns, nvp
-    - operation  : >, <, ==, >=, <=
-    - value type : float
+### Group Opteraion ############################################################
 
-- status  : one-character tag at line start
-- message : message tag at line end
+<group> t:[condition]:<tag>             # Add a group tag
+<group> s:[condition]:<status>          # Add a group status (one-char tag)
+<group> m:[condition]:<identifier>      # Import a group comment by the identifier
+<group> c:[condition]:<class_title>     # Classify groups by the user-defined title
 
-=== Group classification (Summary Report) ==================
+    condition   format: <target><operation><value>
+                      target:    wns/tns/nvp     
+                      operation: [>, <, ==, >=, <=]
+                      value:     <float>
+    status      One-char tag at line start
+    message     Comment at line end
 
-<group> c:<class_tag>                   # classify group by user-defined tag 
-                                          base on the violation type
+    PS: 1. The condition only supports the single mode or the new report in the compare mode.
+        2. Always match if the condition undefined.
 
-=== Define Message =========================================
+### Message Define #############################################################
 
-mtag:<message_tag>: <message>
+m:<identifier>:<content>
 
