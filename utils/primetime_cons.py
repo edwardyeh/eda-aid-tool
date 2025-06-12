@@ -69,6 +69,34 @@ class _ConsGroupOp:
         self.cmd = [(0, 't'), (0, 's'), (0, 'm'), (0, 'c')]
 
 
+class PTT(IntEnum):  # PathTableTitle
+    PIN, SC, REQ, ACT, SLK, ORGP = range(6)
+
+
+class GTT(IntEnum):  # GroupTableTitle
+    MAK, GRP, TAG = range( 0,  3)
+    LW, LT, LN    = range( 3,  6)
+    RW, RT, RN    = range( 6,  9)
+    DW, DT, DN    = range( 9, 12)
+
+
+@dataclass (slots=False)
+class GroupTable:
+    name:   str
+    user:   bool
+    modify: list[bool]
+    ptable: list[list]
+    sum:    list[Any] = field(init=False)
+    def __post_init__(self):
+        if len(self.modify) == 2:
+            self.sum = ['', self.name, ''] + [0.0] * 9 + ['']
+        else:
+            self.sum = ['', self.name, ''] + [0.0] * 3 + ['']
+    def update_diff(self):
+        for l, r, d in zip(*[range(3, 6), range(6, 9), range(9, 12)]):
+            self.sum[d] = self.sum[l] - self.sum[r]
+
+
 def _parse_path_cmd(no: int, cmd: str) -> tuple[Any, ...]:
     """
     Parsing config commands (path).
@@ -114,10 +142,10 @@ def _load_cons_cfg(cfg_fp : str) -> dict:
         The config dictionary base on the config data structure.
     """
     attr = {
-        "grp_width": ("grp_w", [48, 999]),  # min/max
-        "wns_width": ("wns_w", [12, 12]),
-        "tns_width": ("tns_w", [12, 12]),
-        "nvp_width": ("nvp_w", [6, 6]),
+        "grp_width": ("grp_w", [48, False]),  # size/is_user_defined?
+        "wns_width": ("wns_w", [12, False]),
+        "tns_width": ("tns_w", [12, False]),
+        "nvp_width": ("nvp_w", [ 6, False]),
         "clean_sign_enable": ("clr_en", False),
         "clean_sign": ("clr_sign", "***"),
     }
@@ -142,7 +170,7 @@ def _load_cons_cfg(cfg_fp : str) -> dict:
                     if key in attr:
                         key = attr[key][0]  # update key to real index
                         if key in {"grp_w", "wns_w", "tns_w", "nvp_w"}:
-                            cons_cfg[key] = [int(value)] * 2
+                            cons_cfg[key] = [int(value), True]
                         elif key == "clr_en":
                             cons_cfg[key] = bool_map[value.lower()]
                         elif key == "clr_sign":
@@ -213,34 +241,6 @@ def _print_cons_cfg(cons_cfg: dict, end: bool=False):
     if end:
         exit(1)
     import pdb; pdb.set_trace()
-
-
-class PTT(IntEnum):  # PathTableTitle
-    PIN, SC, REQ, ACT, SLK, ORGP = range(6)
-
-
-class GTT(IntEnum):  # GroupTableTitle
-    MAK, GRP = range(0, 2)
-    LW, LT, LN = range(2, 5)
-    RW, RT, RN = range(5, 8)
-    DW, DT, DN = range(8, 11)
-
-
-@dataclass (slots=False)
-class GroupTable:
-    name:   str
-    user:   bool
-    modify: list[bool]
-    ptable: list[list]
-    sum:    list[Any] = field(init=False)
-    def __post_init__(self):
-        if len(self.modify) == 2:
-            self.sum = ['', self.name] + [0.0] * 9 + ['']
-        else:
-            self.sum = ['', self.name] + [0.0] * 3 + ['']
-    def update_diff(self):
-        for l, r, d in zip(*[range(2, 5), range(5, 8), range(8, 11)]):
-            self.sum[d] = self.sum[l] - self.sum[r]
 
 
 def _print_cons_table(table: dict):
@@ -465,7 +465,12 @@ class ConsReport:
     def _group_cfg_check(self, gt, wns_id, cfg):
         wns, tns, nvp = range(wns_id, wns_id+3)
         for ln, *cmd in cfg:
-            if ln and cmd[0] == 'h':
+            if ln and cmd[0] == 't':
+                if len(cmd) == 2:
+                    gt.sum[GTT.TAG] = f"({cmd[-1]})"
+                elif CMP_OP[cmd[2]](gt.sum[locals()[cmd[1]]], cmd[3]):
+                    gt.sum[GTT.TAG] = f"({cmd[-1]})"
+            elif ln and cmd[0] == 's':
                 if len(cmd) == 2:
                     gt.sum[GTT.MAK] = cmd[-1]
                 elif CMP_OP[cmd[2]](gt.sum[locals()[cmd[1]]], cmd[3]):
@@ -478,10 +483,33 @@ class ConsReport:
 
     def print_summary(self):
         """Print summary for single report."""
+        # import pdb; pdb.set_trace()
+        max_grp_w, max_nvp_w, tag_w = [0] * 3 
+        for vtable in self.cons_table.values():
+            for gtable in vtable.values():
+                if (new_len := len(gtable.sum[GTT.GRP])) > max_grp_w:
+                    max_grp_w = new_len
+                if (new_len := len(str(int(gtable.sum[GTT.LN])))) > max_grp_w:
+                    max_grp_w = new_len
+                if (new_len := len(gtable.sum[GTT.TAG])) > tag_w:
+                    tag_w = new_len
+
         grp_w = self.grp_w[0]
+        if not self.grp_w[1] and max_grp_w > grp_w:
+            grp_w = max_grp_w
         wns_w = self.wns_w[0]
         tns_w = self.tns_w[0]
         nvp_w = self.nvp_w[0]
+        if not self.nvp_w[1] and max_nvp_w > nvp_w:
+            nvp_w = max_nvp_w
+
+        if tag_w == 0:
+            grp_w2 = grp_w
+        elif (grp_w - tag_w - 2) >= max_grp_w:
+            grp_w2 = grp_w - tag_w
+        else:
+            grp_w2 = grp_w + 2
+            grp_w += tag_w + 2
 
         head  = f"   {'Group'.ljust(grp_w)}"
         head += f"   {'WNS'.ljust(wns_w)}"
@@ -491,7 +519,7 @@ class ConsReport:
         div_len = grp_w + wns_w + tns_w + nvp_w + 9
         div = "   " + "=" * div_len
 
-        data_fs  = f"{{:3}}{{:{grp_w}}}   "
+        data_fs  = f"{{:3}}{{:{grp_w2}}}{{:{tag_w}}}   "
         data_fs += f"{{:< {wns_w}.4f}}   "
         data_fs += f"{{:< {tns_w}.4f}}   "
         data_fs += f"{{:<{nvp_w}.0f}}  {{}}"
@@ -507,18 +535,52 @@ class ConsReport:
                     ugt.append(gt)
                 else:
                     msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
-                    print(data_fs.format(*gt.sum[GTT.MAK:GTT.LN+1], msg))
+                    print(data_fs.format(
+                        *gt.sum[GTT.MAK:GTT.TAG+1], 
+                        *gt.sum[GTT.LW:GTT.LN+1], 
+                        msg
+                    ))
             for gt in ugt:
                     msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
-                    print(data_fs.format(*gt.sum[GTT.MAK:GTT.LN+1], msg))
+                    print(data_fs.format(
+                        *gt.sum[GTT.MAK:GTT.TAG+1], 
+                        *gt.sum[GTT.LW:GTT.LN+1], 
+                        msg
+                    ))
             print()
 
     def print_summary_multi(self):
         """Print summary for multi reports."""
+        max_grp_w, max_nvp_w, tag_w = [0] * 3 
+        for vtable in self.cons_table.values():
+            for gtable in vtable.values():
+                if (new_len := len(gtable.sum[GTT.GRP])) > max_grp_w:
+                    max_grp_w = new_len
+                if (new_len := len(str(int(gtable.sum[GTT.LN])))) > max_grp_w:
+                    max_grp_w = new_len
+                if (new_len := len(str(int(gtable.sum[GTT.RN])))) > max_grp_w:
+                    max_grp_w = new_len
+                if (new_len := len(str(int(gtable.sum[GTT.DN])))) > max_grp_w:
+                    max_grp_w = new_len
+                if (new_len := len(gtable.sum[GTT.TAG])) > tag_w:
+                    tag_w = new_len
+
         grp_w = self.grp_w[0]
+        if not self.grp_w[1] and max_grp_w > grp_w:
+            grp_w = max_grp_w
         wns_w = self.wns_w[0]
         tns_w = self.tns_w[0]
         nvp_w = self.nvp_w[0]
+        if not self.nvp_w[1] and max_nvp_w > nvp_w:
+            nvp_w = max_nvp_w
+
+        if tag_w == 0:
+            grp_w2 = grp_w
+        elif (grp_w - tag_w - 2) >= max_grp_w:
+            grp_w2 = grp_w - tag_w
+        else:
+            grp_w2 = grp_w + 2
+            grp_w += tag_w + 2
 
         shead_f = lambda x: "=+={}== {}==={}".format("".ljust(wns_w, '='),
                                                       x.ljust(tns_w, '='),
@@ -540,7 +602,8 @@ class ConsReport:
         data_fs  = f" | {{:< {wns_w}.4f}}"
         data_fs += f"   {{:< {tns_w}.4f}}"
         data_fs += f"   {{:<{nvp_w}.0f}}"
-        data_fs  = f"{{:3}}{{:{grp_w}}}" + data_fs * 2 \
+        data_fs  = f"{{:3}}{{:{grp_w2}}}{{:{tag_w}}}" \
+                   + data_fs * 2 \
                    + f" | {{:< {wns_w}.4f}}" \
                    + f"   {{:< {tns_w}.4f}}" \
                    + f"   {{:<+{nvp_w}.0f}} | {{}}"
@@ -558,10 +621,18 @@ class ConsReport:
                     ugt.append(gt)
                 else:
                     msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
-                    print(data_fs.format(*gt.sum[GTT.MAK:GTT.DN+1], msg))
+                    print(data_fs.format(
+                        *gt.sum[GTT.MAK:GTT.TAG+1], 
+                        *gt.sum[GTT.LW:GTT.DN+1], 
+                        msg
+                    ))
             for gt in ugt:
                     msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
-                    print(data_fs.format(*gt.sum[GTT.MAK:GTT.DN+1], msg))
+                    print(data_fs.format(
+                        *gt.sum[GTT.MAK:GTT.TAG+1], 
+                        *gt.sum[GTT.LW:GTT.DN+1], 
+                        msg
+                    ))
             print()
 
 
