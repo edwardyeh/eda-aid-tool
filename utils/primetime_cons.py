@@ -533,7 +533,7 @@ class ConsReport:
                 if vtype in NOGRP_CONS and len(vtable) == 1:
                     gt.sum[GTT.GRP] = vtype
 
-                if gt.sum(GTT.LN) == 0:
+                if gt.sum[GTT.LN] == 0:
                     pass
                 elif gt.user:
                     ugt.append(gt)
