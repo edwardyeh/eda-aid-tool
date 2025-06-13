@@ -38,7 +38,7 @@ for i in ('u'):
     _PATH_OP.update((f"{i}:req", f"{i}:act", f"{i}:slk"))
 
 _GROUP_OP = set()
-for i in ('h', 'm'):
+for i in ('t', 's', 'm', 'c'):
     _GROUP_OP.update((f"{i}:wns", f"{i}:tns", f"{i}:nvp"))
 
 CMP_OP = { '>' : lambda a, b: a > b,
@@ -104,7 +104,7 @@ def _parse_path_cmd(no: int, cmd: str) -> tuple[Any, ...]:
     if cmd[1:3] == "::":
         return no, cmd[0], cmd[3:]
     if cmd[:2] in ("u:", ):
-        m = re.fullmatch(r"(\w:\w{3})([><=]{1,2})([\-\d\.]+):(\w+)", cmd)
+        m = re.fullmatch(r"(\w:\w{3})([><=]{1,2})([\-\d\.]+):(\S+)", cmd)
         if m[1] not in _PATH_OP:
             raise SyntaxError(f"Error: config syntax error (ln:{no})")
         return no, m[1][0], m[1][2:], m[2], float(m[3]), m[4]
@@ -119,7 +119,7 @@ def _parse_group_cmd(no: int, cmd: str) -> tuple[Any, ...]:
     if cmd[1:3] == "::":
         return no, cmd[0], cmd[3:]
     if cmd[:2] in ("t:", "s:", "m:", "c:"):
-        m = re.fullmatch(r"(\w:\w{3})([><=]{1,2})([\-\d\.]+):(\w+)", cmd)
+        m = re.fullmatch(r"(\w:\w{3})([><=]{1,2})([\-\d\.]+):(\S+)", cmd)
         if m[1] not in _GROUP_OP:
             raise SyntaxError(f"Error: config syntax error (ln:{no})")
         return no, m[1][0], m[1][2:], m[2], float(m[3]), m[4]
@@ -528,10 +528,14 @@ class ConsReport:
             print("====== {}".format(vtype))
             print(head, div, sep='\n')
             ugt = []
+
             for gt in vtable.values():
                 if vtype in NOGRP_CONS and len(vtable) == 1:
                     gt.sum[GTT.GRP] = vtype
-                if gt.user:
+
+                if gt.sum(GTT.LN) == 0:
+                    pass
+                elif gt.user:
                     ugt.append(gt)
                 else:
                     msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
@@ -540,6 +544,7 @@ class ConsReport:
                         *gt.sum[GTT.LW:GTT.LN+1], 
                         msg
                     ))
+
             for gt in ugt:
                     msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
                     print(data_fs.format(
@@ -547,6 +552,7 @@ class ConsReport:
                         *gt.sum[GTT.LW:GTT.LN+1], 
                         msg
                     ))
+
             print()
 
     def print_summary_multi(self):
@@ -611,13 +617,15 @@ class ConsReport:
         for vtype, vtable in self.cons_table.items():
             print("====== {}".format(vtype))
             print(shead, head, div, sep='\n')
-            # print(head)
-            # print(div)
             ugt = []
+
             for gt in vtable.values():
                 if vtype in NOGRP_CONS and len(vtable) == 1:
                     gt.sum[GTT.GRP] = vtype
-                if gt.user:
+
+                if gt.sum[GTT.LN] == 0 and gt.sum[GTT.RN] == 0:
+                    pass
+                elif gt.user:
                     ugt.append(gt)
                 else:
                     msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
@@ -626,6 +634,7 @@ class ConsReport:
                         *gt.sum[GTT.LW:GTT.DN+1], 
                         msg
                     ))
+
             for gt in ugt:
                     msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
                     print(data_fs.format(
@@ -633,6 +642,7 @@ class ConsReport:
                         *gt.sum[GTT.LW:GTT.DN+1], 
                         msg
                     ))
+
             print()
 
 
