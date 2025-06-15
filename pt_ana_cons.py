@@ -58,11 +58,11 @@ def main():
                 args.cfg_fp = path_cfg
 
     if args.rpt_fp2 is None:
-        rpt_fps = [args.rpt_fp]
+        rpt_fps, is_multi = [args.rpt_fp], False
     else:
-        rpt_fps = [args.rpt_fp, args.rpt_fp2]
+        rpt_fps, is_multi = [args.rpt_fp, args.rpt_fp2], True
 
-    report = ConsReport(args.cfg_fp)
+    report = ConsReport(args.cfg_fp, is_multi)
     # t1 = time.perf_counter()
     report.parse_report(rpt_fps)
     # t2 = time.perf_counter()

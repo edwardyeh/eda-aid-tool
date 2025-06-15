@@ -46,14 +46,33 @@ g:<type>:<group>                        # Use the regular expression to choose g
 <group> c:[condition]:<class_title>     # Classify groups by the user-defined title
 
     condition   format: <target><operation><value>
-                      target:    wns/tns/nvp     
-                      operation: [>, <, ==, >=, <=]
-                      value:     <float>
+                    target:    wns/tns/nvp     
+                    operation: [>, <, ==, >=, <=]
+                    value:     <float>
     status      One-char tag at line start
     message     Comment at line end
 
     PS: 1. The condition only supports the single mode or the new report in the compare mode.
         2. Always match if the condition undefined.
+
+<group> r:<pat>:<repl>                  # Replace the group name by the regular expression
+
+    pat         Regular expression match pattern
+    rep         Regular expression replace pattern
+
+### Group Sorting ##############################################################
+
+v:<type>:<rid>:<target>:<order>
+
+    type        violation type  (set 'default' for the default rule)
+
+
+
+    rid         report select   
+                    single mode: [s]
+                    multi mode:  [l, r, d]  # l:left, r:right, d:difference
+    target      wns/tns/nvp
+    order       inc/dec         (increase/decrease)
 
 ### Message Define #############################################################
 

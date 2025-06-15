@@ -47,8 +47,8 @@ CMP_OP = { '>' : lambda a, b: a > b,
            '>=': lambda a, b: a >= b,
            '<=': lambda a, b: a <= b }
 
-PU, *_ = range(1)               # path op enum
-GT, GS, GM, GC, *_ = range(4)   # group op enum
+PU, *_ = range(1)                  # path op enum
+GT, GS, GM, GC, GR, *_ = range(5)  # group op enum
 
 
 @dataclass (slots=False)
@@ -66,7 +66,7 @@ class _ConsGroupOp:
     cmd: list[Any] = field(init=False)
     def __post_init__(self):
         ### cmd: (fno, opteration)
-        self.cmd = [(0, 't'), (0, 's'), (0, 'm'), (0, 'c')]
+        self.cmd = [(0, 't'), (0, 's'), (0, 'm'), (0, 'c'), (0, 'r')]
 
 
 class PTT(IntEnum):  # PathTableTitle
@@ -127,14 +127,14 @@ def _parse_group_cmd(no: int, cmd: str) -> tuple[Any, ...]:
     raise SyntaxError(f"Error: config syntax error (ln:{no})")
 
 
-def _load_cons_cfg(cfg_fp : str) -> dict:
+def _load_cons_cfg(cfg_fp: str, is_multi: bool) -> dict:
     """
     Load configurations from the file to database.
 
     Parameters
     ----------
     cfg_fp : str
-        configuration file path
+        Configuration file path
 
     Returns
     -------
@@ -156,7 +156,8 @@ def _load_cons_cfg(cfg_fp : str) -> dict:
     }
 
     cons_cfg = dict(attr.values())
-    cons_cfg.update({ 'p': {}, 'g': {}, 'm': {} })  # path/group/message
+    # path/group/message/violation
+    cons_cfg.update({ 'p': {}, 'g': {}, 'm': {}, 'v': {} })  
     if cfg_fp is None:
         return cons_cfg
 
@@ -203,6 +204,9 @@ def _load_cons_cfg(cfg_fp : str) -> dict:
                                 gobj.cmd[GM] = _parse_group_cmd(fno, cmd)
                             elif cmd[:1] == 'c':
                                 gobj.cmd[GC] = _parse_group_cmd(fno, cmd)
+                            elif cmd[:1] == 'r':
+                                ctype, pat, rep, *_ = cmd.split(':')
+                                gobj.cmd[GR] = (fno, ctype, re.compile(pat), rep)
                             else:
                                 raise SyntaxError(
                                     f"[ATTR] Unknown group command ({cmd}).")
@@ -210,6 +214,48 @@ def _load_cons_cfg(cfg_fp : str) -> dict:
                     elif key == 'm':
                         msg = other[0].strip(" \"\'")
                         cons_cfg['m'][value] = msg
+
+                    elif key == 'v':
+                        vtype, rid, target, order = value, *other
+
+                        if is_multi and rid == 's':
+                            continue
+                        elif not is_multi and rid != 's':
+                            continue
+
+                        if rid == 'l' or rid == 's':
+                            gid = GTT.LW
+                        elif rid == 'r':
+                            gid = GTT.RW
+                        elif rid == 'd':
+                            gid = GTT.DW
+                        else:
+                            raise SyntaxError(
+                                f"[ATTR] Unknown class command.\n" +
+                                f"       [NO]  : {fno}\n" +
+                                f"       [CMD] : {line}")
+
+                        if target == 'wns':
+                            gid += 0
+                        elif target == 'tns':
+                            gid += 1
+                        elif target == 'nvp':
+                            gid += 2
+                        else:
+                            raise SyntaxError(
+                                f"[ATTR] Unknown class command.\n" +
+                                f"       [NO]  : {fno}\n" +
+                                f"       [CMD] : {line}")
+
+                        if order == 'inc':
+                            cons_cfg['v'][vtype] = (gid, 0)
+                        elif order == 'dec':
+                            cons_cfg['v'][vtype] = (gid, 1)
+                        else:
+                            raise SyntaxError(
+                                f"[ATTR] Unknown class command.\n" +
+                                f"       [NO]  : {fno}\n" +
+                                f"       [CMD] : {line}")
 
                     elif key != '':
                         print(f"[WARNING] unknown operation '{key}', ignore. " + 
@@ -290,14 +336,14 @@ class ConsReport:
     #            ('dwns', 'D-WNS'), ('dtns', 'D-TNS'), ('dnvp', 'D-NVP'),
     #            ('comm', ''))
 
-    def __init__(self, cfg_fp: [None|str]=None):
+    def __init__(self, cfg_fp: [None|str]=None, is_multi: bool=False):
         """
         Parameters
         ----------
         cfg_fp : {None, str}, optional
             Configuration file path, default is None.
         """
-        cons_cfg = _load_cons_cfg(cfg_fp)
+        cons_cfg = _load_cons_cfg(cfg_fp, is_multi)
         # _print_cons_cfg(cons_cfg, True)    # debug
         ### Attributes
         self.grp_w = cons_cfg["grp_w"]
@@ -309,10 +355,11 @@ class ConsReport:
         self.cfg_path = cons_cfg['p']
         self.cfg_grp = cons_cfg['g']
         self.cfg_msg = cons_cfg['m']
+        self.cfg_sort = cons_cfg['v']
         ### Data
-        self.is_multi = False
+        self.is_multi = is_multi
         self.cons_table = defaultdict(dict) 
-        self.sum_tables = {}
+        self.sum_table = {}
         ### Plot
         # self.plot_grp = plot_grp
         # self.plot_data = []
@@ -327,7 +374,6 @@ class ConsReport:
             A list of the file path of constraint reports. (max number: 2)
         """
         MODE, TYPE, HEAD, VIO_CASE1, VIO_CASE2 = range(5)
-        self.is_multi = len(rpt_fps[:2]) > 1
         state = MODE
 
         # Parsing violation paths
@@ -439,12 +485,16 @@ class ConsReport:
 
         # Update the violation summary
         for vtype, vtable in self.cons_table.items():
-            for gname, gt in vtable.items():
+            self.sum_table[vtype] = defaultdict(list)
+            self.sum_table[vtype]["default"] = []
+            for gname, gtable in vtable.items():
+                gclass = "default"
                 if self.is_multi:
-                    gt.update_diff()
+                    gtable.update_diff()
                 for cfg in self.cfg_grp.get(vtype, []):
                     if cfg.re.fullmatch(gname):
-                        self._group_cfg_check(gt, GTT.LW, cfg.cmd)
+                        gclass = self._group_cfg_check(gtable, GTT.LW, cfg.cmd)
+                self.sum_table[vtype][gclass].append(gtable)
 
         # For debug
         # _print_cons_table(self.cons_table)
@@ -462,28 +512,43 @@ class ConsReport:
                             ugroup = cmd[4]
         return ugroup
 
-    def _group_cfg_check(self, gt, wns_id, cfg):
+    def _group_cfg_check(self, gtable, wns_id, cfg):
         wns, tns, nvp = range(wns_id, wns_id+3)
+        gclass = "default"
         for ln, *cmd in cfg:
             if ln and cmd[0] == 't':
                 if len(cmd) == 2:
-                    gt.sum[GTT.TAG] = f"({cmd[-1]})"
-                elif CMP_OP[cmd[2]](gt.sum[locals()[cmd[1]]], cmd[3]):
-                    gt.sum[GTT.TAG] = f"({cmd[-1]})"
+                    gtable.sum[GTT.TAG] = f"({cmd[-1]})"
+                elif CMP_OP[cmd[2]](gtable.sum[locals()[cmd[1]]], cmd[3]):
+                    gtable.sum[GTT.TAG] = f"({cmd[-1]})"
             elif ln and cmd[0] == 's':
                 if len(cmd) == 2:
-                    gt.sum[GTT.MAK] = cmd[-1]
-                elif CMP_OP[cmd[2]](gt.sum[locals()[cmd[1]]], cmd[3]):
-                    gt.sum[GTT.MAK] = cmd[-1]
+                    gtable.sum[GTT.MAK] = cmd[-1]
+                elif CMP_OP[cmd[2]](gtable.sum[locals()[cmd[1]]], cmd[3]):
+                    gtable.sum[GTT.MAK] = cmd[-1]
             elif ln and cmd[0] == 'm':
                 if len(cmd) == 2:
-                    gt.sum[-1] = f"{self.cfg_msg[cmd[-1]]},"
-                elif CMP_OP[cmd[2]](gt.sum[locals()[cmd[1]]], cmd[3]):
-                    gt.sum[-1] = f"{self.cfg_msg[cmd[-1]]},"
+                    gtable.sum[-1] = f"{self.cfg_msg[cmd[-1]]},"
+                elif CMP_OP[cmd[2]](gtable.sum[locals()[cmd[1]]], cmd[3]):
+                    gtable.sum[-1] = f"{self.cfg_msg[cmd[-1]]},"
+            elif ln and cmd[0] == 'c':
+                if len(cmd) == 2:
+                    gclass = cmd[-1]
+                elif CMP_OP[cmd[2]](gtable.sum[locals()[cmd[1]]], cmd[3]):
+                    gclass = cmd[-1]
+            elif ln and cmd[0] == 'r':
+                try:
+                    gtable.sum[GTT.GRP] = cmd[1].sub(cmd[2], gtable.sum[GTT.GRP])
+                except Exception as e:
+                    print("Error: Group config check error.\n" +
+                          "  config ln: {}\n".format(ln) +
+                          "  command:   {}\n".format(cmd))
+                    raise e
+        return gclass
+
 
     def print_summary(self):
         """Print summary for single report."""
-        # import pdb; pdb.set_trace()
         max_grp_w, max_nvp_w, tag_w = [0] * 3 
         for vtable in self.cons_table.values():
             for gtable in vtable.values():
@@ -524,35 +589,59 @@ class ConsReport:
         data_fs += f"{{:< {tns_w}.4f}}   "
         data_fs += f"{{:<{nvp_w}.0f}}  {{}}"
 
-        for vtype, vtable in self.cons_table.items():
+        class_fs = f"   {{:-<{grp_w}}}"
+
+        for vtype, ctable in self.sum_table.items():
             print("====== {}".format(vtype))
             print(head, div, sep='\n')
             ugt = []
 
-            for gt in vtable.values():
-                if vtype in NOGRP_CONS and len(vtable) == 1:
-                    gt.sum[GTT.GRP] = vtype
+            clist = list(ctable.items())
+            for cname, vlist in clist[1:] + clist[:1]:
+                if len(vlist) == 0:
+                    continue
 
-                if gt.sum[GTT.LN] == 0:
+                if cname == "default" and len(clist) == 1:
                     pass
-                elif gt.user:
-                    ugt.append(gt)
+                elif cname == "default":
+                    print(class_fs.format(f"------ other "))
                 else:
-                    msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
-                    print(data_fs.format(
-                        *gt.sum[GTT.MAK:GTT.TAG+1], 
-                        *gt.sum[GTT.LW:GTT.LN+1], 
-                        msg
-                    ))
+                    print(class_fs.format(f"------ {cname} "))
 
-            for gt in ugt:
-                    msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
-                    print(data_fs.format(
-                        *gt.sum[GTT.MAK:GTT.TAG+1], 
-                        *gt.sum[GTT.LW:GTT.LN+1], 
-                        msg
-                    ))
+                if vtype in self.cfg_sort:
+                    sort_type, sort_order = self.cfg_sort[vtype]
+                elif 'default' in self.cfg_sort:
+                    sort_type, sort_order = self.cfg_sort['default']
+                else:
+                    sort_type, sort_order = None, None
 
+                if sort_type is not None:
+                    vlist = sorted(vlist, key=lambda x: x.sum[sort_type], 
+                                   reverse=sort_order)
+
+                for gt in vlist:
+                    if vtype in NOGRP_CONS and len(vtable) == 1:
+                        gt.sum[GTT.GRP] = vtype
+
+                    if gt.sum[GTT.LN] == 0:
+                        pass
+                    elif gt.user:
+                        ugt.append(gt)
+                    else:
+                        msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
+                        print(data_fs.format(
+                            *gt.sum[GTT.MAK:GTT.TAG+1], 
+                            *gt.sum[GTT.LW:GTT.LN+1], 
+                            msg
+                        ))
+
+                for gt in ugt:
+                        msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
+                        print(data_fs.format(
+                            *gt.sum[GTT.MAK:GTT.TAG+1], 
+                            *gt.sum[GTT.LW:GTT.LN+1], 
+                            msg
+                        ))
             print()
 
     def print_summary_multi(self):
@@ -614,35 +703,60 @@ class ConsReport:
                    + f"   {{:< {tns_w}.4f}}" \
                    + f"   {{:<+{nvp_w}.0f}} | {{}}"
 
-        for vtype, vtable in self.cons_table.items():
+        class_fs = "-+-" + "-" * (wns_w + tns_w + nvp_w + 6)
+        class_fs = f"   {{:-<{grp_w}}}" + class_fs * 3 + '-+'
+
+        for vtype, ctable in self.sum_table.items():
             print("====== {}".format(vtype))
             print(shead, head, div, sep='\n')
             ugt = []
 
-            for gt in vtable.values():
-                if vtype in NOGRP_CONS and len(vtable) == 1:
-                    gt.sum[GTT.GRP] = vtype
+            clist = list(ctable.items())
+            for cname, vlist in clist[1:] + clist[:1]:
+                if len(vlist) == 0:
+                    continue
 
-                if gt.sum[GTT.LN] == 0 and gt.sum[GTT.RN] == 0:
+                if cname == "default" and len(clist) == 1:
                     pass
-                elif gt.user:
-                    ugt.append(gt)
+                elif cname == "default":
+                    print(class_fs.format(f"------ other "))
                 else:
-                    msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
-                    print(data_fs.format(
-                        *gt.sum[GTT.MAK:GTT.TAG+1], 
-                        *gt.sum[GTT.LW:GTT.DN+1], 
-                        msg
-                    ))
+                    print(class_fs.format(f"------ {cname} "))
 
-            for gt in ugt:
-                    msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
-                    print(data_fs.format(
-                        *gt.sum[GTT.MAK:GTT.TAG+1], 
-                        *gt.sum[GTT.LW:GTT.DN+1], 
-                        msg
-                    ))
+                if vtype in self.cfg_sort:
+                    sort_type, sort_order = self.cfg_sort[vtype]
+                elif 'default' in self.cfg_sort:
+                    sort_type, sort_order = self.cfg_sort['default']
+                else:
+                    sort_type, sort_order = None, None
 
+                if sort_type is not None:
+                    vlist = sorted(vlist, key=lambda x: x.sum[sort_type], 
+                                   reverse=sort_order)
+
+                for gt in vlist:
+                    if vtype in NOGRP_CONS and len(vtable) == 1:
+                        gt.sum[GTT.GRP] = vtype
+
+                    if gt.sum[GTT.LN] == 0 and gt.sum[GTT.RN] == 0:
+                        pass
+                    elif gt.user:
+                        ugt.append(gt)
+                    else:
+                        msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
+                        print(data_fs.format(
+                            *gt.sum[GTT.MAK:GTT.TAG+1], 
+                            *gt.sum[GTT.LW:GTT.DN+1], 
+                            msg
+                        ))
+
+                for gt in ugt:
+                        msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
+                        print(data_fs.format(
+                            *gt.sum[GTT.MAK:GTT.TAG+1], 
+                            *gt.sum[GTT.LW:GTT.DN+1], 
+                            msg
+                        ))
             print()
 
 
