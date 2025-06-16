@@ -512,9 +512,8 @@ class ConsReport:
                             ugroup = cmd[4]
         return ugroup
 
-    def _group_cfg_check(self, gtable, wns_id, cfg):
+    def _group_cfg_check(self, gtable, wns_id, cfg, gclass):
         wns, tns, nvp = range(wns_id, wns_id+3)
-        gclass = "default"
         for ln, *cmd in cfg:
             if ln and cmd[0] == 't':
                 if len(cmd) == 2:
@@ -594,7 +593,6 @@ class ConsReport:
         for vtype, ctable in self.sum_table.items():
             print("====== {}".format(vtype))
             print(head, div, sep='\n')
-            ugt = []
 
             clist = list(ctable.items())
             for cname, vlist in clist[1:] + clist[:1]:
@@ -619,13 +617,14 @@ class ConsReport:
                     vlist = sorted(vlist, key=lambda x: x.sum[sort_type], 
                                    reverse=sort_order)
 
+                ugt = []
                 for gt in vlist:
-                    if vtype in NOGRP_CONS and len(vtable) == 1:
+                    if vtype in NOGRP_CONS and len(vlist) == 1:
                         gt.sum[GTT.GRP] = vtype
 
                     if gt.sum[GTT.LN] == 0:
                         pass
-                    elif gt.user:
+                    elif gt.user and sort_type is None:
                         ugt.append(gt)
                     else:
                         msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
@@ -709,7 +708,6 @@ class ConsReport:
         for vtype, ctable in self.sum_table.items():
             print("====== {}".format(vtype))
             print(shead, head, div, sep='\n')
-            ugt = []
 
             clist = list(ctable.items())
             for cname, vlist in clist[1:] + clist[:1]:
@@ -734,13 +732,14 @@ class ConsReport:
                     vlist = sorted(vlist, key=lambda x: x.sum[sort_type], 
                                    reverse=sort_order)
 
+                ugt = []
                 for gt in vlist:
-                    if vtype in NOGRP_CONS and len(vtable) == 1:
+                    if vtype in NOGRP_CONS and len(vlist) == 1:
                         gt.sum[GTT.GRP] = vtype
 
                     if gt.sum[GTT.LN] == 0 and gt.sum[GTT.RN] == 0:
                         pass
-                    elif gt.user:
+                    elif gt.user and sort_type is None:
                         ugt.append(gt)
                     else:
                         msg = '' if gt.sum[-1] == '' else f"({gt.sum[-1][:-1]})"
