@@ -33,22 +33,16 @@ CLK_CONS = ( 'clock_tree_pulse_width',
 
 CONS_TYPE = set(GRP_CONS + NOGRP_CONS + CLK_CONS)
 
-_PATH_OP = set()
-for i in ('u'):
-    _PATH_OP.update((f"{i}:req", f"{i}:act", f"{i}:slk"))
-
-_GROUP_OP = set()
-for i in ('t', 's', 'm', 'c'):
-    _GROUP_OP.update((f"{i}:wns", f"{i}:tns", f"{i}:nvp"))
-
 CMP_OP = { '>' : lambda a, b: a > b,
            '<' : lambda a, b: a < b,
            '==': lambda a, b: a == b,
            '>=': lambda a, b: a >= b,
            '<=': lambda a, b: a <= b }
 
-PU, *_ = range(1)                  # path op enum
-GT, GS, GM, GC, GR, *_ = range(5)  # group op enum
+
+_PATH_OP = set()
+for i in ('u'):
+    _PATH_OP.update((f"{i}:req", f"{i}:act", f"{i}:slk"))
 
 
 @dataclass (slots=False)
@@ -57,7 +51,12 @@ class _ConsPathOp:
     cmd: list[Any] = field(init=False)
     def __post_init__(self):
         ### cmd: (fno, opteration)
-        self.cmd = [(0, 'u')]
+        self.cmd = {'u': None}
+
+
+_GROUP_OP = set()
+for i in ('t', 's', 'm', 'c'):
+    _GROUP_OP.update((f"{i}:wns", f"{i}:tns", f"{i}:nvp"))
 
 
 @dataclass (slots=False)
@@ -66,7 +65,15 @@ class _ConsGroupOp:
     cmd: list[Any] = field(init=False)
     def __post_init__(self):
         ### cmd: (fno, opteration)
-        self.cmd = [(0, 't'), (0, 's'), (0, 'm'), (0, 'c'), (0, 'r')]
+        self.cmd = {'t': None, 's': None, 'm': None, 'c': None, 'r': None}
+
+
+@dataclass (slots=False)
+class _ConsVioOp:
+    cmd: dict = field(init=False)
+    def __post_init__(self):
+        ### cmd: (fno, opteration)
+        self.cmd = {'go': None, 'gh': None, 'ro': None}
 
 
 class PTT(IntEnum):  # PathTableTitle
@@ -102,12 +109,12 @@ def _parse_path_cmd(no: int, cmd: str) -> tuple[Any, ...]:
     Parsing config commands (path).
     """
     if cmd[1:3] == "::":
-        return no, cmd[0], cmd[3:]
+        return no, cmd[3:]
     if cmd[:2] in ("u:", ):
         m = re.fullmatch(r"(\w:\w{3})([><=]{1,2})([\-\d\.]+):(\S+)", cmd)
         if m[1] not in _PATH_OP:
             raise SyntaxError(f"Error: config syntax error (ln:{no})")
-        return no, m[1][0], m[1][2:], m[2], float(m[3]), m[4]
+        return no, m[1][2:], m[2], float(m[3]), m[4]
 
     raise SyntaxError(f"Error: config syntax error (ln:{no})")
 
@@ -117,12 +124,12 @@ def _parse_group_cmd(no: int, cmd: str) -> tuple[Any, ...]:
     Parsing config commands (group).
     """
     if cmd[1:3] == "::":
-        return no, cmd[0], cmd[3:]
-    if cmd[:2] in ("t:", "s:", "m:", "c:"):
+        return no, cmd[3:]
+    if cmd[:2] in {"t:", "s:", "m:", "c:"}:
         m = re.fullmatch(r"(\w:\w{3})([><=]{1,2})([\-\d\.]+):(\S+)", cmd)
         if m[1] not in _GROUP_OP:
             raise SyntaxError(f"Error: config syntax error (ln:{no})")
-        return no, m[1][0], m[1][2:], m[2], float(m[3]), m[4]
+        return no, m[1][2:], m[2], float(m[3]), m[4]
 
     raise SyntaxError(f"Error: config syntax error (ln:{no})")
 
@@ -157,7 +164,7 @@ def _load_cons_cfg(cfg_fp: str, is_multi: bool) -> dict:
 
     cons_cfg = dict(attr.values())
     # path/group/message/violation
-    cons_cfg.update({ 'p': {}, 'g': {}, 'm': {}, 'v': {} })  
+    cons_cfg.update({ 'p': {}, 'g': {}, 'v': {}, 'm': {} })  
     if cfg_fp is None:
         return cons_cfg
 
@@ -185,7 +192,7 @@ def _load_cons_cfg(cfg_fp: str, is_multi: bool) -> dict:
                         plist.append(pobj:=_ConsPathOp(re=re.compile(path)))
                         for cmd in cmd_list:
                             if cmd[:1] == 'u':
-                                pobj.cmd[PU] = _parse_path_cmd(fno, cmd)
+                                pobj.cmd[cmd[:1]] = _parse_path_cmd(fno, cmd)
                             else:
                                 raise SyntaxError(
                                     f"[ATTR] Unknown path command ({cmd}).")
@@ -196,66 +203,52 @@ def _load_cons_cfg(cfg_fp: str, is_multi: bool) -> dict:
                         glist = cons_cfg['g'].setdefault(vtype, [])
                         glist.append(gobj:=_ConsGroupOp(re=re.compile(group)))
                         for cmd in cmd_list:
-                            if cmd[:1] == 't':
-                                gobj.cmd[GT] = _parse_group_cmd(fno, cmd)
-                            elif cmd[:1] == 's':
-                                gobj.cmd[GS] = _parse_group_cmd(fno, cmd)
-                            elif cmd[:1] == 'm':
-                                gobj.cmd[GM] = _parse_group_cmd(fno, cmd)
-                            elif cmd[:1] == 'c':
-                                gobj.cmd[GC] = _parse_group_cmd(fno, cmd)
+                            if cmd[:1] in {'t', 's', 'm', 'c'}:
+                                gobj.cmd[cmd[:1]] = _parse_group_cmd(fno, cmd)
                             elif cmd[:1] == 'r':
                                 ctype, pat, rep, *_ = cmd.split(':')
-                                gobj.cmd[GR] = (fno, ctype, re.compile(pat), rep)
+                                gobj.cmd[cmd[:1]] = (fno, re.compile(pat), rep)
                             else:
                                 raise SyntaxError(
                                     f"[ATTR] Unknown group command ({cmd}).")
 
+                    elif key == 'v':
+                        vtype, *cmd_list = line[2:].split()
+                        for cmd in cmd_list:
+                            if cmd[:2] == 'go':
+                                rid, target, order = cmd[3:].split(':')
+                                if is_multi and rid == 's':
+                                    continue
+                                if not is_multi and rid != 's':
+                                    continue
+                                vobj = cons_cfg['v'].setdefault(vtype, _ConsVioOp())
+
+                                if rid == 'r':
+                                    cid = GTT.RW
+                                elif rid == 'd':
+                                    cid = GTT.DW
+                                else:
+                                    cid = GTT.LW
+
+                                if target == 'tns':
+                                    cid += 1
+                                elif target == 'nvp':
+                                    cid += 2
+
+                                order = 0 if order == 'inc' else 1
+                                vobj.cmd['go'] = (fno, cid, order)
+
+                            elif cmd[:2] == 'gh':
+                                pass
+                            elif cmd[:2] == 'co':
+                                pass
+                            else:
+                                raise SyntaxError(
+                                    f"[ATTR] Unknown violation command ({cmd}).")
+
                     elif key == 'm':
                         msg = other[0].strip(" \"\'")
                         cons_cfg['m'][value] = msg
-
-                    elif key == 'v':
-                        vtype, rid, target, order = value, *other
-
-                        if is_multi and rid == 's':
-                            continue
-                        elif not is_multi and rid != 's':
-                            continue
-
-                        if rid == 'l' or rid == 's':
-                            gid = GTT.LW
-                        elif rid == 'r':
-                            gid = GTT.RW
-                        elif rid == 'd':
-                            gid = GTT.DW
-                        else:
-                            raise SyntaxError(
-                                f"[ATTR] Unknown class command.\n" +
-                                f"       [NO]  : {fno}\n" +
-                                f"       [CMD] : {line}")
-
-                        if target == 'wns':
-                            gid += 0
-                        elif target == 'tns':
-                            gid += 1
-                        elif target == 'nvp':
-                            gid += 2
-                        else:
-                            raise SyntaxError(
-                                f"[ATTR] Unknown class command.\n" +
-                                f"       [NO]  : {fno}\n" +
-                                f"       [CMD] : {line}")
-
-                        if order == 'inc':
-                            cons_cfg['v'][vtype] = (gid, 0)
-                        elif order == 'dec':
-                            cons_cfg['v'][vtype] = (gid, 1)
-                        else:
-                            raise SyntaxError(
-                                f"[ATTR] Unknown class command.\n" +
-                                f"       [NO]  : {fno}\n" +
-                                f"       [CMD] : {line}")
 
                     elif key != '':
                         print(f"[WARNING] unknown operation '{key}', ignore. " + 
@@ -354,8 +347,8 @@ class ConsReport:
         self.clr_sign = cons_cfg["clr_sign"]
         self.cfg_path = cons_cfg['p']
         self.cfg_grp = cons_cfg['g']
+        self.cfg_vio = cons_cfg['v']
         self.cfg_msg = cons_cfg['m']
-        self.cfg_sort = cons_cfg['v']
         ### Data
         self.is_multi = is_multi
         self.cons_table = defaultdict(dict) 
@@ -493,7 +486,7 @@ class ConsReport:
                     gtable.update_diff()
                 for cfg in self.cfg_grp.get(vtype, []):
                     if cfg.re.fullmatch(gname):
-                        gclass = self._group_cfg_check(gtable, GTT.LW, cfg.cmd)
+                        gclass = self._group_cfg_check(gtable, GTT.LW, cfg.cmd, gclass)
                 self.sum_table[vtype][gclass].append(gtable)
 
         # For debug
@@ -504,40 +497,46 @@ class ConsReport:
         ugroup = None
         for cfg in cfg_path:
             if cfg.re.fullmatch(pin):
-                for ln, *cmd in cfg.cmd:
-                    if ln and cmd[0] == 'u':  # user group
-                        if len(cmd) == 2:
-                            ugroup = cmd[1]
-                        elif CMP_OP[cmd[2]](locals()[cmd[1]], cmd[3]):
-                            ugroup = cmd[4]
+                for ctype, value in cfg.cmd.items():
+                    if value is None:
+                        continue
+                    ln, *cmd = value
+                    if ctype == 'u':  # user group
+                        if len(cmd) == 1:
+                            ugroup = cmd[-1]
+                        elif CMP_OP[cmd[1]](locals()[cmd[0]], cmd[2]):
+                            ugroup = cmd[-1]
         return ugroup
 
     def _group_cfg_check(self, gtable, wns_id, cfg, gclass):
         wns, tns, nvp = range(wns_id, wns_id+3)
-        for ln, *cmd in cfg:
-            if ln and cmd[0] == 't':
-                if len(cmd) == 2:
+        for ctype, value in cfg.items():
+            if value is None:
+                continue
+            ln, *cmd = value
+            if ctype == 't':
+                if len(cmd) == 1:
                     gtable.sum[GTT.TAG] = f"({cmd[-1]})"
-                elif CMP_OP[cmd[2]](gtable.sum[locals()[cmd[1]]], cmd[3]):
+                elif CMP_OP[cmd[1]](gtable.sum[locals()[cmd[0]]], cmd[2]):
                     gtable.sum[GTT.TAG] = f"({cmd[-1]})"
-            elif ln and cmd[0] == 's':
-                if len(cmd) == 2:
+            elif ctype == 's':
+                if len(cmd) == 1:
                     gtable.sum[GTT.MAK] = cmd[-1]
-                elif CMP_OP[cmd[2]](gtable.sum[locals()[cmd[1]]], cmd[3]):
+                elif CMP_OP[cmd[1]](gtable.sum[locals()[cmd[0]]], cmd[2]):
                     gtable.sum[GTT.MAK] = cmd[-1]
-            elif ln and cmd[0] == 'm':
-                if len(cmd) == 2:
+            elif ctype == 'm':
+                if len(cmd) == 1:
                     gtable.sum[-1] = f"{self.cfg_msg[cmd[-1]]},"
-                elif CMP_OP[cmd[2]](gtable.sum[locals()[cmd[1]]], cmd[3]):
+                elif CMP_OP[cmd[1]](gtable.sum[locals()[cmd[0]]], cmd[2]):
                     gtable.sum[-1] = f"{self.cfg_msg[cmd[-1]]},"
-            elif ln and cmd[0] == 'c':
-                if len(cmd) == 2:
+            elif ctype == 'c':
+                if len(cmd) == 1:
                     gclass = cmd[-1]
-                elif CMP_OP[cmd[2]](gtable.sum[locals()[cmd[1]]], cmd[3]):
+                elif CMP_OP[cmd[1]](gtable.sum[locals()[cmd[0]]], cmd[2]):
                     gclass = cmd[-1]
-            elif ln and cmd[0] == 'r':
+            elif ctype == 'r':
                 try:
-                    gtable.sum[GTT.GRP] = cmd[1].sub(cmd[2], gtable.sum[GTT.GRP])
+                    gtable.sum[GTT.GRP] = cmd[0].sub(cmd[1], gtable.sum[GTT.GRP])
                 except Exception as e:
                     print("Error: Group config check error.\n" +
                           "  config ln: {}\n".format(ln) +
@@ -606,10 +605,10 @@ class ConsReport:
                 else:
                     print(class_fs.format(f"------ {cname} "))
 
-                if vtype in self.cfg_sort:
-                    sort_type, sort_order = self.cfg_sort[vtype]
-                elif 'default' in self.cfg_sort:
-                    sort_type, sort_order = self.cfg_sort['default']
+                if vtype in self.cfg_vio:
+                    _, sort_type, sort_order = self.cfg_vio[vtype].cmd['go']
+                elif 'default' in self.cfg_vio:
+                    _, sort_type, sort_order = self.cfg_vio['default'].cmd['go']
                 else:
                     sort_type, sort_order = None, None
 
@@ -721,10 +720,10 @@ class ConsReport:
                 else:
                     print(class_fs.format(f"------ {cname} "))
 
-                if vtype in self.cfg_sort:
-                    sort_type, sort_order = self.cfg_sort[vtype]
-                elif 'default' in self.cfg_sort:
-                    sort_type, sort_order = self.cfg_sort['default']
+                if vtype in self.cfg_vio:
+                    _, sort_type, sort_order = self.cfg_vio[vtype].cmd['go']
+                elif 'default' in self.cfg_vio:
+                    _, sort_type, sort_order = self.cfg_vio['default'].cmd['go']
                 else:
                     sort_type, sort_order = None, None
 

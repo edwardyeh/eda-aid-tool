@@ -60,19 +60,24 @@ g:<type>:<group>                        # Use the regular expression to choose g
     pat         Regular expression match pattern
     rep         Regular expression replace pattern
 
-### Group Sorting ##############################################################
+### Violation Operation ########################################################
 
-v:<type>:<rid>:<target>:<order>
+v:<type> go:<rid>:<target>:<order>      # Reorder the print order of groups in each violation
 
-    type        violation type  (set 'default' for the default rule)
-
-
-
-    rid         report select   
+    type        Violation type (give the default rule for all violations by set 'default')
+    rid         Report select   
                     single mode: [s]
-                    multi mode:  [l, r, d]  # l:left, r:right, d:difference
+                    multi mode:  [l, r, d]  # l: left, r: right, d: difference
     target      wns/tns/nvp
     order       inc/dec         (increase/decrease)
+
+v:<type> gh:<group_list>                # Hide groups by the group list in each violation
+
+v:<type> co:<class_list>                # Rorder the print order of class in each violation
+
+    type        Violation type
+    class_list  Class list (ex. v:max_delay/setup:class_a,class_b,class_c)
+
 
 ### Message Define #############################################################
 
