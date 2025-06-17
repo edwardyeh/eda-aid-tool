@@ -71,12 +71,11 @@ v:<type> go:<rid>:<target>:<order>      # Reorder the print order of groups in e
     target      wns/tns/nvp
     order       inc/dec         (increase/decrease)
 
-v:<type> gh:<group_list>                # Hide groups by the group list in each violation
-
-v:<type> co:<class_list>                # Rorder the print order of class in each violation
+v:<type> gh:<list>                      # Hide groups by the group list in each violation (repeatable)
+v:<type> co:<list>                      # Rorder the print order of class in each violation (repeatable)
 
     type        Violation type
-    class_list  Class list (ex. v:max_delay/setup:class_a,class_b,class_c)
+    list        Group/Class list (ex. v:max_delay/setup:class_a,class_b,class_c)
 
 
 ### Message Define #############################################################

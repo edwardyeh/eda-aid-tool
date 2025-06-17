@@ -73,7 +73,7 @@ class _ConsVioOp:
     cmd: dict = field(init=False)
     def __post_init__(self):
         ### cmd: (fno, opteration)
-        self.cmd = {'go': None, 'gh': None, 'ro': None}
+        self.cmd = {'go': None, 'gh': set(), 'ro': None}
 
 
 class PTT(IntEnum):  # PathTableTitle
@@ -239,7 +239,9 @@ def _load_cons_cfg(cfg_fp: str, is_multi: bool) -> dict:
                                 vobj.cmd['go'] = (fno, cid, order)
 
                             elif cmd[:2] == 'gh':
-                                pass
+                                vobj = cons_cfg['v'].setdefault(vtype, _ConsVioOp())
+                                vobj.cmd['gh'].update(cmd[3:].split(','))
+
                             elif cmd[:2] == 'co':
                                 pass
                             else:
@@ -593,8 +595,22 @@ class ConsReport:
             print("====== {}".format(vtype))
             print(head, div, sep='\n')
 
+            # clist = list(ctable.items())
+            # for cname, vlist in clist[1:] + clist[:1]:
+            #     print("------ {}".format(cname))
+            #     for gt in vlist:
+            #         print(gt.sum[GTT.GRP])
+
             clist = list(ctable.items())
-            for cname, vlist in clist[1:] + clist[:1]:
+            for cname, vlist_tmp in clist[1:] + clist[:1]:
+                vlist = []
+                for gt in vlist_tmp:
+                    if vtype in self.cfg_vio \
+                       and self.cfg_vio[vtype].cmd['gh'] is not None \
+                       and gt.sum[GTT.GRP] in self.cfg_vio[vtype].cmd['gh']:
+                        continue
+                    vlist.append(gt)
+
                 if len(vlist) == 0:
                     continue
 
@@ -605,9 +621,11 @@ class ConsReport:
                 else:
                     print(class_fs.format(f"------ {cname} "))
 
-                if vtype in self.cfg_vio:
+                if vtype in self.cfg_vio \
+                   and self.cfg_vio[vtype].cmd['go'] is not None:
                     _, sort_type, sort_order = self.cfg_vio[vtype].cmd['go']
-                elif 'default' in self.cfg_vio:
+                elif 'default' in self.cfg_vio \
+                      and self.cfg_vio['default'].cmd['go'] is not None:
                     _, sort_type, sort_order = self.cfg_vio['default'].cmd['go']
                 else:
                     sort_type, sort_order = None, None
