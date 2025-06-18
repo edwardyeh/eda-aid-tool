@@ -73,7 +73,7 @@ class _ConsVioOp:
     cmd: dict = field(init=False)
     def __post_init__(self):
         ### cmd: (fno, opteration)
-        self.cmd = {'go': None, 'gh': set(), 'ro': None}
+        self.cmd = {'go': None, 'gh': set(), 'ro': []}
 
 
 class PTT(IntEnum):  # PathTableTitle
@@ -240,10 +240,10 @@ def _load_cons_cfg(cfg_fp: str, is_multi: bool) -> dict:
 
                             elif cmd[:2] == 'gh':
                                 vobj = cons_cfg['v'].setdefault(vtype, _ConsVioOp())
-                                vobj.cmd['gh'].update(cmd[3:].split(','))
-
+                                vobj.cmd[cmd[:2]].update(cmd[3:].split(','))
                             elif cmd[:2] == 'co':
-                                pass
+                                vobj = cons_cfg['v'].setdefault(vtype, _ConsVioOp())
+                                vobj.cmd[cmd[:2]] = cmd[3:].split(',')
                             else:
                                 raise SyntaxError(
                                     f"[ATTR] Unknown violation command ({cmd}).")
@@ -601,13 +601,25 @@ class ConsReport:
             #     for gt in vlist:
             #         print(gt.sum[GTT.GRP])
 
-            clist = list(ctable.items())
-            for cname, vlist_tmp in clist[1:] + clist[:1]:
+            if (vtype in self.cfg_vio 
+                and len(self.cfg_vio[vtype].cmd["co"])):
+                cname_list, clist = list(ctable.keys()), []
+                cname_list = cname_list[1:] + cname_list[:1]
+                for cname in self.cfg_vio[vtype].cmd["co"]:
+                    if cname in cname_list:
+                        clist.append([cname, ctable[cname]])
+                        cname_list.remove(cname)
+                for cname in cname_list:
+                    clist.append([cname, ctable[cname]])
+            else:
+                clist = list(ctable.items())
+                clist = clist[1:] + clist[:1]
+
+            for cname, vlist_tmp in clist:
                 vlist = []
                 for gt in vlist_tmp:
-                    if vtype in self.cfg_vio \
-                       and self.cfg_vio[vtype].cmd['gh'] is not None \
-                       and gt.sum[GTT.GRP] in self.cfg_vio[vtype].cmd['gh']:
+                    if (vtype in self.cfg_vio 
+                        and gt.sum[GTT.GRP] in self.cfg_vio[vtype].cmd['gh']):
                         continue
                     vlist.append(gt)
 
@@ -616,16 +628,14 @@ class ConsReport:
 
                 if cname == "default" and len(clist) == 1:
                     pass
-                elif cname == "default":
-                    print(class_fs.format(f"------ other "))
                 else:
                     print(class_fs.format(f"------ {cname} "))
 
-                if vtype in self.cfg_vio \
-                   and self.cfg_vio[vtype].cmd['go'] is not None:
+                if (vtype in self.cfg_vio 
+                    and self.cfg_vio[vtype].cmd['go'] is not None):
                     _, sort_type, sort_order = self.cfg_vio[vtype].cmd['go']
-                elif 'default' in self.cfg_vio \
-                      and self.cfg_vio['default'].cmd['go'] is not None:
+                elif ('default' in self.cfg_vio 
+                      and self.cfg_vio['default'].cmd['go'] is not None):
                     _, sort_type, sort_order = self.cfg_vio['default'].cmd['go']
                 else:
                     sort_type, sort_order = None, None
@@ -726,8 +736,21 @@ class ConsReport:
             print("====== {}".format(vtype))
             print(shead, head, div, sep='\n')
 
-            clist = list(ctable.items())
-            for cname, vlist in clist[1:] + clist[:1]:
+            if (vtype in self.cfg_vio 
+                and len(self.cfg_vio[vtype].cmd["co"])):
+                cname_list, clist = list(ctable.keys()), []
+                cname_list = cname_list[1:] + cname_list[:1]
+                for cname in self.cfg_vio[vtype].cmd["co"]:
+                    if cname in cname_list:
+                        clist.append([cname, ctable[cname]])
+                        cname_list.remove(cname)
+                for cname in cname_list:
+                    clist.append([cname, ctable[cname]])
+            else:
+                clist = list(ctable.items())
+                clist = clist[1:] + clist[:1]
+
+            for cname, vlist in clist:
                 if len(vlist) == 0:
                     continue
 
@@ -738,9 +761,11 @@ class ConsReport:
                 else:
                     print(class_fs.format(f"------ {cname} "))
 
-                if vtype in self.cfg_vio:
+                if (vtype in self.cfg_vio 
+                    and self.cfg_vio[vtype].cmd['go'] is not None):
                     _, sort_type, sort_order = self.cfg_vio[vtype].cmd['go']
-                elif 'default' in self.cfg_vio:
+                elif ('default' in self.cfg_vio 
+                      and self.cfg_vio['default'].cmd['go'] is not None):
                     _, sort_type, sort_order = self.cfg_vio['default'].cmd['go']
                 else:
                     sort_type, sort_order = None, None
