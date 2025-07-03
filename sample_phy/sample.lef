@@ -1,0 +1,227 @@
+# LEF Example File for Parser Development
+# Version: 5.8 (Most commonly used)
+
+VERSION 5.8 ;
+NAMESCASESENSITIVE ON ;
+BUSBITCHARS "[]" ;
+DIVIDERCHAR "/" ;
+
+# Manufacturing grid for snapping purposes
+MANUFACTURINGGRID 0.005 ;
+
+# Maximum number of vias that can be stacked
+MAXVIASTACK 2 ;
+
+# How clearance is measured (typically orthogonal)
+CLEARANCEMEASURE EUCLIDEAN ; # Can also be ORTHOGONAL
+
+# Units definition: All dimensions in the file will be in these units
+# DATABASE MICRONS 1000 means 1 micron = 1000 database units (nm)
+UNITS
+  DATABASE MICRONS 1000 ;
+END UNITS
+
+# Technology definition (can be empty, or contain more detailed info)
+TECHNOLOGY
+  # Typically not much defined here for cell libraries
+END TECHNOLOGY
+
+# Layer Definitions
+# ==============================================================================
+
+# Routing Layer Example: Metal1 (Horizontal)
+LAYER metal1
+  TYPE ROUTING ;
+  DIRECTION HORIZONTAL ;
+  PITCH 0.2 ; # Minimum pitch between parallel wires
+  OFFSET 0.1 ; # Offset from manufacturing grid
+  WIDTH 0.1 ; # Default width for this layer
+  SPACING 0.1 ; # Minimum spacing between shapes on this layer
+    # Can have multiple spacing rules based on width or length
+    SPACING 0.15 BY 0.2 ; # Spacing 0.15 for width 0.2
+    SPACING 0.25 LENGTH 0.5 ; # Spacing 0.25 for length 0.5
+  AREA 0.001 ; # Minimum area for a shape on this layer
+  RESISTANCE RPERSQ 0.1 ; # Resistance per square
+  CAPACITANCE CPERSQDIST 0.0001 ; # Capacitance per square micrometer distance
+  EDGECAPACITANCE 0.00001 ; # Capacitance per unit edge length
+
+  # Antenna rules (various types)
+  ANTENNAINPUTGATEAREA 1.0 ;
+  ANTENNAINOUTDIFFAREA 0.5 ;
+  ANTENNAMODIFIER 0.5 ; # Example, actual rules are complex
+END metal1
+
+# Routing Layer Example: Metal2 (Vertical)
+LAYER metal2
+  TYPE ROUTING ;
+  DIRECTION VERTICAL ;
+  PITCH 0.2 ;
+  OFFSET 0.1 ;
+  WIDTH 0.1 ;
+  SPACING 0.1 ;
+  AREA 0.001 ;
+  RESISTANCE RPERSQ 0.1 ;
+  CAPACITANCE CPERSQDIST 0.0001 ;
+  EDGECAPACITANCE 0.00001 ;
+END metal2
+
+# Cut Layer Example: VIA12 (Connects Metal1 to Metal2)
+LAYER VIA12
+  TYPE CUT ;
+  WIDTH 0.1 ; # This usually doesn't apply to cut layers directly
+  SPACING 0.1 ;
+  AREA 0.0001 ; # Minimum area for a cut
+END VIA12
+
+# Non-Routing Layer Examples
+LAYER POLY
+  TYPE MASTERSLICE ; # Or CUT, IMPLANT, etc.
+  WIDTH 0.08 ;
+  SPACING 0.1 ;
+END POLY
+
+LAYER DIFF
+  TYPE IMPLANT ; # Used for diffusion regions
+  SPACING 0.15 ;
+END DIFF
+
+LAYER NWELL
+  TYPE OVERLAP ; # For wells, often just a bounding box
+  SPACING 0.2 ;
+END NWELL
+
+LAYER BOUNDARY
+  TYPE BOUNDARY ; # Cell boundary
+END BOUNDARY
+
+# ==============================================================================
+
+# Via Definitions
+# ==============================================================================
+
+# Simple Rectangular Via (M1-M2)
+VIA VIA12
+  DEFAULT ; # Can have DEFAULT or RECT or POLYGON (for the cut)
+  LAYER metal1 ;
+    RECT -0.05 -0.05 0.05 0.05 ; # Pad on metal1
+  LAYER VIA12 ;
+    RECT -0.025 -0.025 0.025 0.025 ; # Cut itself
+  LAYER metal2 ;
+    RECT -0.05 -0.05 0.05 0.05 ; # Pad on metal2
+END VIA12
+
+# Via defined by a ViaRule (allows for more flexible via generation)
+VIARULE VIARULE_M2_M3_DEFAULT
+  LAYER metal2 ;
+  LAYER metal3 ; # Assuming metal3 exists
+  CUTLAYER VIA23 ; # Assuming VIA23 exists
+  RECTWIDTH 0.1 ;
+  RECTLENGTH 0.1 ;
+  SPACING 0.1 BY 0.1 ;
+  # ROWCOL defined for array vias, PITCH for pitch rules
+  # Other properties like RESISTANCE, ENCLOSURE etc.
+END VIARULE_M2_M3_DEFAULT
+
+# ==============================================================================
+
+# Site Definitions
+# ==============================================================================
+
+# Standard cell site for regular cells
+SITE CORE_SITE
+  CLASS CORE ;
+  SIZE 0.2 BY 0.5 ; # Height 0.5um, width 0.2um (grid unit)
+END CORE_SITE
+
+# IO Pad site
+SITE IO_SITE
+  CLASS PAD ;
+  SIZE 100 BY 100 ;
+END IO_SITE
+
+# ==============================================================================
+
+# Macro Definitions (Standard Cells and larger Macros)
+# ==============================================================================
+
+# Example: Inverter (INV) Standard Cell
+MACRO INV_SPEC
+  CLASS CORE ;
+  FOREIGN INV 0 0 ; # Foreign name and origin (usually 0 0 for standard cells)
+  SIZE 0.2 BY 0.5 ; # Defined by CORE_SITE, but explicitly stated
+  SYMMETRY X Y R90 ; # Can be X, Y, R90
+  ORIGIN 0 0 ; # Origin of the cell within its bounding box
+
+  # Pins
+  PIN A
+    DIRECTION INPUT ;
+    USE SIGNAL ;
+    SHAPE RECTANGLE ; # Or RING, POLYGON (rare for std cells)
+    PORT
+      LAYER metal1 ;
+        RECT 0.05 0.2 0.15 0.3 ; # Pin access area
+    END PORT
+    PROPERTY LEF58_PROP "value_A" ; # Example of custom property
+  END A
+
+  PIN Z
+    DIRECTION OUTPUT ;
+    USE SIGNAL ;
+    PORT
+      LAYER metal1 ;
+        RECT 0.05 0.7 0.15 0.8 ;
+    END PORT
+  END Z
+
+  PIN VDD
+    DIRECTION INOUT ; # Power pins are typically INOUT
+    USE POWER ;
+    PORT
+      LAYER metal1 ;
+        RECT 0 0.45 0.2 0.5 ; # Power rail segment
+      LAYER metal2 ;
+        RECT 0 0.45 0.2 0.5 ; # Power rail segment on M2 for vertical connection
+    END PORT
+    ANTENNAGATEAREA 0.01 ;
+    ANTENNADIFFAREA 0.005 ;
+  END VDD
+
+  PIN VSS
+    DIRECTION INOUT ;
+    USE GROUND ;
+    PORT
+      LAYER metal1 ;
+        RECT 0 0 0.2 0.05 ; # Ground rail segment
+    END PORT
+  END VSS
+
+  # Obstructions (OBS): Areas within the cell occupied by metal/poly etc.
+  # that other routes/cells cannot use.
+  OBS
+    LAYER metal1 ;
+      RECT 0 0 0.2 0.5 ; # Example: Core area on metal1
+    LAYER metal2 ;
+      RECT 0.02 0.02 0.18 0.48 ; # Example: Internal routing on metal2
+    LAYER POLY ;
+      RECT 0.05 0.1 0.15 0.4 ; # Example: Polysilicon obstruction
+    LAYER NWELL ;
+      RECT -0.1 -0.1 0.3 0.6 ; # NWELL boundary (often extends beyond cell)
+    # Example of a non-rectangular (L-shaped) obstruction
+    LAYER metal1 ;
+      POLYGON
+        0.0 0.0
+        0.5 0.0
+        0.5 0.5
+        0.0 0.5
+        0.0 0.0 ; # A simple square polygon, but can be complex
+    LAYER OVERLAP ;
+      POLYGON 80 0
+      80 160  0 160  0 580  502 580  
+      502 0 ;
+  END OBS
+
+  # Other properties for timing, power, etc.
+  LEAKAGE 0.0
+
+END LIBRARY
+

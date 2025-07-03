@@ -68,8 +68,8 @@ def create_argparse() -> argparse.ArgumentParser:
     parser.add_argument('-version', action='version', version=VERSION)
 
     ## report_noise brief
-    parser_time = subparsers.add_parser('nois', help="Brief report of report_noise\n" +
-                                                     "  --command: 'report_noise'")
+    parser_time = subparsers.add_parser('noise', help="Brief report of report_noise\n" +
+                                                      "  --command: 'report_noise'")
     parser_time.add_argument('rpt_fp', help="report_path") 
 
     return parser
@@ -80,7 +80,7 @@ def main():
     parser = create_argparse()
     args = parser.parse_args()
 
-    if args.proc_mode == 'nois':
+    if args.proc_mode == 'noise':
         report_noise_brief(args.rpt_fp)
 #}}}
 

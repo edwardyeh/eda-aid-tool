@@ -19,6 +19,9 @@ from typing import Any
 import simpletools.simpletable as sst
 
 
+### Glocal Variable ############################################################
+
+
 GRP_CONS = ( 'max_delay/setup', 'min_delay/hold' )
 
 NOGRP_CONS = ( 'recovery', 'removal', 
@@ -38,6 +41,118 @@ CMP_OP = { '>' : lambda a, b: a > b,
            '==': lambda a, b: a == b,
            '>=': lambda a, b: a >= b,
            '<=': lambda a, b: a <= b }
+
+JSON_SCHEMA = {
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "grp_width": {"type": "integer"},
+        "wns_width": {"type": "integer"},
+        "tns_width": {"type": "integer"},
+        "nvp_width": {"type": "integer"},
+        "clean_sign_enable": {"type": "boolean"},
+        "clean_sign": {"type": "string"},
+        "path_operation": {
+            "type": "object",
+            "additionalProperties": False,
+            "patternProperties": {
+                r"^[\w/]+:\S+$": {
+                    "type": "array",
+                    "minItems": 2,
+                    "prefixItems": [
+                        {"type": "string"}
+                    ],
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["opcode", "value"],
+                        "properties": {
+                            "opcode": {"enum": ["u"]},
+                            "check": {
+                                "type": "array",
+                                "prefixItems": [
+                                    {"enum": ["req", "act", "slk"]},
+                                    {"enum": [">", "<", "==", ">=", "<="]},
+                                    {"type": "float"}
+                                ],
+                                "items": False
+                            },
+                            "value": {"type": "string"}
+                        }
+                    }
+                }
+            }
+        },
+        "group_operation": {
+            "type": "object",
+            "additionalProperties": False,
+            "patternProperties": {
+                r"^[\w/]+$": {
+                    "type": "array",
+                    "minItems": 2,
+                    "prefixItems": [
+                        {"type": "string"}
+                    ],
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["opcode", "value"],
+                        "properties": {
+                            "opcode": {"enum": ["t", "s", "m", "c", "r"]},
+                            "check": {
+                                "type": "array",
+                                "prefixItems": [
+                                    {"enum": ["wns", "tns", "nvp"]},
+                                    {"enum": [">", "<", "==", ">=", "<="]},
+                                    {"type": "float"}
+                                ],
+                                "items": False
+                            },
+                            "pattern": {"type": "string"},
+                            "value": {"type": "string"}
+                        }
+                    }
+                }
+            }
+        },
+        "violation_operation": {
+            "type": "object",
+            "additionalProperties": False,
+            "patternProperties": {
+                r"^[\w/]+$": {
+                    "type": "array",
+                    "minItems": 1,
+                    "items": {
+                        "type": "object",
+                        "additionalProperties": False,
+                        "required": ["opcode", "value"],
+                        "properties": {
+                            "opcode": {"enum": ["go", "gh", "co"]},
+                            "rid": {"type": "string"},
+                            "target": {"type": "string"},
+                            "value": {
+                                "type": ["string", "array"],
+                                "minItems": 1,
+                                "items": {"type": "string"}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "message": {
+            "type": "object",
+            "additionalProperties": False,
+            "patternProperties": {
+                r".*": {"type": "string"}
+            }
+        }
+    }
+}
+
+
+### Data Structure #############################################################
 
 
 _PATH_OP = set()
@@ -102,6 +217,9 @@ class GroupTable:
     def update_diff(self):
         for l, r, d in zip(*[range(3, 6), range(6, 9), range(9, 12)]):
             self.sum[d] = self.sum[l] - self.sum[r]
+
+
+### Procedure ##################################################################
 
 
 def _parse_path_cmd(no: int, cmd: str) -> tuple[Any, ...]:

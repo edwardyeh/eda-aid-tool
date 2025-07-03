@@ -1,0 +1,274 @@
+# ================================================================
+# DEF File Example for DEF Parser Development
+# Version: 5.8 (Commonly used, ensure your parser supports it)
+# Purpose: Demonstrate various DEF syntax elements.
+# ================================================================
+
+VERSION 5.8 ;
+DIVIDERCHAR "/" ;
+BUSBITCHARS "[]" ; # Characters used for bus bit notation, e.g., data[0]
+DESIGN my_complex_chip ;
+
+# ================================================================
+# UNITS: Defines the database unit (DBU) for all coordinates.
+# All coordinates in the DEF file are in DBU.
+# Example: 1000 DBU = 1 MICRON. So, a coordinate of (1000, 2000) is (1.0, 2.0) microns.
+# ================================================================
+UNITS DISTANCE MICRONS 1000 ;
+
+# ================================================================
+# DIEAREA: Defines the overall bounding box of the chip/block.
+# (lower_left_x lower_left_y) (upper_right_x upper_right_y)
+# ================================================================
+DIEAREA ( 1167225 1471460 ) ( -1167230 1471460 ) ( -1167230 1311460 ) ( -787875 1311460 ) ( -787875 -709450 ) ( -204175 -709450 ) ( -204175 -283565 ) ( 1005425 -283565 ) ( 1005425 -1471465 ) ( 1167225 -1471465 ) ; # 500 x 500 microns (assuming 1000 DBU/micron)
+
+# ================================================================
+# ROW: Defines the placement rows for standard cells.
+# ROWS are typically horizontal or vertical strips where standard cells can be placed.
+# SYNTAX: ROW <name> <macro_type> <origin_x> <origin_y> <orientation> DO <count_x> BY <count_y> STEP <step_x> <step_y> ;
+# <macro_type> refers to the SITE name defined in LEF.
+# ================================================================
+ROWS 2 ;
+  - core_row_0 core_site 0 0 N DO 500 BY 1 STEP 1000 0 ; # 500 sites horizontally, 1 row
+  - core_row_1 core_site 0 2000 N DO 500 BY 1 STEP 1000 0 ; # Another row, 2 microns above the first
+END ROWS
+
+# ================================================================
+# NONDEFAULTRULE
+# ================================================================
+NONDEFAULTRULES 2 ;
+  - rm_2w2s
+    + HARDSPACING
+    + LAYER M1 WIDTH 100 SPACING 100 
+    + LAYER M2 WIDTH 100 SPACING 100 
+    + LAYER M3 WIDTH 100 SPACING 100 
+    + LAYER M4 WIDTH 100 SPACING 100 
+    + LAYER M5 WIDTH 100 SPACING 100 
+    + LAYER M6 WIDTH 100 SPACING 120 
+    + LAYER M7 WIDTH 1000 SPACING 1000
+    + LAYER AP WIDTH 4000 SPACING 4000 ;
+  - SNPS_DefGenNDR_2
+    + LAYER M1 WIDTH 110 
+    + LAYER M2 WIDTH 110 
+    + LAYER M3 WIDTH 110 
+    + LAYER M4 WIDTH 140 
+    + LAYER M5 WIDTH 110 
+    + LAYER M6 WIDTH 90 ;
+END NONDEFAULTRULES
+
+# ================================================================
+# COMPONENTS: Defines all instantiated cells/macros in the design.
+# SYNTAX: - <instance_name> <macro_name> [+ PLACED | + FIXED | + UNPLACED] (x y) <orientation> ;
+# <macro_name> must correspond to a MACRO defined in an associated LEF file.
+# ORIENTATION: N (North), S (South), E (East), W (West), FN (Flipped North), FS (Flipped South), FE (Flipped East), FW (Flipped West)
+# ================================================================
+COMPONENTS 10 ;
+  - U_INV_0 INV # An inverter instance
+    + PLACED ( 1000 0 ) N ; # Placed at (1000, 0) DBU, North orientation
+  - U_NAND2_1 NAND2X1 # A 2-input NAND gate
+    + PLACED ( 2000 0 ) S ; # Placed at (2000, 0) DBU, South orientation (flipped)
+  - U_DFF_2 DFF # A D-FlipFlop
+    + PLACED ( 3000 2000 ) FN ; # Placed at (3000, 2000) DBU, Flipped North
+  - U_ADDER_MACRO ADDER_MACRO # A larger macro block
+    + FIXED ( 100000 100000 ) R0 
+    + HALO 5000 5000 5000 5000 ; # Keepout area around the macro (left, bottom, right, top)
+  - U_OR2_3 OR2X1 # An OR gate, initially unplaced
+    + UNPLACED ;
+  - U_MUX_4 MUX4X1
+    + PLACED ( 5000 0 ) R90 ; # Placed and rotated 90 degrees (East)
+  - U_CLK_BUF_5 CLKBUF
+    + PLACED ( 15000 0 ) FE ; # Flipped East
+  - U_RESET_INV_6 INV
+    + PLACED ( 17000 0 ) FW ; # Flipped West
+  - U_XOR_7 XOR2X1
+    + PLACED ( 19000 2000 ) FS ; # Flipped South
+  - U_AND_8 AND2X1
+    + PLACED ( 21000 2000 ) R180 ; # Rotated 180 degrees (South)
+END COMPONENTS
+
+# ================================================================
+# PINS: Defines the top-level I/O ports of the chip/block.
+# SYNTAX: - <pin_name> + DIRECTION [INPUT|OUTPUT|INOUT] + USE [SIGNAL|POWER|GROUND|ANALOG]
+#          + PORT + LAYER <layer_name> [RECT (xl yl) (xh yh)] + FIXED (x y) <orientation> ;
+# Other options: + NET <net_name>, + SHAPE ABUTMENT (for power/ground pins)
+# ================================================================
+PINS 4 ;
+  - clk_in
+    + DIRECTION INPUT 
+    + USE SIGNAL 
+    + PORT
+      + LAYER metal1 ( 0 0 ) ( 500 500 ) 
+      + FIXED ( 5000 495000 ) N ; # Pin center at (5000, 495000) DBU, North orientation
+  - rst_n
+    + DIRECTION INPUT 
+    + USE SIGNAL 
+    + PORT
+      + LAYER metal2 ( 0 0 ) ( 500 500 ) 
+      + FIXED ( 10000 495000 ) N ;
+  - data_out[0]
+    + DIRECTION OUTPUT 
+    + USE SIGNAL 
+    + PORT
+      + LAYER metal3 ( 0 0 ) ( 500 500 ) 
+      + FIXED ( 495000 10000 ) E ; # East orientation
+  - VDD_pad
+    + DIRECTION INOUT  
+    + USE POWER  
+    + SHAPE ABUTMENT 
+    + PORT
+      + LAYER metal1 ( 0 0 ) ( 500 500000 )
+      + FIXED ( 498000 0 ) E ;
+END PINS
+
+# ================================================================
+# NETS: Defines all signal nets and their physical routing.
+# SYNTAX: - <net_name> + CONNECTED <instance_name> <pin_name> ...
+#          + ROUTED <layer> (x1 y1) (x2 y2) [TAPER | W <width> | VIA <via_name>] ...
+# ================================================================
+NETS 3 ;
+  - clk_net
+    ( PIN clk_in )
+    ( U_INV_0 A )
+    ( U_NAND2_1 A1 )
+    ( U_DFF_2 CLK )
+    + SHIELDNET shieldNet1
+    + NONDEFAULTRULE rm_2w2s 
+    + SOURCE TIMING
+    + ROUTED metal1 ( 5000 495000 ) ( * 490000 ) # Route segment on metal1
+    NEW metal2 ( 5000 490000 ) VIA12  # Via to next layer
+    NEW metal2 ( 5000 490000 ) ( 10000 490000 ) # Route segment on metal2
+    NEW metal2 TAPER ( 10000 490000 ) ( 10000 489000 ) # Tapering the width
+    NEW metal2 ( 10000 489000 ) ( 11000 489000 )
+    + USE CLOCK ;
+
+  - reset_net
+    ( PIN rst_n )
+    ( U_DFF_2 RST )
+    + SOURCE NETLIST
+    + ROUTED metal1 ( 10000 495000 ) ( 10000 480000 )
+    NEW metal2 ( 10000 480000 ) VIA12 W
+    NEW metal2 ( 10000 480000 ) ( 20000 480000 ) 
+    + USE SIGNAL ;
+
+  - data_out_net
+    ( U_DFF_2 Q )
+    ( PIN data_out[0] )
+    + FIXED metal3 ( 495000 10000 ) ( 490000 10000 )
+    NEW metal2 ( 490000 10000 ) VIA23 FN
+    NEW metal2 ( 490000 10000 ) ( 490000 20000 )
+    NEW metal2 ( 490000 20000 ) ( 480000 20000 ) 
+    + USE SIGNAL ;
+END NETS
+
+# ================================================================
+# SPECIALNETS: Defines power, ground, and other special nets.
+# These typically have different routing rules (wider lines, specific vias).
+# Syntax similar to NETS, but often with + USE POWER/GROUND and + FIXED.
+# ================================================================
+SPECIALNETS 2 ;
+  - VDD
+    + USE POWER 
+    + FIXED 
+    + SOURCE CORE 
+    + ROUTED metal1 ( 0 500 ) ( 500000 500 ) W 1000 # Horizontal power stripe
+           metal1 ( 0 499500 ) ( 500000 499500 ) W 1000
+    + CONNECTED
+      U_INV_0 VDD
+      U_NAND2_1 VDD
+      U_DFF_2 VDD
+      VDD_pad VDD ; # Connect to top-level VDD pad
+
+  - VSS
+    + USE GROUND 
+    + FIXED 
+    + SOURCE CORE 
+    + ROUTED metal1 ( 0 0 ) ( 500000 0 ) W 1000 # Horizontal ground stripe
+           metal1 ( 0 499000 ) ( 500000 499000 ) W 1000 
+    + CONNECTED
+      U_INV_0 VSS
+      U_NAND2_1 VSS
+      U_DFF_2 VSS ;
+END SPECIALNETS
+
+# ================================================================
+# FILL: Defines filler cells or metal fill shapes.
+# SYNTAX: - <fill_name> <macro_name> + PLACED (x y) <orientation> ;
+# Or for rectangular fill shapes:
+#         - RECT <layer> (xl yl) (xh yh) ;
+# ================================================================
+FILL 2 ;
+  - RECT metal1 ( 10000 10000 ) ( 20000 20000 ) ; # A metal1 fill rectangle
+  - FILL_CELL_0 FILLER_X1 # A filler cell instance
+    + PLACED ( 2000 0 ) N ;
+END FILL
+
+# ================================================================
+# VIAS: Defines explicitly placed vias (rare in ROUTED section, more common for custom vias).
+# These are different from the VIA (x y) syntax within ROUTED.
+# This section defines custom vias that are explicitly placed.
+# SYNTAX: - <via_name> + RECT <layer> (xl yl) (xh yh) ... ;
+# ================================================================
+VIAS 1 ;
+  - my_custom_via # A user-defined custom via
+    + RECT metal1 ( 0 0 ) ( 100 100 ) 
+    + RECT VIA_CUT_LAYER ( 0 0 ) ( 100 100 ) 
+    + RECT metal2 ( 0 0 ) ( 100 100 ) ;
+END VIAS
+
+# ================================================================
+# TRACKS: Defines the global routing tracks (often in tech LEF too).
+# SYNTAX: TRACKS <direction> <start_coord> DO <num_tracks> BY <spacing> LAYER <layer_name> ... ;
+# ================================================================
+TRACKS
+  X 0 DO 500 BY 1000 LAYER metal1 metal3 ; # Vertical tracks on metal1 and metal3
+  Y 0 DO 500 BY 1000 LAYER metal2 metal4 ; # Horizontal tracks on metal2 and metal4
+END TRACKS
+
+# ================================================================
+# GCELLGRID: Defines a global cell grid (for global routing).
+# SYNTAX: GCELLGRID X <start_x> DO <num_x> BY <step_x> Y <start_y> DO <num_y> BY <step_y> ;
+# ================================================================
+GCELLGRID
+  X 0 DO 50 BY 10000
+  Y 0 DO 50 BY 10000 ;
+END GCELLGRID
+
+# ================================================================
+# REGIONS: Defines placement regions or grouping regions.
+# Used for defining specific areas for placement constraints.
+# SYNTAX: - <region_name> + TYPE [FENCE | GUIDE] (xl yl) (xh yh) ... ;
+# ================================================================
+REGIONS 1 ;
+  - core_region
+    + TYPE FENCE 
+    + RECT ( 10000 10000 ) ( 480000 480000 ) ;
+END REGIONS
+
+# ================================================================
+# GROUPS: Defines hierarchical groups of components.
+# SYNTAX: - <group_name> + COMPONENTS <instance_name> ... + REGION <region_name> ;
+# ================================================================
+GROUPS 1 ;
+  - group_logic
+    + COMPONENTS
+      U_INV_0 U_NAND2_1 U_OR2_3 
+    + REGION core_region ; # Associate group with a placement region
+END GROUPS
+
+# ================================================================
+# BLOCKAGES: Defines areas where placement or routing is forbidden.
+# SYNTAX: - <blockage_name> + PLACEMENT | + ROUTING <layer> (xl yl) (xh yh) ;
+# ================================================================
+BLOCKAGES 2 ;
+  - placement_blockage_0
+    + PLACEMENT ;
+    + RECT ( 50000 50000 ) ( 60000 60000 ) ; # No standard cells can be placed here
+  - routing_blockage_0
+    + ROUTING metal1 ;
+    + RECT ( 70000 70000 ) ( 80000 80000 ) ; # No routing on metal1 here
+END BLOCKAGES
+
+# ================================================================
+# END DESIGN: Marks the end of the DEF file.
+# ================================================================
+END DESIGN
