@@ -20,7 +20,7 @@ UNITS DISTANCE MICRONS 1000 ;
 # DIEAREA: Defines the overall bounding box of the chip/block.
 # (lower_left_x lower_left_y) (upper_right_x upper_right_y)
 # ================================================================
-DIEAREA ( 1167225 1471460 ) ( -1167230 1471460 ) ( -1167230 1311460 ) ( -787875 1311460 ) ( -787875 -709450 ) ( -204175 -709450 ) ( -204175 -283565 ) ( 1005425 -283565 ) ( 1005425 -1471465 ) ( 1167225 -1471465 ) ; # 500 x 500 microns (assuming 1000 DBU/micron)
+DIEAREA (1000000 1500000) (0 1500000) (0 0) (1500000 0) (1500000 1000000) (1000000 1000000) ;
 
 # ================================================================
 # ROW: Defines the placement rows for standard cells.
@@ -84,6 +84,10 @@ COMPONENTS 10 ;
     + PLACED ( 19000 2000 ) FS ; # Flipped South
   - U_AND_8 AND2X1
     + PLACED ( 21000 2000 ) R180 ; # Rotated 180 degrees (South)
+  - U_AND_9 AND2X1
+    + PLACED ( 225000 1350000 ) R180 ; # Rotated 180 degrees (South)
+  - U_DDRPHY DDR_PHY
+    + FIXED (40000 1310000) N ;
 END COMPONENTS
 
 # ================================================================
@@ -157,6 +161,39 @@ NETS 3 ;
     NEW metal2 ( 490000 10000 ) VIA23 FN
     NEW metal2 ( 490000 10000 ) ( 490000 20000 )
     NEW metal2 ( 490000 20000 ) ( 480000 20000 ) 
+    + USE SIGNAL ;
+
+  - data_net1
+    ( U_DFF_3 Q )
+    ( PIN data_out[3] )
+    + FIXED metal2 ( 998000 1100000 ) ( 998000 998000 )
+    NEW metal2 ( 998000 998000 ) VIA23 FN
+    NEW metal3 ( 998000 998000 ) ( 1100000 998000 )
+    NEW metal3 ( 1100000 998000 ) VIA23 FN
+    + USE SIGNAL ;
+
+  - data_net2
+    ( U_DFF_4 Q )
+    ( PIN data_out[4] )
+    + FIXED metal2 ( 900000 999500 ) ( 999500 999500 ) ( 999500 900000 )
+    + USE SIGNAL ;
+
+  - data_net3
+    ( U_DFF_5 Q )
+    ( PIN data_out[5] )
+    + FIXED metal2 ( 500000 1499500 ) ( 600000 1499500 )
+    + USE SIGNAL ;
+
+  - data_net4
+    ( U_DFF_6 Q )
+    ( PIN data_out[6] )
+    + FIXED metal2 ( 220000 1320000 ) ( 240000 1320000 )
+    + USE SIGNAL ;
+
+  - data_net5
+    ( U_DFF_7 Q )
+    ( PIN data_out[7] )
+    + FIXED metal2 ( 216000 1320000 ) ( 240000 1320000 )
     + USE SIGNAL ;
 END NETS
 

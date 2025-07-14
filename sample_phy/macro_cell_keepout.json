@@ -1,0 +1,26 @@
+{
+    "unit": 0.05,
+    "lefs": ["sample.lef"],
+    "type": "block",
+    "block": 
+    {
+        "chip_top1": 
+        {
+            "def": "sample.def",
+            "macro":
+            [
+                {
+                    "inst": "U_DDRPHY",
+                    "ref": "DDR_PHY",
+                    "margin": 20.00,
+                    "cell":
+                    [
+                        "U_AND_8",
+                        "U_AND_9"
+                    ]
+                }
+            ]
+        }
+    }
+}
+

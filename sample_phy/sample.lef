@@ -145,10 +145,10 @@ END IO_SITE
 # ==============================================================================
 
 # Example: Inverter (INV) Standard Cell
-MACRO INV_SPEC
+MACRO DDR_PHY
   CLASS CORE ;
   FOREIGN INV 0 0 ; # Foreign name and origin (usually 0 0 for standard cells)
-  SIZE 0.2 BY 0.5 ; # Defined by CORE_SITE, but explicitly stated
+  SIZE 300 BY 150 ; # Defined by CORE_SITE, but explicitly stated
   SYMMETRY X Y R90 ; # Can be X, Y, R90
   ORIGIN 0 0 ; # Origin of the cell within its bounding box
 
@@ -215,9 +215,7 @@ MACRO INV_SPEC
         0.0 0.5
         0.0 0.0 ; # A simple square polygon, but can be complex
     LAYER OVERLAP ;
-      POLYGON 80 0
-      80 160  0 160  0 580  502 580  
-      502 0 ;
+      POLYGON 300 150 0 150 0 100 125 100 125 0 175 0 175 50 300 50 ;
   END OBS
 
   # Other properties for timing, power, etc.

@@ -1,0 +1,25 @@
+
++-------+----------+---------------+-------------+--------+
+| Check | Clk      | Path          | RouteRule   | Ratio  |
++-------+----------+---------------+-------------+--------+
+| PASS  | func_clk | S:func_clk_in | rm_2w2s (9) | 90.00% |
+|       |          | E:U_DFF_2/CLK | default (1) | 10.00% |
++-------+----------+---------------+-------------+--------+
+| PASS  | func_clk | S:func_clk_in | rm_2w2s (9) | 90.00% |
+|       |          | E:U_DFF_2/CLK | default (1) | 10.00% |
++-------+----------+---------------+-------------+--------+
+
+
+=== Clock: func_clk  (PASS)
+S:func_clk_in   (rm_2w2s)
+N:clk_net1      (rm_2w2s)
+N:clk_net2      (rm_2w2s)
+N:clk_net3      (rm_2w2s)
+N:clk_net4      (rm_2w2s)
+N:clk_net5      (rm_2w2s)
+N:clk_net6      (rm_2w2s)
+N:clk_net7      (rm_2w2s)
+N:clk_net8      (rm_2w2s)
+N:clk_net9      (rm_2w2s)
+E:U_DFF_2/CLK   (default)
+

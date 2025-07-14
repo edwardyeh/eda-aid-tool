@@ -1,0 +1,18 @@
+{
+    "unit": 0.05,
+    "margin": 1.00,
+    "type": "block",
+    "block": 
+    {
+        "chip_top1": 
+        {
+            "def": "sample.def",
+            "net":
+            [
+                "data_net1",
+                "date_net2",
+                "date_net3"
+            ]
+        }
+    }
+}
