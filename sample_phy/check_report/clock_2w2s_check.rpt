@@ -1,13 +1,16 @@
 
-====== Block: chip_top1, Result: PASS
+====== Block: chip_top1, Result: FAIL
 
 --- [Summary]
-+----+-------+----------+---------------+-------------+------------+
-| ID | Check | Clk      | Path          | RouteRule   | 2W2S Ratio |
-+----+-------+----------+---------------+-------------+------------+
-| 0  | PASS  | func_clk | S:func_clk_in | rm_2w2s (1) | 100.00%    |
-|    |       |          | E:U_DFF_2/CLK |             |            |
-+----+-------+----------+---------------+-------------+------------+
++----+-------+-----------+---------------+-------------+------------+
+| ID | Check | Clk       | Path          | RouteRule   | 2W2S Ratio |
++----+-------+-----------+---------------+-------------+------------+
+| 0  | PASS  | func_clk  | S:clk_in      | rm_2w2s (1) | 100.00%    |
+|    |       |           | E:U_DFF_2/CLK |             |            |
++----+-------+-----------+---------------+-------------+------------+
+| 1  | FAIL  | func_clk2 | S:clk2_in     | default (1) | 0.00%      |
+|    |       |           | E:U_DFF_4/CLK |             |            |
++----+-------+-----------+---------------+-------------+------------+
 
 --- [UNIT] : MICRONS
 --- [DR]   : {W:0.050,S:0.050}
@@ -23,7 +26,12 @@
 }}
 
 --- [PATH-0]
-S: func_clk_in    (startpoint)
+S: clk_in         (startpoint)
 N: clk_net        (rm_2w2s)
 E: U_DFF_2/CLK    (endpoint)
+
+--- [PATH-1]
+S: clk2_in        (startpoint)
+N: clk_net2       (default)
+E: U_DFF_4/CLK    (endpoint)
 

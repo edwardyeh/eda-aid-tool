@@ -145,6 +145,19 @@ NETS 3 ;
     NEW metal2 ( 10000 489000 ) ( 11000 489000 )
     + USE CLOCK ;
 
+  - clk_net2
+    ( PIN clk2_in )
+    ( U_INV_1 A )
+    ( U_NAND3_1 A1 )
+    ( U_DFF_4 CLK )
+    + SOURCE TIMING
+    + ROUTED metal1 ( 6000 496000 ) ( * 491000 ) # Route segment on metal1
+    NEW metal2 ( 6000 491000 ) VIA12  # Via to next layer
+    NEW metal2 ( 6000 491000 ) ( 11000 491000 ) # Route segment on metal2
+    NEW metal2 TAPER ( 11000 491000 ) ( 11000 490000 ) # Tapering the width
+    NEW metal2 ( 11000 490000 ) ( 12000 490000 )
+    + USE CLOCK ;
+
   - reset_net
     ( PIN rst_n )
     ( U_DFF_2 RST )

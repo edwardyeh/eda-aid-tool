@@ -1,5 +1,6 @@
 {
     "unit": 0.05,
+    "pass_ratio": 0.8,
     "type": "block",
     "block": 
     {
@@ -11,15 +12,30 @@
                 "func_clk": 
                 [
                     {
-                        "stp": "func_clk_in",
+                        "stp": "clk_in",
                         "edp": "U_DFF_2/CLK",
                         "net": 
                         [
                             "clk_net"
                         ]
                     }
+                ],
+                "func_clk2": 
+                [
+                    {
+                        "stp": "clk2_in",
+                        "edp": "U_DFF_4/CLK",
+                        "net": 
+                        [
+                            "clk_net2"
+                        ]
+                    }
                 ]
             }
         }
+    },
+    "waive":
+    {
+        "func_clk2:clk2_in:U_DFF_4/CLK": 0.0
     }
 }

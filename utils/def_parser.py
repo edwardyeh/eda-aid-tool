@@ -228,84 +228,89 @@ class DEFParser:
             cmd_stack = []
             for tok in desc_toks:
                 if tok in {'+', ';'}:
-                    if cmd_stack[0] == '-':
-                        if req_num >= 0 and cmd_stack[1] not in req_net:
-                            break
-                        req_num -= 1
-                        net = net_dict[cmd_stack[1]]
-                        pin = net.setdefault('pin', [])
-                        for data in re.findall(r'\(\s*(\S+)\s+(\S+)\s*\)', 
-                                               ' '.join(cmd_stack)):
-                            if data[0] == 'PIN':
-                                pin.append(('port', data[1]))
-                            else:
-                                pin.append(('pin', '/'.join(data)))
-                    elif cmd_stack[0] == 'SHIELDNET':
-                        net['shield'] = cmd_stack[1]
-                    elif cmd_stack[0] == 'NONDEFAULTRULE':
-                        net['ndr'] = cmd_stack[1]
-                    elif cmd_stack[0] in ROUTE_STATUS:
-                        net['status'] = cmd_stack[0]
-                        route_list = net.setdefault('route', [])
-                        cmd_len, i = len(cmd_stack), 0
-                        while i < cmd_len:
-                            if cmd_stack[i] in ROUTE_STATUS:
-                                route_list.append(route:={})
-                                route['layer'], i = cmd_stack[i+1], (i + 2)
-                                if cmd_stack[i] == 'TAPER':
-                                    route['taper'], i = 'default', (i + 1)
-                                elif cmd_stack[i] == 'TAPERRULE':
-                                    route['taper'], i = cmd_stack[i+1], (i + 2)
-                                segment_list = route.setdefault('segment', [])
-                                pt1x = int(cmd_stack[i+1])
-                                pt1y = int(cmd_stack[i+2])
-                                if cmd_stack[i+3] == ')':
-                                    pt1e, i = 0, (i + 4)
+                    try:
+                        if cmd_stack[0] == '-':
+                            if req_num >= 0 and cmd_stack[1] not in req_net:
+                                break
+                            req_num -= 1
+                            net = net_dict[cmd_stack[1]]
+                            pin = net.setdefault('pin', [])
+                            for data in re.findall(r'\(\s*(\S+)\s+(\S+)\s*\)', 
+                                                   ' '.join(cmd_stack)):
+                                if data[0] == 'PIN':
+                                    pin.append(('port', data[1]))
                                 else:
-                                    pt1e, i = cmd_stack[i+3], (i + 5)
-                            elif cmd_stack[i] == '(':
-                                pt2x = pt1x if cmd_stack[i+1] == '*' else int(cmd_stack[i+1])
-                                pt2y = pt1y if cmd_stack[i+2] == '*' else int(cmd_stack[i+2])
-                                if cmd_stack[i+3] == ')':
-                                    pt2e, i = 0, (i + 4)
-                                else:
-                                    pt2e, i = cmd_stack[i+3], (i + 5)
-                                if pt1x == pt2x and pt1y != pt2y:
-                                    if pt1y > pt2y:
-                                        pt1y += pt1e
-                                        pt2y -= pt2e
-                                        coor = [pt1x, pt2x, pt2y, pt1y]
+                                    pin.append(('pin', '/'.join(data)))
+                        elif cmd_stack[0] == 'SHIELDNET':
+                            net['shield'] = cmd_stack[1]
+                        elif cmd_stack[0] == 'NONDEFAULTRULE':
+                            net['ndr'] = cmd_stack[1]
+                        elif cmd_stack[0] in ROUTE_STATUS:
+                            net['status'] = cmd_stack[0]
+                            route_list = net.setdefault('route', [])
+                            cmd_len, i = len(cmd_stack), 0
+                            while i < cmd_len:
+                                if cmd_stack[i] in ROUTE_STATUS:
+                                    route_list.append(route:={})
+                                    route['layer'], i = cmd_stack[i+1], (i + 2)
+                                    if cmd_stack[i] == 'TAPER':
+                                        route['taper'], i = 'default', (i + 1)
+                                    elif cmd_stack[i] == 'TAPERRULE':
+                                        route['taper'], i = cmd_stack[i+1], (i + 2)
+                                    segment_list = route.setdefault('segment', [])
+                                    pt1x = int(cmd_stack[i+1])
+                                    pt1y = int(cmd_stack[i+2])
+                                    if cmd_stack[i+3] == ')':
+                                        pt1e, i = 0, (i + 4)
                                     else:
-                                        pt1y -= pt1e
-                                        pt2y += pt2e
-                                        coor = [pt1x, pt2x, pt1y, pt2y]
-                                    segment_list.append({'type': 'rv', 'coor': coor})
-                                elif pt1x != pt2x and pt1y == pt2y:
-                                    if pt1x > pt2x:
-                                        pt1x += pt1e
-                                        pt2x -= pt2e
-                                        coor = [pt2x, pt1x, pt1y, pt2y]
+                                        pt1e, i = int(cmd_stack[i+3]), (i + 5)
+                                elif cmd_stack[i] == '(':
+                                    pt2x = pt1x if cmd_stack[i+1] == '*' else int(cmd_stack[i+1])
+                                    pt2y = pt1y if cmd_stack[i+2] == '*' else int(cmd_stack[i+2])
+                                    if cmd_stack[i+3] == ')':
+                                        pt2e, i = 0, (i + 4)
                                     else:
-                                        pt1x -= pt1e
-                                        pt2x += pt2e
-                                        coor = [pt1x, pt2x, pt1y, pt2y]
-                                    segment_list.append({'type': 'rh', 'coor': coor})
+                                        pt2e, i = int(cmd_stack[i+3]), (i + 5)
+                                    if pt1x == pt2x and pt1y != pt2y:
+                                        if pt1y > pt2y:
+                                            pt1y += pt1e
+                                            pt2y -= pt2e
+                                            coor = [pt1x, pt2x, pt2y, pt1y]
+                                        else:
+                                            pt1y -= pt1e
+                                            pt2y += pt2e
+                                            coor = [pt1x, pt2x, pt1y, pt2y]
+                                        segment_list.append({'type': 'rv', 'coor': coor})
+                                    elif pt1x != pt2x and pt1y == pt2y:
+                                        if pt1x > pt2x:
+                                            pt1x += pt1e
+                                            pt2x -= pt2e
+                                            coor = [pt2x, pt1x, pt1y, pt2y]
+                                        else:
+                                            pt1x -= pt1e
+                                            pt2x += pt2e
+                                            coor = [pt1x, pt2x, pt1y, pt2y]
+                                        segment_list.append({'type': 'rh', 'coor': coor})
+                                    else:
+                                        coor_x = [pt2x, pt1x] if pt1x > pt2x else [pt1x, pt2x]
+                                        coor_y = [pt2y, pt1y] if pt1y > pt2y else [pt1y, pt2y]
+                                        segment_list.append({'type': 'rd', 'coor': coor_x + coor_y})
                                 else:
-                                    coor_x = [pt2x, pt1x] if pt1x > pt2x else [pt1x, pt2x]
-                                    coor_y = [pt2y, pt1y] if pt1y > pt2y else [pt1y, pt2y]
-                                    segment_list.append({'type': 'rd', 'coor': coor_x + coor_y})
-                            else:
-                                segment = {
-                                    'type': 'vi', 
-                                    'coor': [pt1x, pt1y], 
-                                    'name': cmd_stack[i]
-                                }
-                                if (i := i + 1) < cmd_len and cmd_stack[i] in ROUTE_ORIENT:
-                                    segment['orient'], i = cmd_stack[i], (i + 1)
-                                segment_list.append(segment)
-                    elif cmd_stack[0] == 'USE':
-                        net['style'] = cmd_stack[1]
-                    cmd_stack = []
+                                    segment = {
+                                        'type': 'vi', 
+                                        'coor': [pt1x, pt1y], 
+                                        'name': cmd_stack[i]
+                                    }
+                                    if (i := i + 1) < cmd_len and cmd_stack[i] in ROUTE_ORIENT:
+                                        segment['orient'], i = cmd_stack[i], (i + 1)
+                                    segment_list.append(segment)
+                        elif cmd_stack[0] == 'USE':
+                            net['style'] = cmd_stack[1]
+                        cmd_stack = []
+                    except Exception as e:
+                        print('Error Net     : {}'.format(net_name))
+                        print('Error Command : {}'.format(cmd_stack))
+                        print('Debug Info    : {}'.format([pt1x, pt2x, pt1y, pt2y, pt1e, pt2e]))
                 else:
                     cmd_stack.append(tok)
             desc_toks = []

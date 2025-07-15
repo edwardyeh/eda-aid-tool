@@ -20,15 +20,14 @@ from .utils.lef_parser import LEFParser
 ##############################################################################
 ### Global Variable
 
-CLK_2W2S_PASS_RATIO = 0.8
-
 CLK_2W2S_SCHEMA = {
     '$schema': 'https://json-schema.org/draft/2020-12/schema',
     'type': 'object',
     'additionalProperties': False,
-    'required': ['unit', 'type', 'block'],
+    'required': ['unit', 'pass_ratio', 'type', 'block'],
     'properties': {
         'unit': {'type': 'number'},
+        'pass_ratio': {'type': 'number'},
         'type': {'enum': ['top', 'block']},
         'block': {
             'type': 'object',
@@ -65,6 +64,13 @@ CLK_2W2S_SCHEMA = {
                         }
                     }
                 }
+            }
+        },
+        'waive': {
+            'type': 'object',
+            'additionalProperties': False,
+            'patternProperties': {
+                r'\S+:\S+:\S+': {'type': 'number'}
             }
         }
     }
@@ -234,7 +240,7 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
                 ndr2x_set.add(ndr_name)
 
         # Net check
-        check_2w2s = {'pass': True, 'path': []}
+        check_2w2s = {'pass': 'PASS', 'path': []}
         net_info_dict = def_info['net']
         clk_len, path_len, rule_len = 0, 0, 0
 
@@ -244,7 +250,7 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
 
             for path in path_list:
                 path_check = {
-                    'pass': True, 
+                    'pass': 'PASS', 
                     'clk': clk_name,
                     'stp': (stp := (prefix + path['stp'])),
                     'edp': (edp := (prefix + path['edp'])),
@@ -276,9 +282,14 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
 
                 path_check['net_len'] = net_len
                 path_check['ratio'] /= len(path_check['net'])
-                if path_check['ratio'] < CLK_2W2S_PASS_RATIO:
-                    path_check['pass'] = False
-                    check_2w2s['pass'] = False
+                if (ratio := path_check['ratio']) < config_2w2s['pass_ratio']:
+                    key = f'{clk_name}:{stp}:{edp}'
+                    if (key in config_2w2s['waive'] 
+                        and ratio >= config_2w2s['waive'][key]):
+                        check_2w2s['pass'] = 'WAIV'
+                    else:
+                        path_check['pass'] = 'FAIL'
+                        check_2w2s['pass'] = 'FAIL'
                 check_2w2s['path'].append(path_check)
 
                 size = max([len(x) + len(str(y)) for x, y in rule_dict.items()])
@@ -286,7 +297,7 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
                     rule_len = size
 
         # Ouptut summary report
-        result = 'PASS' if check_2w2s['pass'] else 'FAIL'
+        result = check_2w2s['pass']
         id_len = len(str(len(check_2w2s['path'])))
         path_len += 2
         rule_len += 3
@@ -318,7 +329,7 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
             rule_list = [(x, y) for x, y in path['rule'].items()]
             print(fs.format(
                 str(i), 
-                'PASS' if path['pass'] else 'FAIL',
+                path['pass'],
                 path['clk'],
                 'S:' + path['stp'],
                 '{} ({})'.format(*rule_list[0]),
@@ -327,14 +338,14 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
             print(fs.format(
                 '', '', '', 
                 'E:' + path['edp'], 
-                '{} ({})'.format(*rule_list[0]) if len(rule_list) > 1 else '',
+                '{} ({})'.format(*rule_list[1]) if len(rule_list) > 1 else '',
                 ''
             ), file=out_fp)
             for rule in rule_list[2:]:
                 print(fs.format('', '', '', '', '{} ({})'.format(*rule), ''),
                       file=out_fp)
+            print(div, file=out_fp)
 
-        print(div, file=out_fp)
         print(file=out_fp)
 
         ## Print UNIT/DR/NDR
