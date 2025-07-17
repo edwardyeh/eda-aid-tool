@@ -61,16 +61,20 @@ CLK_2W2S_SCHEMA = {
                                     }
                                 }
                             }
+                        },
+                        'path_ratio': {
+                            'type': 'object',
+                            'additionalProperties': False,
+                            'patternProperties': {
+                                r'\S+:\S+': {'type': 'number'}
+                            }
+                        },
+                        'net_waive': {
+                            'type': 'array',
+                            'items': {'type': 'string'}
                         }
                     }
                 }
-            }
-        },
-        'waive': {
-            'type': 'object',
-            'additionalProperties': False,
-            'patternProperties': {
-                r'\S+:\S+:\S+': {'type': 'number'}
             }
         }
     }
@@ -215,18 +219,26 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
     unit2x_pre = 2 * config_2w2s['unit']
     is_top = True if config_2w2s['type'] == 'top' else False
 
-    if out_fpath is not None:
-        out_fp = open(out_fpath, 'w')
-    else:
-        out_fp = sys.stdout
+    out_fp = sys.stdout if out_fpath is None else open(out_fpath, 'w')
 
     for blk, blk_data in config_2w2s['block'].items():
         def_info = def_parser_dict[blk].def_dict
         unit2x = unit2x_pre * (dbu := def_info['unit']['percision'])
         prefix = f'{blk}/' if is_top else ''
 
+        # Get check waive
+        if 'path_ratio' in blk_data:
+            is_adj, adj_dict = True, blk_data['path_ratio']
+        else:
+            is_adj, adj_dict = False, {}
+
+        if 'net_waive' in blk_data:
+            wav_set = set(blk_data['net_waive'])
+        else:
+            wav_set = set()
+
         # Get 2W2S NDR set
-        ndr2x_set = set()
+        ndr2x_set = set(['waive'])
         for ndr_name, ndr_data in def_info['ndr'].items():
             pass2x = True
             for layer, layer_data in ndr_data['layer'].items():
@@ -250,7 +262,7 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
 
             for path in path_list:
                 path_check = {
-                    'pass': 'PASS', 
+                    'pass': ['PASS', ''], 
                     'clk': clk_name,
                     'stp': (stp := (prefix + path['stp'])),
                     'edp': (edp := (prefix + path['edp'])),
@@ -268,9 +280,12 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
 
                 for net in path['net']:
                     net_info = net_info_dict[net]
-                    ndr = net_info.get('ndr', 'default')
+                    ndr = net_info.get('ndr', None)
+                    if ndr is None:
+                        ndr = 'waive' if net in wav_set else 'default'
                     net_name = prefix + net
                     path_check['net'].append((net_name, ndr))
+
                     if ndr in rule_dict:
                         rule_dict[ndr] += 1
                     else:
@@ -283,13 +298,14 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
                 path_check['net_len'] = net_len
                 path_check['ratio'] /= len(path_check['net'])
                 if (ratio := path_check['ratio']) < config_2w2s['pass_ratio']:
-                    key = f'{clk_name}:{stp}:{edp}'
-                    if (key in config_2w2s['waive'] 
-                        and ratio >= config_2w2s['waive'][key]):
-                        check_2w2s['pass'] = 'WAIV'
+                    key = f'{stp}:{edp}'
+                    if is_adj and ratio >= adj_dict.get(key, 100):
+                        path_check['pass'][1] = '(W)'
                     else:
-                        path_check['pass'] = 'FAIL'
+                        path_check['pass'][0] = 'FAIL'
                         check_2w2s['pass'] = 'FAIL'
+                elif 'waive' in rule_dict:
+                    path_check['pass'][1] = '(W)'
                 check_2w2s['path'].append(path_check)
 
                 size = max([len(x) + len(str(y)) for x, y in rule_dict.items()])
@@ -329,14 +345,16 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
             rule_list = [(x, y) for x, y in path['rule'].items()]
             print(fs.format(
                 str(i), 
-                path['pass'],
+                path['pass'][0],
                 path['clk'],
                 'S:' + path['stp'],
                 '{} ({})'.format(*rule_list[0]),
                 '{:.2%}'.format(path['ratio'])
             ), file=out_fp)
             print(fs.format(
-                '', '', '', 
+                '', 
+                path['pass'][1],
+                '', 
                 'E:' + path['edp'], 
                 '{} ({})'.format(*rule_list[1]) if len(rule_list) > 1 else '',
                 ''

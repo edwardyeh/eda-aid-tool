@@ -7,6 +7,9 @@
         "chip_top1": 
         {
             "def": "sample.def",
+            "path_ratio": {
+                "clk2_in:U_DFF_4/CLK": 0.0
+            },
             "clk": 
             {
                 "func_clk": 
@@ -33,9 +36,5 @@
                 ]
             }
         }
-    },
-    "waive":
-    {
-        "func_clk2:clk2_in:U_DFF_4/CLK": 0.0
     }
 }
