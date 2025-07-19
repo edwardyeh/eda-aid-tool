@@ -7,7 +7,7 @@
 VERSION 5.8 ;
 DIVIDERCHAR "/" ;
 BUSBITCHARS "[]" ; # Characters used for bus bit notation, e.g., data[0]
-DESIGN my_complex_chip ;
+DESIGN chip_top1 ;
 
 # ================================================================
 # UNITS: Defines the database unit (DBU) for all coordinates.
@@ -39,21 +39,21 @@ END ROWS
 NONDEFAULTRULES 2 ;
   - rm_2w2s
     + HARDSPACING
-    + LAYER M1 WIDTH 100 SPACING 100 
-    + LAYER M2 WIDTH 100 SPACING 100 
-    + LAYER M3 WIDTH 100 SPACING 100 
-    + LAYER M4 WIDTH 100 SPACING 100 
-    + LAYER M5 WIDTH 100 SPACING 100 
-    + LAYER M6 WIDTH 100 SPACING 120 
-    + LAYER M7 WIDTH 1000 SPACING 1000
+    + LAYER metal1 WIDTH 100 SPACING 100 
+    + LAYER metal2 WIDTH 100 SPACING 100 
+    + LAYER metal3 WIDTH 100 SPACING 100 
+    + LAYER metal4 WIDTH 100 SPACING 100 
+    + LAYER metal5 WIDTH 100 SPACING 100 
+    + LAYER metal6 WIDTH 100 SPACING 120 
+    + LAYER metal7 WIDTH 1000 SPACING 1000
     + LAYER AP WIDTH 4000 SPACING 4000 ;
   - SNPS_DefGenNDR_2
-    + LAYER M1 WIDTH 110 
-    + LAYER M2 WIDTH 110 
-    + LAYER M3 WIDTH 110 
-    + LAYER M4 WIDTH 140 
-    + LAYER M5 WIDTH 110 
-    + LAYER M6 WIDTH 90 ;
+    + LAYER metal1 WIDTH 110 
+    + LAYER metal2 WIDTH 110 
+    + LAYER metal3 WIDTH 110 
+    + LAYER metal4 WIDTH 140 
+    + LAYER metal5 WIDTH 110 
+    + LAYER metal6 WIDTH 90 ;
 END NONDEFAULTRULES
 
 # ================================================================
@@ -188,7 +188,7 @@ NETS 3 ;
   - data_net2
     ( U_DFF_4 Q )
     ( PIN data_out[4] )
-    + FIXED metal2 ( 900000 999500 ) ( 999500 999500 ) ( 999500 900000 )
+    + FIXED metal2 ( 900000 999500 ) ( 998975 999500 ) ( 998975 900000 )
     + USE SIGNAL ;
 
   - data_net3

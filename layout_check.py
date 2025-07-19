@@ -214,14 +214,13 @@ MACRO_CELL_OUT_SCHEMA = {
 ### Procedure
 
 
-def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool:
+def check_2w2s_flow(out_fpath, config: dict, def_parser_dict: dict) -> bool:
     """Clock 2W2S check flow."""
-    unit2x_pre = 2 * config_2w2s['unit']
-    is_top = True if config_2w2s['type'] == 'top' else False
-
+    unit2x_pre = 2 * config['unit']
+    is_top = (config['type'] == 'top')
     out_fp = sys.stdout if out_fpath is None else open(out_fpath, 'w')
 
-    for blk, blk_data in config_2w2s['block'].items():
+    for blk, blk_data in config['block'].items():
         def_info = def_parser_dict[blk].def_dict
         unit2x = unit2x_pre * (dbu := def_info['unit']['percision'])
         prefix = f'{blk}/' if is_top else ''
@@ -297,7 +296,7 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
 
                 path_check['net_len'] = net_len
                 path_check['ratio'] /= len(path_check['net'])
-                if (ratio := path_check['ratio']) < config_2w2s['pass_ratio']:
+                if (ratio := path_check['ratio']) < config['pass_ratio']:
                     key = f'{stp}:{edp}'
                     if is_adj and ratio >= adj_dict.get(key, 100):
                         path_check['pass'][1] = '(W)'
@@ -368,7 +367,7 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
 
         ## Print UNIT/DR/NDR
         print('--- [UNIT] : {}'.format(def_info['unit']['unit']), file=out_fp)
-        print('--- [DR]   : {{W:{0:.3f},S:{0:.3f}}}'.format(config_2w2s['unit']), 
+        print('--- [DR]   : {{W:{0:.3f},S:{0:.3f}}}'.format(config['unit']), 
               file=out_fp)
 
         for ndr_name, ndr_data in def_info['ndr'].items():
@@ -410,9 +409,135 @@ def check_2w2s_flow(out_fpath, config_2w2s: dict, def_parser_dict: dict) -> bool
     return check_2w2s['pass']
 
 
-def check_bnd_wire_out() -> bool:
+def _get_vio_zone(bnd_dict: dict, margin: float, is_inter: bool) -> list:
+    vio_zone_list = []
+    for xmin, xmax, ymin, _ in bnd_dict['t']:
+        vio_zone_list.append((
+            xmin - margin,
+            xmax + margin,
+            ymin - margin,
+            ymin
+        ))
+    for xmin, xmax, ymin, _ in bnd_dict['b']:
+        vio_zone_list.append((
+            xmin - margin,
+            xmax + margin,
+            ymin,
+            ymin + margin
+        ))
+    for xmin, _, ymin, ymax in bnd_dict['l']:
+        vio_zone_list.append((
+            xmin,
+            xmin + margin,
+            ymin - margin,
+            ymax + margin
+        ))
+    for xmin, _, ymin, ymax in bnd_dict['r']:
+        vio_zone_list.append((
+            xmin - margin,
+            xmin,
+            ymin - margin,
+            ymax + margin
+        ))
+    return vio_zone_list
+
+
+def _check_net_keep_out(test_net_list: list, def_info: dict, unit: float, 
+                        vio_zone_list: list, is_dbg: bool=False) -> list:
+    unith2 = unit * def_info['unit']['percision'] / 2
+    vio_net_list = []
+
+    for net_name in test_net_list:
+        net_data = def_info['net'][net_name]
+        ndr_name = net_data.get('ndr', None)
+        is_vio = False
+
+        if is_dbg:  # for debug
+            print('\n=== Net:', net_name)
+
+        for route in net_data['route']:
+            if ndr_name is not None:
+                ndr = def_info['ndr'][ndr_name]
+                off = ndr['layer'][route['layer']]['width'] / 2
+            else:
+                off = unith2
+
+            for segment in route['segment']:
+                if segment['type'] in {'rh', 'rv', 'rd'}:
+                    xmin = segment['coor'][0] - off
+                    xmax = segment['coor'][1] + off
+                    ymin = segment['coor'][2] - off
+                    ymax = segment['coor'][3] + off
+                elif segment['type'] == 'vi':
+                    xmin = segment['coor'][0] - off
+                    xmax = segment['coor'][0] + off
+                    ymin = segment['coor'][1] - off
+                    ymax = segment['coor'][1] + off
+
+                if is_dbg:  # for debug
+                    print('\ntest_zone: ({:10.0f}, {:10.0f}, {:10.0f}, {:10.0f})'.format(
+                        xmin, xmax, ymin, ymax))
+
+                for vio_zone in vio_zone_list:
+                    if is_dbg:  # for debug
+                        print('vio_zone:  ({:10.0f}, {:10.0f}, {:10.0f}, {:10.0f})'.format(
+                            *vio_zone))
+                    xmin_hit = (xmin < vio_zone[1])
+                    xmax_hit = (xmax > vio_zone[0])
+                    ymin_hit = (ymin < vio_zone[3])
+                    ymax_hit = (ymax > vio_zone[2])
+                    if xmin_hit and xmax_hit and ymin_hit and ymax_hit:
+                        if is_dbg:  # for debug
+                            print('--- !!! VIOLATION !!!')
+                        vio_net_list.append(net_name)
+                        is_vio = True
+                        break
+
+                if is_vio:
+                    break
+            if is_vio:
+                break
+
+    return vio_net_list
+
+
+def check_bnd_wire_out(out_fpath, config: dict, def_parser_dict: dict, 
+                       is_dbg: bool=False) -> bool:
     """Boundary wire keep out check flow."""
-    pass
+    is_top = (config['type'] == 'top')
+    out_fp = sys.stdout if out_fpath is None else open(out_fpath, 'w')
+    check_pass = True
+
+    for blk, blk_data in config['block'].items():
+        def_info = def_parser_dict[blk].def_dict
+        margin = config['margin'] * def_info['unit']['percision']
+        prefix = f'{blk}/' if is_top else ''
+
+        if is_dbg:  # for debug
+            print('\n=== [Block: {}]'.format(blk))
+
+        # Get the boundary violation zone
+        vio_zone_list = _get_vio_zone(def_info['diearea'], margin, True)
+
+        # Net check by the test zone
+        vio_net_list = _check_net_keep_out(blk_data['net'], def_info, config['unit'], 
+                                           vio_zone_list, is_dbg)
+
+        if len(vio_net_list):
+            result, check_pass = 'FAIL', False
+        else:
+            result = 'PASS'
+
+        print(file=out_fp)
+        print('====== Block: {}, Result: {}'.format(blk, result), file=out_fp)
+        for vio_net in vio_net_list:
+            print(file=out_fp)
+            print('net:', vio_net, file=out_fp)
+        print(file=out_fp)
+
+    if out_fpath is not None:
+        out_fp.close()
+    return check_pass 
 
 
 ##############################################################################
@@ -427,14 +552,18 @@ def create_argparse() -> argparse.ArgumentParser:
 
     parser.add_argument('-clk_2w2s', dest='clk_2w2s_cfg', metavar='<json_file>', 
                         help='Configuration for the clock 2W2S check.') 
-    parser.add_argument('-bound_wire_out', dest='bound_wire_out_cfg', metavar='<json_file>', 
+    parser.add_argument('-bound_wire_out', dest='bnd_wire_out_cfg', metavar='<json_file>', 
                         help='Configuration for the boundary wire keep out check.') 
-    parser.add_argument('-macro_wire_out', dest='macro_wire_out_cfg', metavar='<json_file>', 
+    parser.add_argument('-macro_wire_out', dest='ma_wire_out_cfg', metavar='<json_file>', 
                         help='Configuration for the macro wire keep out check.') 
-    parser.add_argument('-macro_cell_out', dest='macro_cell_out_cfg', metavar='<json_file>', 
+    parser.add_argument('-macro_cell_out', dest='ma_cell_out_cfg', metavar='<json_file>', 
                         help='Configuration for the macro cell keep out check.') 
     parser.add_argument('-outdir', dest='outdir', metavar='<directory>', 
                         help='Output report directory.') 
+    parser.add_argument('-verbose', dest='is_verb', action='store_true', 
+                              help="Print process message.")
+    parser.add_argument('-debug', dest='is_dbg', action='store_true', 
+                              help="Print debug message.")
 
     return parser
 
@@ -476,8 +605,8 @@ def main():
                     def_req['net'].extend(path_data['net'])
 
     # Load the configuration of the boundary wire keep out check
-    if args.bound_wire_out_cfg is not None:
-        config_bnd_wire_out = load_json(args.bound_wire_out_cfg, BOUND_WIRE_OUT_SCHEMA)
+    if args.bnd_wire_out_cfg is not None:
+        config_bnd_wire_out = load_json(args.bnd_wire_out_cfg, BOUND_WIRE_OUT_SCHEMA)
 
         for blk, blk_data in config_bnd_wire_out['block'].items():
             def_parser = def_parser_dict.setdefault(blk, DEFParser(blk_data['def']))
@@ -485,8 +614,8 @@ def main():
             def_req['net'].extend(blk_data['net'])
 
     # Load the configuration of the macro wire keep out check
-    if args.macro_wire_out_cfg is not None:
-        config_ma_wire_out = load_json(args.macro_wire_out_cfg, MACRO_WIRE_OUT_SCHEMA)
+    if args.ma_wire_out_cfg is not None:
+        config_ma_wire_out = load_json(args.ma_wire_out_cfg, MACRO_WIRE_OUT_SCHEMA)
         lef_set.update(config_ma_wire_out['lefs'])
 
         for blk, blk_data in config_ma_wire_out['block'].items():
@@ -496,8 +625,8 @@ def main():
                 def_req['net'].extend(macro_data['net'])
 
     # Load the configuration of the macro cell keep out check
-    if args.macro_cell_out_cfg is not None:
-        config_ma_cell_out = load_json(args.macro_cell_out_cfg, MACRO_CELL_OUT_SCHEMA)
+    if args.ma_cell_out_cfg is not None:
+        config_ma_cell_out = load_json(args.ma_cell_out_cfg, MACRO_CELL_OUT_SCHEMA)
         lef_set.update(config_ma_cell_out['lefs'])
 
         for blk, blk_data in config_ma_cell_out['block'].items():
@@ -511,10 +640,18 @@ def main():
         lef_parser = LEFParser(list(lef_set))
         lef_parser.parse_lef()
         macro_dict = lef_parser.blk_dict
+    if args.is_dbg:  # for debug
+        if (len(lef_set)):
+            print('\n[LEF Information]')
+            print('\n', macro_dict)
 
     # Parsing DEF file
     for blk, def_parser in def_parser_dict.items():
         def_parser.parse_def(def_req_dict[blk])
+    if args.is_dbg:  # for debug 
+        print('\n[DEF Information]')
+        for def_parser in def_parser_dict.values():
+            def_parser.debug_print()
 
     # Clock 2W2S check flow
     if args.clk_2w2s_cfg is not None:
@@ -522,16 +659,45 @@ def main():
         if args.outdir is not None:
             out_fpath = outdir / 'clock_2w2s_check.rpt'
 
-        check_result['clk_2w2s'] = \
+        check_result['clk_2w2s'] = [
+            'Clock 2W2S Check', 
             check_2w2s_flow(out_fpath, config_2w2s, def_parser_dict)
+        ]
 
     # Boundary wire keep out check flow
+    if args.bnd_wire_out_cfg is not None:
+        out_fpath = None
+        if args.outdir is not None:
+            out_fpath = outdir / 'boundary_wire_keepout.rpt'
+        if args.is_dbg:  # for debug
+            print('\n[Bounday Wire Keep Out Check]')
+
+        check_result['bnd_wire_out'] = [
+            'Boundary Wire Keep Out',
+            check_bnd_wire_out(
+                out_fpath, 
+                config_bnd_wire_out, 
+                def_parser_dict,
+                args.is_dbg
+            )
+        ]
 
     # Macro wire keep out check flow
+    # import pdb; pdb.set_trace()
 
     # Macro cell keep out check flow
-        
-    ### bookmark
+
+    if args.is_verb:
+        item_len = max([len(x) for x, _ in check_result.values()])
+
+        print('\n=== Layout Check Summary ===\n')
+        for item, is_pass in check_result.values():
+            print('{}: {}'.format(
+                item.ljust(item_len), 
+                'PASS' if is_pass else 'FAIL'
+            ))
+        print()
+
     # import pdb; pdb.set_trace()
 
 

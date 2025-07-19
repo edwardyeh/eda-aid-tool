@@ -251,6 +251,7 @@ class DEFParser:
                             cmd_len, i = len(cmd_stack), 0
                             while i < cmd_len:
                                 if cmd_stack[i] in ROUTE_STATUS:
+                                    # New route start
                                     route_list.append(route:={})
                                     route['layer'], i = cmd_stack[i+1], (i + 2)
                                     if cmd_stack[i] == 'TAPER':
@@ -265,6 +266,7 @@ class DEFParser:
                                     else:
                                         pt1e, i = int(cmd_stack[i+3]), (i + 5)
                                 elif cmd_stack[i] == '(':
+                                    # Create a segment net
                                     pt2x = pt1x if cmd_stack[i+1] == '*' else int(cmd_stack[i+1])
                                     pt2y = pt1y if cmd_stack[i+2] == '*' else int(cmd_stack[i+2])
                                     if cmd_stack[i+3] == ')':
@@ -273,29 +275,31 @@ class DEFParser:
                                         pt2e, i = int(cmd_stack[i+3]), (i + 5)
                                     if pt1x == pt2x and pt1y != pt2y:
                                         if pt1y > pt2y:
-                                            pt1y += pt1e
-                                            pt2y -= pt2e
-                                            coor = [pt1x, pt2x, pt2y, pt1y]
+                                            n1y = pt1y + pt1e
+                                            n2y = pt2y - pt2e
+                                            coor = [pt1x, pt2x, n2y, n1y]
                                         else:
-                                            pt1y -= pt1e
-                                            pt2y += pt2e
-                                            coor = [pt1x, pt2x, pt1y, pt2y]
+                                            n1y = pt1y - pt1e
+                                            n2y = pt2y + pt2e
+                                            coor = [pt1x, pt2x, n1y, n2y]
                                         segment_list.append({'type': 'rv', 'coor': coor})
                                     elif pt1x != pt2x and pt1y == pt2y:
                                         if pt1x > pt2x:
-                                            pt1x += pt1e
-                                            pt2x -= pt2e
-                                            coor = [pt2x, pt1x, pt1y, pt2y]
+                                            n1x = pt1x + pt1e
+                                            n2x = pt2x - pt2e
+                                            coor = [n2x, n1x, pt1y, pt2y]
                                         else:
-                                            pt1x -= pt1e
-                                            pt2x += pt2e
-                                            coor = [pt1x, pt2x, pt1y, pt2y]
+                                            n1x = pt1x - pt1e
+                                            n2x = pt2x + pt2e
+                                            coor = [n1x, n2x, pt1y, pt2y]
                                         segment_list.append({'type': 'rh', 'coor': coor})
                                     else:
                                         coor_x = [pt2x, pt1x] if pt1x > pt2x else [pt1x, pt2x]
                                         coor_y = [pt2y, pt1y] if pt1y > pt2y else [pt1y, pt2y]
                                         segment_list.append({'type': 'rd', 'coor': coor_x + coor_y})
+                                    pt1x, pt1y, pt1e = pt2x, pt2y, pt2e
                                 else:
+                                    # Create a via
                                     segment = {
                                         'type': 'vi', 
                                         'coor': [pt1x, pt1y], 
@@ -326,7 +330,7 @@ class DEFParser:
 
 
     def debug_print(self):
-        print('\n=== [Debug] ===\n')
+        print(f'\n=== [DEF Block: {self.def_dict["design"]}] ===\n')
         for k1, v1 in self.def_dict.items():
             if k1 in {'diearea', 'comp'}:
                 print(f'=== {k1}:')
