@@ -200,7 +200,7 @@ NETS 3 ;
   - data_net4
     ( U_DFF_6 Q )
     ( PIN data_out[6] )
-    + FIXED metal2 ( 220000 1320000 ) ( 240000 1320000 )
+    + FIXED metal2 ( 100000 1320000 ) ( 123000 1320000 )
     + USE SIGNAL ;
 
   - data_net5

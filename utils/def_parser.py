@@ -97,7 +97,7 @@ class DEFParser:
         if acc < 0:
             diearea['cw'] = True
             # Get the boundary list
-            for cur_x, cur_y in coor_list[1:]:
+            for cur_x, cur_y in coor_list[1:] + [coor_list[0]]:
                 if cur_x == prv_x:
                     if cur_y > prv_y:
                         diearea['l'].append((prv_x, cur_x, prv_y, cur_y))
@@ -112,7 +112,7 @@ class DEFParser:
         else:
             diearea['cw'] = False
             # Get the boundary list
-            for cur_x, cur_y in coor_list[1:]:
+            for cur_x, cur_y in coor_list[1:] + [coor_list[0]]:
                 if cur_x == prv_x:
                     if cur_y > prv_y:
                         diearea['r'].append((prv_x, cur_x, prv_y, cur_y))
@@ -193,8 +193,15 @@ class DEFParser:
                         comp['ref'] = cmd_stack[2]
                     elif cmd_stack[0] in {'FIXED', 'COVER', 'PLACED'}:
                         comp['sts'] = cmd_stack[0]
-                        comp['pt'] = cmd_stack[2:4]
-                        comp['ori'] = cmd_stack[5]
+                        try:
+                            m = re.fullmatch(r'^.*\(\s*(\S+)\s+(\S+)\s*\).*',
+                                             ' '.join(cmd_stack))
+                            comp['pt'] = (int(m[1]), int(m[2]))
+                        except Exception as e:
+                            print('Error Component : {}'.format(comp['ref']))
+                            print('Error Command   : {}'.format(cmd_stack))
+                            raise(e)
+                        comp['ori'] = cmd_stack[-1]
                     elif cmd_stack[0] == 'UNPLACED':
                         comp['sts'] = cmd_stack[0]
                     cmd_stack = []

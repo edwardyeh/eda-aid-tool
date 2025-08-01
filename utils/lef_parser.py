@@ -103,7 +103,7 @@ class LEFParser:
             if acc < 0:
                 macro["cw"] = True
                 # Get the boundary list
-                for cur_x, cur_y in coor_list[1:]:
+                for cur_x, cur_y in coor_list[1:] + [coor_list[0]]:
                     if cur_x == prv_x:
                         if cur_y > prv_y:
                             macro["l"].append((prv_x, cur_x, prv_y, cur_y))
@@ -118,7 +118,7 @@ class LEFParser:
             else:
                 macro["cw"] = False
                 # Get the boundary list
-                for cur_x, cur_y in coor_list[1:]:
+                for cur_x, cur_y in coor_list[1:] + [coor_list[0]]:
                     if cur_x == prv_x:
                         if cur_y > prv_y:
                             macro["r"].append((prv_x, cur_x, prv_y, cur_y))
