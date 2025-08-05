@@ -197,7 +197,20 @@ MACRO_CELL_OUT_SCHEMA = {
                                     'cell': {
                                         'type': 'array',
                                         'minItems': 1,
-                                        'items': {'type': 'string'}
+                                        'items': {
+                                            'type': 'object',
+                                            'additionalProperties': False,
+                                            'required': [],
+                                            'properties': {
+                                                'inst': {'type': 'string'},
+                                                'ori': {
+                                                    'type': 'array',
+                                                    'minItems': 4,
+                                                    'maxItems': 4,
+                                                    'items': {'type': 'integer'}
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -450,7 +463,7 @@ def _get_vio_zone(bnd_dict: dict, offset: list, margin: float, is_inter: bool,
     return vio_zone_list
 
 
-def _check_net_keep_out(test_net_list: list, def_data: dict, unit: float, 
+def _check_net_keep_out(def_data: dict, unit: float, test_net_list: list, 
                         vio_zone_list: list, is_dbg: bool=False) -> list:
     unith2 = unit * def_data['unit']['percision'] / 2
     vio_net_list = []
@@ -531,7 +544,11 @@ def check_bnd_wire_out(out_fpath, config: dict, def_parser_dict: dict,
 
         # Net check by the test zone
         vio_net_list = _check_net_keep_out(
-            blk_data['net'], def_data, config['unit'], vio_zone_list, is_dbg
+            def_data=def_data, 
+            unit=config['unit'], 
+            test_net_list=blk_data['net'], 
+            vio_zone_list=vio_zone_list, 
+            is_dbg=is_dbg
         )
 
         if len(vio_net_list):
@@ -592,8 +609,11 @@ def check_ma_wire_out(out_fpath, config: dict, macro_dict: dict,
 
             # Net check by the test zone
             vio_net_list = _check_net_keep_out(
-                macro_info['net'], def_data, config['unit'], vio_zone_list, 
-                is_dbg
+                def_data=def_data,
+                unit=config['unit'],
+                test_net_list=macro_info['net'],   
+                vio_zone_list=vio_zone_list, 
+                is_dbg=is_dbg
             )
 
             if len(vio_net_list):
@@ -612,9 +632,87 @@ def check_ma_wire_out(out_fpath, config: dict, macro_dict: dict,
     if out_fpath is not None:
         out_fp.close()
     return check_pass 
-            
-    import pdb; pdb.set_trace()
-    ### bookmark
+
+
+def _check_cell_keep_out(test_cell_list: list, vio_zone_list: list, 
+                         is_dbg: bool=False) -> list:
+    vio_cell_list = []
+
+    for cell_dict in test_cell_list:
+        xmin, xmax, ymin, ymax = cell_dict['ori']
+
+        if is_dbg:  # for debug
+            print('\ntest_zone: ({:10.0f}, {:10.0f}, {:10.0f}, {:10.0f})'.format(
+                xmin, xmax, ymin, ymax))
+
+        for vio_zone in vio_zone_list:
+            if is_dbg:  # for debug
+                print('vio_zone:  ({:10.0f}, {:10.0f}, {:10.0f}, {:10.0f})'.format(
+                    *vio_zone))
+            xmin_hit = (xmin < vio_zone[1])
+            xmax_hit = (xmax > vio_zone[0])
+            ymin_hit = (ymin < vio_zone[3])
+            ymax_hit = (ymax > vio_zone[2])
+            if xmin_hit and xmax_hit and ymin_hit and ymax_hit:
+                if is_dbg:  # for debug
+                    print('--- !!! VIOLATION !!!')
+                vio_cell_list.append(cell_dict['inst'])
+                break
+
+    return vio_cell_list
+
+
+def check_ma_cell_out(out_fpath, config: dict, macro_dict: dict, 
+                      def_parser_dict: dict, is_dbg: bool=False) -> bool:
+    """Macro cell keep out check flow."""
+    is_top = (config['type'] == 'top')
+    out_fp = sys.stdout if out_fpath is None else open(out_fpath, 'w')
+    check_pass = True
+
+    for blk, blk_data in config['block'].items():
+        def_data = def_parser_dict[blk].def_dict
+        #percision = def_data['unit']['percision']
+        percision = 1000
+        prefix = f'{blk}/' if is_top else ''
+
+        for macro_info in blk_data['macro']:
+            margin = macro_info['margin'] * percision
+            macro_coor = _get_macro_coor(macro_dict[macro_info['ref']], percision)
+
+            if is_dbg:  # for debug
+                print('\n=== [Block: {}, Macro: {}]'.format(blk, macro_info['ref']))
+
+            # Get the boundary violation zone
+            macro_name = macro_info['inst']
+            offset = def_data['comp'][macro_name]['pt']
+            vio_zone_list = _get_vio_zone(
+                macro_coor, offset, margin, False, is_dbg
+            )
+
+            # Net check by the test zone
+            vio_cell_list = _check_cell_keep_out(
+                test_cell_list=macro_info['cell'],
+                vio_zone_list=vio_zone_list, 
+                is_dbg=is_dbg
+            )
+
+            if len(vio_cell_list):
+                result, check_pass = 'FAIL', False
+            else:
+                result = 'PASS'
+
+            print(file=out_fp)
+            print('====== Block: {}, Macro: {}, Result: {}'.format(
+                    blk, macro_name, result), file=out_fp)
+            for vio_cell in vio_cell_list:
+                print(file=out_fp)
+                print('cell:', prefix + vio_cell, file=out_fp)
+            print(file=out_fp)
+
+    if out_fpath is not None:
+        out_fp.close()
+    return check_pass 
+>>>>>>> 3346cb9ab016228734ae53b3dfd53da8c0599e24
 
 
 ##############################################################################
@@ -711,7 +809,7 @@ def main():
             def_parser = def_parser_dict.setdefault(blk, DEFParser(blk_data['def']))
             def_req = def_req_dict.setdefault(blk, {'comp': [], 'net': []})
             for macro_data in blk_data['macro']:
-                def_req['cell'].extend(macro_data['cell'])
+                def_req['comp'].append(macro_data['inst'])
 
     # Parsing LEF file
     if len(lef_set):
@@ -779,8 +877,26 @@ def main():
             )
         ]
 
-    # Macro cell keep out check flow (TBD)
+    # Macro cell keep out check flow
+    if args.ma_cell_out_cfg is not None:
+        out_fpath = None
+        if args.outdir is not None:
+            out_fpath = outdir / 'macro_cell_keepout.rpt'
+        if args.is_dbg:  # for debug
+            print('\n[Macro Cell Keep Out Check]')
 
+        check_result['ma_cell_out'] = [
+            "Macro Cell Keep Out",
+            check_ma_cell_out(
+                out_fpath,
+                config_ma_cell_out,
+                macro_dict,
+                def_parser_dict,
+                args.is_dbg
+            )
+        ]
+
+    # Summary
     if args.is_verb:
         item_len = max([len(x) for x, _ in check_result.values()])
 

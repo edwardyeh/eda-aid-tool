@@ -83,9 +83,9 @@ COMPONENTS 10 ;
   - U_XOR_7 XOR2X1
     + PLACED ( 19000 2000 ) FS ; # Flipped South
   - U_AND_8 AND2X1
-    + PLACED ( 21000 2000 ) R180 ; # Rotated 180 degrees (South)
+    + PLACED ( 21000 2000 ) N ; # Rotated 180 degrees (South)
   - U_AND_9 AND2X1
-    + PLACED ( 225000 1350000 ) R180 ; # Rotated 180 degrees (South)
+    + PLACED ( 225000 1350000 ) N ; # Rotated 180 degrees (South)
   - U_DDRPHY DDR_PHY
     + FIXED (40000 1310000) N ;
 END COMPONENTS
