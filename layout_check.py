@@ -712,7 +712,6 @@ def check_ma_cell_out(out_fpath, config: dict, macro_dict: dict,
     if out_fpath is not None:
         out_fp.close()
     return check_pass 
->>>>>>> 3346cb9ab016228734ae53b3dfd53da8c0599e24
 
 
 ##############################################################################
