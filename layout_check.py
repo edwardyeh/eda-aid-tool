@@ -264,7 +264,7 @@ def check_2w2s_flow(out_fpath, config: dict, def_parser_dict: dict) -> bool:
                 ndr2x_set.add(ndr_name)
 
         # Net check
-        check_2w2s = {'pass': 'PASS', 'path': []}
+        check_2w2s = {'pass': True, 'path': []}
         net_info_dict = def_data['net']
         clk_len, path_len, rule_len = 0, 0, 0
 
@@ -315,7 +315,7 @@ def check_2w2s_flow(out_fpath, config: dict, def_parser_dict: dict) -> bool:
                         path_check['pass'][1] = '(W)'
                     else:
                         path_check['pass'][0] = 'FAIL'
-                        check_2w2s['pass'] = 'FAIL'
+                        check_2w2s['pass'] = False
                 elif 'waive' in rule_dict:
                     path_check['pass'][1] = '(W)'
                 check_2w2s['path'].append(path_check)
@@ -325,7 +325,7 @@ def check_2w2s_flow(out_fpath, config: dict, def_parser_dict: dict) -> bool:
                     rule_len = size
 
         # Ouptut summary report
-        result = check_2w2s['pass']
+        result = 'PASS' if check_2w2s['pass'] else 'FAIL'
         id_len = len(str(len(check_2w2s['path'])))
         path_len += 2
         rule_len += 3
@@ -906,6 +906,33 @@ def main():
                 'PASS' if is_pass else 'FAIL'
             ))
         print()
+
+    if args.outdir is not None:
+        out_fpath = outdir / 'summary.tcl'
+        with open(out_fpath, 'w') as out_fp:
+            if 'clk_2w2s' in check_result:
+                result = str(check_result['clk_2w2s'][1]).lower()
+            else:
+                result = 'none'
+            print(f'set CHECK_2W2S {result}', file=out_fp)
+
+            if 'bnd_wire_out' in check_result:
+                result = str(check_result['bnd_wire_out'][1]).lower()
+            else:
+                result = 'none'
+            print(f'set CHECK_BND_WIRE_OUT {result}', file=out_fp)
+
+            if 'ma_wire_out' in check_result:
+                result = str(check_result['ma_wire_out'][1]).lower()
+            else:
+                result = 'none'
+            print(f'set CHECK_MA_WIRE_OUT {result}', file=out_fp)
+
+            if 'ma_cell_out' in check_result:
+                result = str(check_result['ma_cell_out'][1]).lower()
+            else:
+                result = 'none'
+            print(f'set CHECK_MA_CELL_OUT {result}', file=out_fp)
 
     # import pdb; pdb.set_trace()
 
