@@ -491,16 +491,25 @@ class TimeReport:
             pin.incr, cid = Decimal(tok[cid]), cid+1
             if tok[cid][-1] in self._anno_sym:
                 cid += 1
-            pin.path, cid = Decimal(tok[cid]), cid+1
+
+            if tok[cid][-1] == 'r' or tok[cid][-1] == 'f':
+                pin.path, pin.incr = pin.incr, 0.0
+            else:
+                pin.path, cid = Decimal(tok[cid]), cid+1
+
             if tok[cid][-1] == 'r' or tok[cid][-1] == 'f':
                 cid += 1
+
             if 'phy' in self.opt:
                 pos = tok[cid].lstrip()[1:-1]
                 pin.phy = [int(x) for x in pos.split(',')]
+
         except IndexError:
             pass
         except ValueError:
             pass
+        except Exception:
+            import pdb; pdb.set_trace()
 
     def clock_path_check(self, pid: int=0, is_dump: bool=False) -> tuple:
         """
