@@ -415,13 +415,18 @@ proc rpsum { args } {
     ## parsing information
     if {$RPSUM_CFG(debug)} { echo "## DEBUG: path information" }
 
-    set PATH_INFO(stp)  [get_attr $path_coll startpoint.full_name]
-    set PATH_INFO(sck)  [get_attr $path_coll startpoint_clock.full_name]
-    set PATH_INFO(sed)  [get_attr $path_coll startpoint_clock_open_edge_type]
-    set PATH_INFO(edp)  [get_attr $path_coll endpoint.full_name]
-    set PATH_INFO(eck)  [get_attr $path_coll endpoint_clock.full_name]
-    set PATH_INFO(eed)  [get_attr $path_coll endpoint_clock_open_edge_type]
-    set PATH_INFO(grp)  [get_attr $path_coll path_group.full_name]
+    set PATH_INFO(stp) [get_attr $path_coll startpoint.full_name]
+    set PATH_INFO(sck) [get_attr $path_coll startpoint_clock.full_name]
+    set PATH_INFO(sed) [get_attr $path_coll startpoint_clock_open_edge_type]
+    set PATH_INFO(edp) [get_attr $path_coll endpoint.full_name -q]
+    set PATH_INFO(eck) [get_attr $path_coll endpoint_clock.full_name -q]
+    set PATH_INFO(eed) [get_attr $path_coll endpoint_clock_open_edge_type -q]
+
+    set PATH_INFO(grp) [get_attr $path_coll path_group.full_name -q]
+    if {$PATH_INFO(grp) == ""} {
+        set PATH_INFO(grp) "(none)"
+    }
+
     set PATH_INFO(type) [get_attr $path_coll path_type]
     set PATH_INFO(scen) [get_attr $path_coll scenario_name -q]
 
@@ -433,11 +438,18 @@ proc rpsum { args } {
 
     if {$RPSUM_CFG(debug)} { echo "## DEBUG: clock latency" } 
 
-    set PATH_INFO(sedv) [get_attr $path_coll startpoint_clock_open_edge_value]
-    set PATH_INFO(eedv) [get_attr $path_coll endpoint_clock_open_edge_value]
-    set PATH_INFO(llat) [get_attr $path_coll startpoint_clock_latency]
-    set PATH_INFO(clat) [get_attr $path_coll endpoint_clock_latency]
-    set PATH_INFO(crpr) [get_attr $path_coll common_path_pessimism]
+    set PATH_INFO(sedv) [get_attr $path_coll startpoint_clock_open_edge_value -q]
+    set PATH_INFO(eedv) [get_attr $path_coll endpoint_clock_open_edge_value -q]
+    set PATH_INFO(llat) [get_attr $path_coll startpoint_clock_latency -q]
+    set PATH_INFO(clat) [get_attr $path_coll endpoint_clock_latency -q]
+    set PATH_INFO(crpr) [get_attr $path_coll common_path_pessimism -q]
+
+    if {$PATH_INFO(sedv) == ""} { set PATH_INFO(sedv) 0 }
+    if {$PATH_INFO(eedv) == ""} { set PATH_INFO(eedv) 0 }
+    if {$PATH_INFO(llat) == ""} { set PATH_INFO(llat) 0 }
+    if {$PATH_INFO(clat) == ""} { set PATH_INFO(clat) 0 }
+    if {$PATH_INFO(crpr) == ""} { set PATH_INFO(crpr) 0 }
+
     set PATH_INFO(skew) [expr $PATH_INFO(llat) - $PATH_INFO(clat) - $PATH_INFO(crpr)]
 
     if {$RPSUM_CFG(debug)} { echo "## DEBUG: data latency" }
@@ -445,10 +457,15 @@ proc rpsum { args } {
     set PATH_INFO(edly) [get_attr $path_coll exception_delay]
     set PATH_INFO(idly) [get_attr $path_coll startpoint_input_delay_value -q]
     set PATH_INFO(odly) [get_attr $path_coll endpoint_output_delay_value -q]
-    set PATH_INFO(unce) [get_attr $path_coll clock_uncertainty]
+    set PATH_INFO(unce) [get_attr $path_coll clock_uncertainty -q]
     set PATH_INFO(pmag) [get_attr $path_coll path_margin]
+    set PATH_INFO(slk)  [get_attr $path_coll slack]
 
-    if {$PATH_INFO(edly) != "UNINIT"} {
+    if {$PATH_INFO(unce) == ""} {
+        set PATH_INFO(unce) 0
+    }
+
+    if {$PATH_INFO(edly) != "UNINIT" || $PATH_INFO(slk) == "INFINITY"} {
         set PATH_INFO(lib) ""
     } elseif {$PATH_INFO(type) == "max"} {
         set PATH_INFO(lib) [expr -1 * [get_attr $path_coll endpoint_setup_time_value]]
@@ -456,9 +473,12 @@ proc rpsum { args } {
         set PATH_INFO(lib) [get_attr $path_coll endpoint_hold_time_value]
     }
 
-    set PATH_INFO(arr)  [expr [get_attr $path_coll arrival] + $PATH_INFO(sedv)]
-    set PATH_INFO(req)  [expr [get_attr $path_coll required] + $PATH_INFO(eedv)]
-    set PATH_INFO(slk)  [get_attr $path_coll slack]
+    set PATH_INFO(arr) [expr [get_attr $path_coll arrival] + $PATH_INFO(sedv)]
+
+    set PATH_INFO(req) 0
+    if {[get_attr $path_coll required -q] != ""} {
+        set PATH_INFO(req) [expr [get_attr $path_coll required] + $PATH_INFO(eedv)]
+    }
 
     set PATH_INFO(dlat) [expr $PATH_INFO(arr) - $PATH_INFO(llat) - $PATH_INFO(sedv)]
     if {$PATH_INFO(idly) != ""} {
@@ -467,7 +487,14 @@ proc rpsum { args } {
 
     if {$RPSUM_CFG(debug)} { echo "## DEBUG: delta sum / path level / highlight cell delay" }
 
-    set full_clk [sizeof_col [get_attr $path_coll launch_clock_paths -q]]
+    set lpath_coll [get_attr $path_coll launch_clock_paths -q]
+    set cpath_coll [get_attr $path_coll capture_clock_paths -q]
+    if {$lpath_coll != "" && $cpath_coll != ""} {
+        set full_clk "true"
+    } else {
+        set full_clk "false"
+    }
+
     if {$full_clk} {
         set cmd_list {d "" l "launch_clock_paths." c "capture_clock_paths."}
     } else {
@@ -675,25 +702,32 @@ proc rpsum { args } {
             echo [format " %-26s% 5.4f" "arrival:"      $PATH_INFO(arr)]
             echo [format " %-26s% 5.4f" "required:"     $PATH_INFO(req)]
             echo [format " %-26s% 5.4f" "slack:"        $PATH_INFO(slk)]
-            echo $div2
-            echo [format " %-26s% 5.4f" "clock uncertainty:" $PATH_INFO(unce)]
-            if {!$PATH_INFO(outp) && $PATH_INFO(lib) != ""} {
-                if {$PATH_INFO(type) == "max"} {
-                    set lib_type "library setup:"
-                } else {
-                    set lib_type "library hold:"
+
+            if {$PATH_INFO(slk) != "INFINITY" || [llength $PATH_INFO(hcd)]} {
+                echo $div2
+            }
+
+            if {$PATH_INFO(slk) != "INFINITY"} {
+                echo [format " %-26s% 5.4f" "clock uncertainty:" $PATH_INFO(unce)]
+                if {!$PATH_INFO(outp) && $PATH_INFO(lib) != ""} {
+                    if {$PATH_INFO(type) == "max"} {
+                        set lib_type "library setup:"
+                    } else {
+                        set lib_type "library hold:"
+                    }
+                    echo [format " %-26s% 5.4f" $lib_type $PATH_INFO(lib)]
                 }
-                echo [format " %-26s% 5.4f" $lib_type $PATH_INFO(lib)]
+                if {$PATH_INFO(idly) != ""} {
+                    echo [format " %-26s% 5.4f" "input delay:" $PATH_INFO(idly)]
+                }
+                if {$PATH_INFO(odly) != ""} {
+                    echo [format " %-26s% 5.4f" "output delay:" [expr -1 * $PATH_INFO(odly)]]
+                }
+                if {$PATH_INFO(pmag) != 0} {
+                    echo [format " %-26s% 5.4f" "path margin:" $PATH_INFO(pmag)]
+                }
             }
-            if {$PATH_INFO(idly) != ""} {
-                echo [format " %-26s% 5.4f" "input delay:" $PATH_INFO(idly)]
-            }
-            if {$PATH_INFO(odly) != ""} {
-                echo [format " %-26s% 5.4f" "output delay:" [expr -1 * $PATH_INFO(odly)]]
-            }
-            if {$PATH_INFO(pmag) != 0} {
-                echo [format " %-26s% 5.4f" "path margin:" $PATH_INFO(pmag)]
-            }
+
             if {[llength $PATH_INFO(hcd)]} {
                 if {$PATH_INFO(hcd_len) > 25} {
                     set col_len [expr $PATH_INFO(hcd_len) + 1]
