@@ -2,3 +2,5 @@ tags
 __pycache__
 commit.tmp
 *.ses
+trash
+phaseout

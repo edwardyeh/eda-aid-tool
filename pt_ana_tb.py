@@ -81,6 +81,10 @@ def report_time_brief(rpt_fp, is_all: bool, cfg_fp: str):
                 print(path['group'], path['type'], toks[-1], path['end'], path['start'], end='')
                 print(" line:{}".format(path['no']))
             stage = ST
+        elif stage == SL and line[:23] == "(Path is unconstrained)":
+            print(path['group'], path['type'], "INF", path['end'], path['start'], end='')
+            print(" line:{}".format(path['no']))
+            stage = ST
         line, no = f.readline(), no + 1
     f.close()
 #}}}
@@ -96,8 +100,8 @@ def create_argparse() -> argparse.ArgumentParser:
                             "-- command: report_timing")
 
     parser.add_argument('-version', action='version', version=VERSION)
-    parser.add_argument('-a', dest='is_all', action='store_true', 
-                              help="show timing meet path \n(default: only violation path)")
+    parser.add_argument('-all', dest='is_all', action='store_true', 
+                                help="show timing meet path \n(default: only violation path)")
     parser.add_argument('-c', dest='cfg_fp', metavar='<config>', help="configuration file") 
     parser.add_argument('rpt_fp', help="report_path") 
     return parser

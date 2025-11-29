@@ -1,0 +1,27 @@
+{
+    "attribute":
+    {
+        "grp_width": 48,
+        "wns_width": 12,
+        "tns_width": 12,
+        "nvp_width": 6,
+        "clean_sign_enable": false,
+        "clean_sign": "***"
+    },
+    "path_operation":
+    {
+        "max_delay/setup:*:clk\\d+_short_name\\d+":
+        {
+            "u": {"cond": ["slk", "<", -2.0], "value": "USER1"}
+        }
+    },
+    "group_operation":
+    {
+    },
+    "violate_operation":
+    {
+    },
+    "message":
+    {
+    }
+}

@@ -1,82 +1,106 @@
 
-### Atrribute ##################################################################
+### attribute ##################################################################
 
-grp_width: <int>                        # Column width of group (default: 48)
-wns_width: <int>                        # Column width of WNS   (default: 12) 
-tns_width: <int>                        # Column width of TNS   (default: 12)
-nvp_width: <int>                        # Column width of NVP   (default:  6)
+grp_width: <integer>                    # Column width of group (default: 48)
+wns_width: <integer>                    # Column width of WNS   (default: 12) 
+tns_width: <integer>                    # Column width of TNS   (default: 12)
+nvp_width: <integer>                    # Column width of NVP   (default:  6)
 
-PS. "grp_width" will auto resizing if the attribute undefined. 
+# The column width of the group will resized automatically according to the 
+# content if "grp_width" isn't defined. If the width is smaller than 48, use
+# 48 as the column width.
 
-clean_sign_enable: <true|false>         # Enable clean signature (default: false, for compare mode)
+clean_sign_enable: <boolean>            # Enable clean signature (default: false, only for compare mode)
 clean_sign:        <string>             # Define clean signature (default: ***)
 
-### Path Choose from the Violation Report ######################################
+# When set "clean_sign_enable" true, use the clean sign to replace the print 
+# value of the wns/tns/nvp if the violation clean.
 
-p:<type>:<group>:<path>                 # Use the regular expression to choose paths
+### path_operation #############################################################
 
-    type        Violation type
-    group       Violation group
-    path        Regular expression for path specify
+#--- Path choose format:
 
-### Path Operation #############################################################
+[#]<type>:<group>:<path>
 
-<path> u:[condition]:<ugroup>           # Move the path to the user-defined group if the condition match
+  type      Violation type.
+  group     Violation group (use "*" to select all groups).
+  path      Regular expression for path specify.
+
+# Use "#" as the first char of the <path> to ignore the command. 
+
+#--- Operation command:
+
+<path>: {cmd1: set1, cmd2: set2, ...}
+
+  [#]u:[condition]:<ugroup>     # Move the path to the user-defined group if the condition match
 
     condition   format: <target><operation><value>
                     target:    req/act/slk          # required/actual/slack     
                     operation: [>, <, ==, >=, <=]
                     value:     <float>
-    ugroup      Name of the user-defined group
+    ugroup      Name of the user-defined group.
 
-    PS: Always match if the condition undefined.
+# 1. Use "#" as the first char of the <path> to ignore the command. 
+# 2. Always match if the condition undefined.
 
-### Group Choose from the Summary Report #######################################
+### group_operation ############################################################
 
-g:<type>:<group>                        # Use the regular expression to choose groups
+#--- Group choose format:
 
-    type        Violation type
-    group       Regular expression for group specify
+[#]<type>:<group>
 
-### Group Opteraion ############################################################
+  type      Violation type.
+  group     Regular expression for group specify.
 
-<group> t:[condition]:<tag>             # Add a group tag
-<group> s:[condition]:<status>          # Add a group status (one-char tag)
-<group> m:[condition]:<identifier>      # Import a group comment by the identifier
-<group> c:[condition]:<class_title>     # Classify groups by the user-defined title
+#--- Operation command:
+
+<group>: {cmd1: set1, cmd2: set2, ...}
+
+  [#]t:[condition]:<tag>            # Add a group tag
+  [#]s:[condition]:<status>         # Add a group status (one-char tag)
+  [#]m:[condition]:<identifier>     # Import a group comment by the identifier
+  [#]c:[condition]:<class_title>    # Classify groups by the user-defined title
 
     condition   format: <target><operation><value>
                     target:    wns/tns/nvp     
                     operation: [>, <, ==, >=, <=]
                     value:     <float>
-    status      One-char tag at line start
-    message     Comment at line end
+    status      One-char tag at line start.
+    message     Comment at line end.
 
-    PS: 1. The condition only supports the single mode or the new report in the compare mode.
-        2. Always match if the condition undefined.
+# 1. Use "#" as the first char of the <path> to ignore the command. 
+# 2. Always match if the condition undefined.
+# 3. The condition only supports the single mode or the new report in the compare mode.
 
-<group> r:<pat>:<repl>                  # Replace the group name by the regular expression
+  [#]r:<pat>:<repl>                 # Replace the group name by the regular expression
 
-    pat         Regular expression match pattern
-    rep         Regular expression replace pattern
+    pat         Regular expression match pattern.
+    rep         Regular expression replace pattern.
 
-### Violation Operation ########################################################
+### violate operation ##########################################################
 
-v:<type> go:<rid>:<target>:<order>      # Reorder the print order of groups in each violation
+#--- Violation choose format:
 
-    type        Violation type (give the default rule for all violations by set 'default')
+[#]<type>
+
+  type      Violation type (give the default rule for all violations by set 'default')
+
+#--- Operation command:
+
+<type>: {cmd1: set1, cmd2: set2, ...}
+
+  [#]go:<rid>:<target>:<order>      # Reorder the print order of groups in each violation
+
     rid         Report select   
                     single mode: [s]
                     multi mode:  [l, r, d]  # l: left, r: right, d: difference
     target      wns/tns/nvp
     order       inc/dec         (increase/decrease)
 
-v:<type> gh:<list>                      # Hide groups by the group list in each violation (repeatable)
-v:<type> co:<list>                      # Rorder the print order of class in each violation (repeatable)
+  [#]gh:<list>                      # Hide groups by the group list in each violation (repeatable)
+  [#]co:<list>                      # Rorder the print order of class in each violation (repeatable)
 
-    type        Violation type
     list        Group/Class list (ex. v:max_delay/setup:class_a,class_b,class_c)
-
 
 ### Message Define #############################################################
 

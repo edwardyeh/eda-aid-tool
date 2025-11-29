@@ -184,73 +184,80 @@ def report_summary(args, range_list: list):
 
     for pid, path in enumerate(time_rpt.path):
         # import pdb; pdb.set_trace()
-        splen = len(stp:=path.lpath[path.spin].name)
-        if (plen:=len(edp:=path.lpath[-1].name)) < splen:
-            plen = splen
+        div1 = ' {}'.format('=' * 60)
+        div2 = ' {}'.format('-' * 60)
+        sc_type = f'({path.sed} {path.sck})'
+        ec_type = f'({path.eed} {path.eck})'
+
+        plen = len(stp:=path.lpath[path.spin].name)
+        if (plen2:=len(edp:=path.lpath[-1].name)) > plen:
+            plen = plen2
+
+        strlen = len(f"{stp} {sc_type}")
+        if (strlen2:=len(f"{edp} {ec_type}")) > strlen:
+            strlen = strlen2
 
         ## path information
-        print(" {}".format("=" * 60))
+        print(div1)
         if path.max_dly_en:
             print(" Startpoint: {}".format(stp))
             print(" Endpoint:   {}".format(edp))
-        elif plen > 80:
+        elif strlen > 80:
             print(" Startpoint: {}".format(stp))
-            print("             ({} {})".format(path.sed, path.sck))
+            print("             {}".format(sc_type))
             print(" Endpoint:   {}".format(edp))
-            print("             ({} {})".format(path.eed, path.eck))
+            print("             {}".format(ec_type))
         else:
-            print(" Startpoint: {} ({} {})".format(stp.ljust(plen), 
-                                                   path.sed, path.sck))
-            print(" Endpoint:   {} ({} {})".format(edp.ljust(plen), 
-                                                   path.eed, path.eck))
+            print(" Startpoint: {} {}".format(stp.ljust(plen), sc_type))
+            print(" Endpoint:   {} {}".format(edp.ljust(plen), ec_type))
         print(" Path group: {}".format(path.group))
         print(" Delay type: {}".format(path.type))
         if path.scen is not None:
             print(" Scenario:   {}".format(path.scen))
         if cons_cfg['thp_on_rpt'] and path.thp:
-            print(" {}".format("-" * 60))
+            print(div2)
             for thp in path.thp:
                 print(" Through:    {}".format(thp))
-        print(" {}".format("=" * 60))
+        print(div1)
 
         ## path latency
         dlat = path.arr - path.idly - path.llat - path.sev
         if cons_cfg['slk_on_rpt']:
-            print(" {:26}{: 5.4f}".format( "data latency:", dlat))
+            print(" {:26}{: 5.4f}".format("data latency:", dlat))
             print(" {:26}{: 5.4f}".format("arrival:", path.arr))
             print(" {:26}{: 5.4f}".format("required:", path.req))
             print(" {:26}{: 5.4f}".format("slack:", path.slk))
-            if (path.idly_en or path.odly_en or path.pmarg_en or path.hcd or 
-                cons_cfg['unce_on_rpt'] or cons_cfg['lib_on_rpt']):
-                print(" {}".format("-" * 60))
+            if (
+                cons_cfg['unce_on_rpt'] or cons_cfg['lib_on_rpt'] or 
+                path.idly_en or path.odly_en or path.pmarg_en
+            ):
+                print(div2)
             if cons_cfg['unce_on_rpt']:
-                print(" {:26}{: 5.4f}".format(
-                    "clock uncertainty:", path.unce))
+                print(" {:26}{: 5.4f}".format("clock uncertainty:", path.unce))
             if cons_cfg['lib_on_rpt'] and not path.odly_en:
-                print(" {:26}{: 5.4f}".format(
-                    ("library setup:" if path.type == "max" 
-                    else "library hold"), path.lib))
+                lib_type = 'library setup:' if path.type == 'max' else 'library hold:'
+                print(" {:26}{: 5.4f}".format(lib_type, path.lib))
             if path.idly_en:
                 print(" {:26}{: 5.4f}".format("input delay:", path.idly))
             if path.odly_en:
                 print(" {:26}{: 5.4f}".format("output delay:", -1*path.odly))
             if path.pmarg_en:
                 print(" {:26}{: 5.4f}".format("path margin:", path.pmarg))
+            if path.hcd:
+                print(div2)
             for tag, val in path.hcd.items():
                 print(" {}{: 5.4f}".format(f"{tag}:".ljust(26), val))
-            if cons_cfg['dplv_on_rpt']:
-                print(" {:26}{: 5.4f}".format(
-                    "datapath level:", len(path.lpath)-path.spin-1))
-
-            print(" {}".format("=" * 60))
+            print(div1)
 
         ## clock latency & check
-        is_clk_on_rpt = False
+        is_div_end = False
         skew = path.llat - path.clat - path.crpr
 
         if cons_cfg['ck_skew_on_rpt']:
-            is_clk_on_rpt = True
-            if not path.max_dly_en:
+            is_div_end = True
+            if path.max_dly_en:
+                print(" {:26}{: 5.4f}".format("max delay:", path.max_dly))
+            else:
                 print(" {:26}{: 5.4f}".format("launch clock edge value:", path.sev))
                 print(" {:26}{: 5.4f}".format("capture clock edge value:", path.eev))
             print(" {:26}{: 5.4f}".format("launch clock latency:", path.llat))
@@ -260,9 +267,9 @@ def report_summary(args, range_list: list):
                 print(" {:26}{: 5.4f}".format("clock skew:", skew))
 
         if (args.ckc_en or cons_cfg['ckc_en']) and not path.max_dly_en:
-            if is_clk_on_rpt:
-                print(" {}".format("-" * 60))
-            is_clk_on_rpt = True
+            if is_div_end:
+                print(div2)
+            is_div_end = True
 
             gcc_rslt, scc_rslt, ctc_rslt = time_rpt.clock_path_check(
                                             pid=pid, is_dump=args.ckc_dump)
@@ -282,27 +289,31 @@ def report_summary(args, range_list: list):
             print(" {:26} {}    (ln:{}:{})".format("clock network path fork:", 
                                             split_lv, *scc_rslt[1:]))
 
-        if path.max_dly_en:
-            is_clk_on_rpt = True
-            print(" {:26}{: 5.4f}".format("max delay:", path.max_dly))
-        if is_clk_on_rpt or path.max_dly_en:
-            print(" {}".format("=" * 60))
+        if is_div_end:
+            print(div1)
 
-        ## clock & path delta
+        ## path delta / path level
+        is_div_end = False
+
         if args.dts_en or cons_cfg['dts_en']:
+            is_div_end = True
             if 'delta' in time_rpt.opt:
                 ddt_val = "{: 5.4f}".format(path.ddt)
-                if not {'pfc', 'pfce'}.isdisjoint(time_rpt.opt):
-                    ldt_val = "{:5.4f}".format(path.ldt)
-                    cdt_val = "{:5.4f}".format(path.cdt)
-                else:
-                    ldt_val, cdt_val = 'N/A', 'N/A'
+                is_full_clk = not {'pfc', 'pfce'}.isdisjoint(time_rpt.opt)
+                ldt_val = "{:5.4f}".format(path.ldt) if is_full_clk else 'NA'
+                cdt_val = "{:5.4f}".format(path.cdt) if is_full_clk else 'NA'
             else:
-                ddt_val, ldt_val, cdt_val = 'N/A', 'N/A', 'N/A'
+                ddt_val, ldt_val, cdt_val = ' NA', 'NA', 'NA'
+            print(" {:26}{}/{}/{}".format(
+                "delta sum  (D/L/C):", ddt_val, ldt_val, cdt_val))
 
-            print(" {:26}{} : {} : {}".format("total delta (D:L:C):", 
-                                              ddt_val, ldt_val, cdt_val))
-            print(" {}".format("=" * 60))
+        if cons_cfg['dplv_on_rpt']:
+            is_div_end = True
+            print(" {:26}{: d}".format(
+                "path level (D):", len(path.lpath)-path.spin-1))
+
+        if is_div_end:
+            print(div1)
 
         ## path segment
         if (args.seg_en or cons_cfg['seg_en']) and not len(cons_cfg['pc']):

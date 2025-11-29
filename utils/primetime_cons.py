@@ -32,6 +32,7 @@ NOGRP_CONS = ( 'recovery', 'removal',
 
 CLK_CONS = ( 'clock_tree_pulse_width', 
              'sequential_tree_pulse_width', 
+             'sequential_clock_pulse_width', 
              'sequential_clock_min_period' )
 
 CONS_TYPE = set(GRP_CONS + NOGRP_CONS + CLK_CONS)

@@ -1,75 +1,127 @@
 schema = {
-    "$schema": "https://json-schema.org/draft/2020-12/schema",
-    "type": "object",
-    "properties": {
-        "grp_width": {"type": "integer"},
-        "wns_width": {"type": "integer"},
-        "tns_width": {"type": "integer"},
-        "nvp_width": {"type": "integer"},
-        "clean_sign_enable": {"type": "boolean"},
-        "clean_sign": {"type": "string"},
-        "path_operation": {
-            "type": "object",
-            "patternProperties": {
-                r"^[\w/]+:\S*:\S+$": {  # define path(s)
-                    "type": "array",
-                    "items": {  # define operation(s)
-                        "type": "object",
-                        "properties": {
-                            "operation": {"enum": ["u"]},
-                            "condition": {
-                                "type": "array",
-                                "prefixItems": [
-                                    {"enum": ["req", "act", "slk"]},
-                                    {"enum": [">", "<", "==", ">=", "<="]},
-                                    {"type": "float"}
-                                ],
-                                "items": False
-                            },
-                            "value": {"type": "string"}
-                        },
-                        "required": ["operation", "value"],
-                        "additionalProperties": False
-                    },
-                    "minItems": 1
-                }
-            },
-            "additionalProperties": False
+    '$schema': 'https://json-schema.org/draft/2020-12/schema',
+    'type': 'object',
+    'additionalProperties': False,
+    'required': ['attribute', 'path_operation', 'group_operation', 
+                 'violation_operation', 'message'],
+    'properties': {
+        'attribute': {
+            'type': 'object',
+            'additionalProperties': False,
+            'properties': {
+                'grp_width': {'type': 'integer'},
+                'wns_width': {'type': 'integer'},
+                'tns_width': {'type': 'integer'},
+                'nvp_width': {'type': 'integer'},
+                'clean_sign_enable': {'type': 'boolean'},
+                'clean_sign': {'type': 'string'},
+            }
         },
-        "group_operation": {
-            "type": "object",
-            "patternProperties": {
-                r"^[\w/]+:\S+$": {  # define group(s)
-                    "type": "array",
-                    "items": {  # define operation(s)
-                        "type": "object",
-                        "properties": {
-                            "operation": {"enum": ["c", "t", "m", "s"]},
-                            "condition": {
-                                "type": "array",
-                                "prefixItems": [
-                                    {"enum": ["wns", "tns", "nvp"]},
-                                    {"enum": [">", "<", "==", ">=", "<="]},
-                                    {"type": "float"}
-                                ],
-                                "items": False
-                            },
-                            "value": {"type": "string"}
-                        },
-                        "required": ["operation", "value"],
-                        "additionalProperties": False
-                    },
-                    "minItems": 1
+        'path_operation': {
+            'type': 'object',
+            'additionalProperties': False
+            'patternProperties': {
+                r'\S+:\S+:\S+': {  # define path(s)
+                    'type': 'object',
+                    'additionalProperties': False,
+                    'patternProperties': {  # define operation(s)
+                        r'#*[u]': {
+                            'type': 'object',
+                            'additionalProperties': False,
+                            'required': ['value'],
+                            'properties': {
+                                'cond': {
+                                    'type': 'array',
+                                    'prefixItems': [
+                                        {'enum': ['req', 'act', 'slk']},
+                                        {'enum': ['>', '<', '==', '>=', '<=']},
+                                        {'type': 'float'}
+                                    ],
+                                    'items': False
+                                },
+                                'value': {'type': 'string'}
+                            }
+                        }
+                    }
                 }
-            },
-            "additionalProperties": False
+            }
         },
-        "message": {
-            "type": "object",
-            "patternProperties": {
-                ".*": {"type": "string"}    # define message by the identifier
+        'group_operation': {
+            'type': 'object',
+            'additionalProperties': False,
+            'patternProperties': {
+                r'\S+:\S+': {  # define group(s)
+                    'type': 'object',
+                    'additionalProperties': False,
+                    'patternProperties': {  # define operation(s)
+                        r'#*[t|s|m|c]': {
+                            'type': 'object',
+                            'additionalProperties': False,
+                            'required': ['value'],
+                            'properties': {
+                                'cond': {
+                                    'type': 'array',
+                                    'prefixItems': [
+                                        {'enum': ['wns', 'tns', 'nvp']},
+                                        {'enum': ['>', '<', '==', '>=', '<=']},
+                                        {'type': 'float'}
+                                    ],
+                                    'items': False
+                                },
+                                'value': {'type': 'string'}
+                            }
+                        },
+                        r'#*[r]': {
+                            'type': 'object',
+                            'additionalProperties': False,
+                            'required': ['pat', 'rep'],
+                            'properties': {
+                                'pat': {'type': 'string'},
+                                'rep': {'type': 'string'}
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        'violate_operation': {
+            'type': 'object',
+            'additionalProperties': False,
+            'patternProperties': {
+                r'\S+': {  # define violation(s)
+                    'type': 'object',
+                    'additionalProperties': False,
+                    'patternProperties': {  #define operation(s)
+                        r'#*[go]': {
+                            'type': 'object',
+                            'additionalProperties': False,
+                            'required': ['rid', 'target', 'order'],
+                            'properties': {
+                                'rid': {'enum': ['s', 'l', 'r', 'd']},
+                                'target': {'enum': ['wns', 'tns', 'nvp']},
+                                'order': {'enum': ['inc', 'dec']}
+                            }
+                        },
+                        r'#*[gh|co]': {
+                            'type': 'object',
+                            'additionalProperties': False,
+                            'required': ['list'],
+                            'properties': {
+                                'list': {
+                                    'type': 'array',
+                                    'items': {'type': 'string'}
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        'message': {
+            'type': 'object',
+            'patternProperties': {
+                '.*': {'type': 'string'}    # define message by the identifier
             }
         }
-    },
-    "additionalProperties": False
+    }
 }
