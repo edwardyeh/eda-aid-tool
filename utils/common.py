@@ -6,12 +6,12 @@
 Common Function of EDA-Aid-Tool
 """
 
-PKG_VERSION = "EDA-Aid-Tool 2023.09-SP1 (dev.1)"
-DC_AREA_VER = "1.0.0.a1"
-IP_FLAT_VER = "1.0.0.a1"
-PT_TB_VER   = "1.0.0.a1"
-PT_TS_VER   = "1.0.0.b1"
-PT_ANA_VER  = "1.0.0.a1"
+PKG_VERSION = 'EDA-Aid-Tool 2023.09-SP1 (dev.1)'
+DC_AREA_VER = '1.0.0.a1'
+IP_FLAT_VER = '1.0.0.a1'
+PT_TB_VER   = '1.0.0.a1'
+PT_TS_VER   = '1.0.0.b1'
+PT_ANA_VER  = '1.0.0.a1'
 
 
 def str2int(str_: str, is_signed: bool=False, bits: int=32) -> int:
@@ -19,7 +19,7 @@ def str2int(str_: str, is_signed: bool=False, bits: int=32) -> int:
     if str_.startswith('0x') or str_.startswith('0X') :
         num = int(str_, 16)
         if num >> bits:
-            raise ValueError("number overflow")
+            raise ValueError('number overflow')
         if is_signed:
             sign = num >> (bits - 1)
             num |= ~((sign << bits) - 1)
@@ -28,12 +28,31 @@ def str2int(str_: str, is_signed: bool=False, bits: int=32) -> int:
         if is_signed:
             bits -= 1
         if not is_signed and num < 0:
-            raise ValueError("negative value founded in unsigned mode.")
+            raise ValueError('negative value founded in unsigned mode.')
         elif num > 0 and abs(num) >= (1 << bits):
-            raise ValueError("number overflow")
+            raise ValueError('number overflow')
         elif num < 0 and abs(num) > (1 << bits):
-            raise ValueError("number overflow")
+            raise ValueError('number overflow')
             
     return num
+
+
+def str2tok (str_: str) -> list:
+    """Convert string to the token list"""
+    is_str, tok_list, strtok = False, [], ''
+    for tok in str_.split():
+        if is_str:
+            if tok[-1:] == '"':
+                is_str = False
+                tok_list.append(' '.join([strtok, tok[:-1]]))
+            else:
+                strtok = ' '.join([strtok, tok])
+        else:
+            if tok[:1] == '"':
+                is_str = True
+                strtok = tok[1:]
+            else:
+                tok_list.append(tok)
+    return tok_list
 
 

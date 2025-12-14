@@ -424,7 +424,7 @@ proc rpsum { args } {
     if {![info exists RPSUM_CFG(slk_on_rpt)]       } { set RPSUM_CFG(slk_on_rpt)        "true" }
     if {![info exists RPSUM_CFG(ck_skew_on_rpt)]   } { set RPSUM_CFG(ck_skew_on_rpt)    "true" }
     if {![info exists RPSUM_CFG(dplv_on_rpt)]      } { set RPSUM_CFG(dplv_on_rpt)       "true" }
-    if {![info exists RPSUM_CFG(seg_clat_inc_crpr)]} { set RPSUM_CFG(seg_clat_inc_crpr) "true" }
+    #if {![info exists RPSUM_CFG(seg_clat_inc_crpr)]} { set RPSUM_CFG(seg_clat_inc_crpr) "true" }
 
     if {![info exists RPSUM_CFG(pc) ]} { set RPSUM_CFG(pc)  [dict create]}
     if {![info exists RPSUM_CFG(hcd)]} { set RPSUM_CFG(hcd) [dict create]}
