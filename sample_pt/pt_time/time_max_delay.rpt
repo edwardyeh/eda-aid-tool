@@ -1,0 +1,55 @@
+****************************************
+Report : timing
+        -path_type full_clock_expanded
+        -delay_type max
+        -input_pins
+        -max_paths 1
+        -pba_mode exhaustive
+        -sort_by slack
+Design : design
+Version: XXXX
+Date   : XXXX
+****************************************
+
+  Startpoint: chip_top1/module1_A/data_reg_2_0_
+               (rise edge-triggered flip-flop clocked by pclk)
+  Endpoint: chip_top3/module3_A/recv_reg (fall edge-triggered flip-flop clocked by pclk)
+  Path Group: pclk
+  Path Type: max
+  
+  Point                                                   Incr      Path
+  -----------------------------------------------------------------------------
+  chip_top1/i_ip1/i_mpll/CLK_480 (mpll_top)             0.0000    0.0000 r
+  chip_top1/clk_gcell1/I (CKBUF)                        0.0100    0.0100 r
+  chip_top1/clk_gcell1/Z (CKBUF)                        0.1000    0.1100 r
+  chip_top1/clk_mux1/I0 (CKMUX)                         0.0200    0.1300 r
+  chip_top1/clk_mux1/Z (CKMUX)                          0.0500    0.1800 r
+  chip_top1/clk_gcell2/I (CKBUF)                        0.0150    0.1950 r
+  chip_top1/clk_gcell2/Z (CKBUF)                        0.1200    0.3150 r
+  chip_top1/cb_pclk/I (CKBUF)                           0.0250    0.3400 r
+  chip_top1/cb_pclk/Z (CKBUF) (gclock source)           0.0750    0.4150 r
+  chip_top1/clk_ucell1/I (CKBUF)                        0.0110    0.4260 r
+  chip_top1/clk_ucell1/Z (CKBUF)                        0.0800    0.5060 r
+  chip_top1/clk_ucell2/I (CKBUF)                        0.0230    0.5290 r
+  chip_top1/clk_ucell2/Z (CKBUF)                        0.0710    0.6000 r
+  chip_top1/clk_ucell3/I (CKBUF)                        0.0110    0.6110 r
+  chip_top1/clk_ucell3/Z (CKBUF)                        0.1200    0.7310 r
+  chip_top1/module1_A/data_reg_2_0_/CP (DFF)            0.0100    0.7410 r
+  chip_top1/module1_A/data_reg_2_0_/Q0 (DFF)            0.2300    0.9710 r
+  chip_top1/module3_A/path_and/A (AND)                  0.0330    1.0040 r
+  chip_top1/module3_A/path_and/Z (AND)                  0.1240    1.1280 r
+  chip_top1/module3_A/path_or/B (OR)                    0.0270    1.1550 r
+  chip_top1/module3_A/path_or/Z (OR)                    0.0790    1.2340 r
+  chip_top3/module3_A/recv_reg/D (DFF)                  0.0230    1.2570 r
+  data arrival time                                               1.2570
+  
+  max_delay                                             4.0000    4.0000
+  clock reconvergence pessimism                         0.0000    4.0000
+  library setup time                                   -0.0465    3.9535
+  data required time                                              3.9535
+  -----------------------------------------------------------------------------
+  data required time                                              3.9535
+  data arrival time                                              -1.2570
+  -----------------------------------------------------------------------------
+  slack (MET)                                                     2.6965 
+

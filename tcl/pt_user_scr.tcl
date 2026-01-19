@@ -2,17 +2,6 @@ set timing_report_unconstrained_paths true
 
 ### === Private Function
 
-### get the maximum string length  {{{
-proc _get_max_len { str_list } {
-    set maxlen 0
-    foreach str $str_list {
-        set newlen [string length $str]
-        if {$newlen > $maxlen} { set maxlen $newlen }
-    }
-    return $maxlen
-}
-#}}}
-
 ### user help  {{{
 set USER_HELP [dict create]
 echo "Information: Type 'user_help' to show user procedure list."
@@ -92,7 +81,7 @@ proc chcs { regex } { cus [filter -regexp [cus -a] "full_name=~$regex"] }
 
 proc printfor { data_coll } {
     if {[as_col -c $data_coll]} {
-        set data_coll [get_obj $data_coll]
+        set data_coll [get_object_name $data_coll]
     }
     foreach data $data_coll {
         echo $data
@@ -119,9 +108,9 @@ proc find_cells { args } {
     parse_proc_arguments -args $args argsp
 
     if {[info exists argsp(-regexp)]} {
-        return [get_cells .* -h -f "full_name=~${argsp(expression)}" -regexp]
+        return [get_cells .* -hier -filter "full_name=~${argsp(expression)}" -regexp]
     } else {
-        return [get_cells * -h -f "full_name=~${argsp(expression)}"]
+        return [get_cells * -hier -filter "full_name=~${argsp(expression)}"]
     }
 }
 
@@ -132,7 +121,7 @@ define_proc_attributes find_cells -info "Find cells by the filter expression" \
     }
 
 proc get_cells_ckp { cells } {
-    return [get_pins -of [get_cells $cells] -f "is_clock_pin"]
+    return [get_pins -of [get_cells $cells] -filter "is_clock_pin"]
 }
 
 proc get_regs { args } {
@@ -165,8 +154,8 @@ proc get_design_mems { args } {
 
     set all_mem_coll {}
     foreach_in_col design [get_cells $design] {
-        set name     [get_obj $design]
-        set mem_coll [get_cells * -h -f "full_name=~${name}/* && is_black_box && is_memory_cell"]   
+        set name     [get_object_name $design]
+        set mem_coll [get_cells * -hier -filter "full_name=~${name}/* && is_black_box && is_memory_cell"]   
         set mem_cnt  [sizeof_col $mem_coll]
         echo "\n=== $name ($mem_cnt)"
         if {[info exists argsp(-verbose)] && $mem_cnt > 0} {
@@ -355,9 +344,9 @@ proc show_coll_attr { args } {
     foreach_in_col item $argsp(collection) {
         set attr_list ""
         foreach attr $argsp(attr_list) {
-            set attr_value [get_attr -q $item $attr]
+            set attr_value [get_attr -quiet $item $attr]
             if {[as_col -c $attr_value]} { 
-                set attr_value [get_obj $attr_value] 
+                set attr_value [get_object_name $attr_value] 
             }
 
             if {$attr_value == ""} {
@@ -366,7 +355,7 @@ proc show_coll_attr { args } {
                 lappend attr_list $attr_value
             }
         }
-        lappend table [get_obj $item]
+        lappend table [get_object_name $item]
         lappend table [join $attr_list ","]
     }
 
@@ -1016,7 +1005,7 @@ proc rpinfo { args } {
             }
             set last_id $id
 
-            if {[sizeof_col [get_pins -q $pt]]} {
+            if {[sizeof_col [get_pins -quiet $pt]]} {
                 set pt_name "$pt ([get_attr [get_cells -of [get_pins $pt]] ref_name])"
             } else {
                 set pt_name "$pt (port)"
@@ -1180,7 +1169,7 @@ proc gpcom { args } {
             foreach type [array names coll_array] {
                 echo "set user_${type}_coll \["
                 foreach_in_col inst $coll_array($type) {
-                    echo "    [get_obj $inst] \\"
+                    echo "    [get_object_name $inst] \\"
                 }
                 echo "\]\n"
             }
@@ -1193,18 +1182,18 @@ proc gpcom { args } {
             echo "\n### pins/ports"
             foreach_in_col inst $coll_array(pin) {
                 if {[get_attr $inst object_class] == "port"} {
-                    echo "highlight -color red \[get_ports [get_obj $inst]\]"
+                    echo "highlight -color red \[get_ports [get_object_name $inst]\]"
                 } else {
-                    echo "highlight -color red \[get_pins [get_obj $inst]\]"
+                    echo "highlight -color red \[get_pins [get_object_name $inst]\]"
                 }
             }
             echo "\n### nets"
             foreach_in_col inst $coll_array(net) {
-                echo "highlight -color red \[get_nets [get_obj $inst]\]"
+                echo "highlight -color red \[get_nets [get_object_name $inst]\]"
             }
             echo "\n### cells"
             foreach_in_col inst $coll_array(cell) {
-                echo "highlight -color red \[get_cells [get_obj $inst]\]"
+                echo "highlight -color red \[get_cells [get_object_name $inst]\]"
             }
             echo ""
         }
@@ -1349,7 +1338,7 @@ proc show_inst_info_tsmc { instances } {
     }
 
     set mb_types {2 "MB2*" 4 "MB4*" 8 "MB8*"}
-    foreach inst [get_obj [get_cells $instances]] {
+    foreach inst [get_object_name [get_cells $instances]] {
         _get_inst_info $mb_types $inst
     }
 }
@@ -1367,7 +1356,7 @@ proc show_inst_info_snps { instances } {
     }
 
     set mb_types {2 "S??_FSD*M2*" 4 "S??_FSD*M4*" 8 "S??_FSD*M8*"}
-    foreach inst [get_obj [get_cells $instances]] {
+    foreach inst [get_object_name [get_cells $instances]] {
         _get_inst_info $mb_types $inst
     }
 }
@@ -1387,10 +1376,10 @@ proc _sum_area { inst_coll } {
 
 proc _get_inst_info { mb_types_dict inst } {
 #{{{
-    if {$inst == [get_obj [current_design]]} {
-        set all_coll [get_cells -h -f "is_hierarchical==false"]
+    if {$inst == [get_object_name [current_design]]} {
+        set all_coll [get_cells * -hier -filter "is_hierarchical==false"]
     } else {
-        set all_coll [get_cells -h -f "is_hierarchical==false && full_name=~$inst/*"]
+        set all_coll [get_cells * -hier -filter "is_hierarchical==false && full_name=~$inst/*"]
     }
 
     set reg_coll   [filter $all_coll "is_clock_network_cell==false && is_sequential==true"]
@@ -1433,7 +1422,7 @@ proc _get_inst_info { mb_types_dict inst } {
         if {$bit_cnt > 0} {
             redirect -append mbff_list.tcl {
                 echo "set mbff${bit}_list \[list \\"
-                foreach_in_col reg $mb_list { echo "    [get_obj $reg] \\" }
+                foreach_in_col reg $mb_list { echo "    [get_object_name $reg] \\" }
                 echo "\]\n"
             }
         }
@@ -1486,7 +1475,7 @@ proc show_cells_area { args } {
     set cell_coll {}
     foreach_in_col cell [get_cells $argsp(cell_coll)] {
         if {[get_attr $cell is_hierarchical]} {
-            append_to_col -uni cell_coll [filter $all_coll "full_name=~[get_obj $cell]/* \
+            append_to_col -uni cell_coll [filter $all_coll "full_name=~[get_object_name $cell]/* \
                                                             && is_hierarchical==false"]
         } else {
             append_to_col -uni cell_coll $cell
@@ -1554,8 +1543,8 @@ proc estimate_fix_margin { args } {
 
         lassign {"--" "--"} max_margin min_margin
         if {$pin_name != $stp} {
-            set max_margin [get_attr -q [eval $cmd_max -th $pin_name] slack]
-            set min_margin [get_attr -q [eval $cmd_min -th $pin_name] slack]
+            set max_margin [get_attr -quiet [eval $cmd_max -th $pin_name] slack]
+            set min_margin [get_attr -quiet [eval $cmd_min -th $pin_name] slack]
         }
         lappend point_list [list $pt_name $fanout $inc $arr $max_margin $min_margin]
 
@@ -1568,8 +1557,8 @@ proc estimate_fix_margin { args } {
     lassign {"--" "--"} lib_max lib_min
     set total_str "Arrival / Lib setup / Lib hold"
     if {[get_attr [index_col [get_attr $path points.object] end] object_class] != "port"} {
-        set lib_max [get_attr -q [eval $cmd_max -to $edp] endpoint_setup_time_value]
-        set lib_min [get_attr -q [eval $cmd_min -to $edp] endpoint_hold_time_value]
+        set lib_max [get_attr -quiet [eval $cmd_max -to $edp] endpoint_setup_time_value]
+        set lib_min [get_attr -quiet [eval $cmd_min -to $edp] endpoint_hold_time_value]
     }
     if {[string length $total_str] > $pt_col_len} {
         set pt_col_len [string length $total_str]
@@ -1663,22 +1652,22 @@ proc io_connect_check { args } {
         upvar 1 act_clk_coll act_clk_coll
         set result_list {}
 
-        set inst_pi_coll [get_pins -of [index_col [get_cells $instance] 0] -f "direction==$pin_dir"]
+        set inst_pi_coll [get_pins -of [index_col [get_cells $instance] 0] -filter "direction==$pin_dir"]
 
         foreach_in_col pin $inst_pi_coll {
             if {$pin_dir == "in"} {
-                set port_coll [filter [afip -q -to   $pin] "object_class==port"]
+                set port_coll [filter [afip -quiet -to   $pin] "object_class==port"]
             } else {
-                set port_coll [filter [afop -q -from $pin] "object_class==port"]
+                set port_coll [filter [afop -quiet -from $pin] "object_class==port"]
             }
-            set lclk_coll [remove_from_col -inter [get_attr -q $pin launch_clocks] $clock_coll]
+            set lclk_coll [remove_from_col -inter [get_attr -quiet $pin launch_clocks] $clock_coll]
 
             if {[sizeof_col $port_coll]} {
-                set new_len [string length [get_obj $pin]]
+                set new_len [string length [get_object_name $pin]]
                 if {$new_len > $pin_col_len} { set pin_col_len $new_len }
 
                 foreach_in_col port $port_coll {
-                    set new_len [string length [get_obj $port]]
+                    set new_len [string length [get_object_name $port]]
                     if {$new_len > $port_col_len} { set port_col_len $new_len }
 
                     set path_coll {}
@@ -1725,9 +1714,9 @@ proc io_connect_check { args } {
                             }
                             incr pidx
                         }
-                        lappend result_list [list [get_obj $port] [get_obj $pin] $value_list]
+                        lappend result_list [list [get_object_name $port] [get_object_name $pin] $value_list]
                     } else {
-                        lappend result_list [list [get_obj $port] [get_obj $pin] "NA"]
+                        lappend result_list [list [get_object_name $port] [get_object_name $pin] "NA"]
                     }
                 }
             }
@@ -1745,7 +1734,7 @@ proc io_connect_check { args } {
     echo "\n=== Clock Period:\n"
     set print_str ""
     foreach_in_col clk $act_clk_coll {
-        append print_str [format "%s: %.4f, " [get_obj $clk] [get_attr $clk period]]
+        append print_str [format "%s: %.4f, " [get_object_name $clk] [get_attr $clk period]]
     }
     echo [string range $print_str 0 end-2]
 
@@ -1982,32 +1971,32 @@ proc highlight_trace { args } {
     parse_proc_arguments -args $args argsp
 
     set cmd_opt ""
-    if {[info exists argsp(-th)]} { append cmd_opt " -th {[get_obj [get_pins $argsp(-th)]]}" }
+    if {[info exists argsp(-th)]} { append cmd_opt " -th {[get_object_name [get_pins $argsp(-th)]]}" }
 
     set pin_coll [eval all_fanin -flat -trace $argsp(-trace) -from $argsp(-from) -to $argsp(-to) $cmd_opt]
-    append_to_col -uni cell_coll [get_cells -of $pin_coll -f "is_hierarchical==false"]
+    append_to_col -uni cell_coll [get_cells -of $pin_coll -filter "is_hierarchical==false"]
 
-    append_to_col -uni net_coll [get_nets -q -seg -of [filter $pin_coll "object_class==port && direction==out"]]
-    append_to_col -uni net_coll [get_nets -q -seg -of [filter $pin_coll "object_class==pin  && direction==in "]]
+    append_to_col -uni net_coll [get_nets -quiet -seg -of [filter $pin_coll "object_class==port && direction==out"]]
+    append_to_col -uni net_coll [get_nets -quiet -seg -of [filter $pin_coll "object_class==pin  && direction==in "]]
 
-    set stp_port_coll [get_ports -q $argsp(-from)]
+    set stp_port_coll [get_ports -quiet $argsp(-from)]
     if {[sizeof_col $stp_port_coll]} {
         set stp_port_coll [filter $stp_port_coll "direction!=inout"]
     }
 
-    set stp_cell_coll [get_cells -q -of [get_pins -q $argsp(-from)]]
+    set stp_cell_coll [get_cells -quiet -of [get_pins -quiet $argsp(-from)]]
     if {[sizeof_col $stp_cell_coll]} {
         set stp_cell_coll [filter $stp_cell_coll "is_hierarchical==false"]
     }
 
     set stp_coll [add_to_col -uni $stp_port_coll $stp_cell_coll]
 
-    set edp_port_coll [get_ports -q $argsp(-to)]
+    set edp_port_coll [get_ports -quiet $argsp(-to)]
     if {[sizeof_col $edp_port_coll]} {
         set edp_port_coll [filter $edp_port_coll "direction!=inout"]
     }
 
-    set edp_cell_coll [get_cells -q -of [get_pins -q $argsp(-to)]]
+    set edp_cell_coll [get_cells -quiet -of [get_pins -quiet $argsp(-to)]]
     if {[sizeof_col $edp_cell_coll]} {
         set edp_cell_coll [filter $edp_cell_coll "is_hierarchical==false"]
     }
@@ -2080,32 +2069,32 @@ proc select_trace { args } {
     parse_proc_arguments -args $args argsp
 
     set cmd_opt ""
-    if {[info exists argsp(-th)]} { append cmd_opt " -th {[get_obj [get_pins $argsp(-th)]]}" }
+    if {[info exists argsp(-th)]} { append cmd_opt " -th {[get_object_name [get_pins $argsp(-th)]]}" }
 
     set pin_coll [eval all_fanin -flat -trace $argsp(-trace) -from $argsp(-from) -to $argsp(-to) $cmd_opt]
-    append_to_col -uni cell_coll [get_cells -of $pin_coll -f "is_hierarchical==false"]
+    append_to_col -uni cell_coll [get_cells -of $pin_coll -filter "is_hierarchical==false"]
 
-    append_to_col -uni net_coll [get_nets -q -seg -of [filter $pin_coll "object_class==port && direction==out"]]
-    append_to_col -uni net_coll [get_nets -q -seg -of [filter $pin_coll "object_class==pin  && direction==in "]]
+    append_to_col -uni net_coll [get_nets -quiet -seg -of [filter $pin_coll "object_class==port && direction==out"]]
+    append_to_col -uni net_coll [get_nets -quiet -seg -of [filter $pin_coll "object_class==pin  && direction==in "]]
 
-    set stp_port_coll [get_ports -q $argsp(-from)]
+    set stp_port_coll [get_ports -quiet $argsp(-from)]
     if {[sizeof_col $stp_port_coll]} {
         set stp_port_coll [filter $stp_port_coll "direction!=inout"]
     }
 
-    set stp_cell_coll [get_cells -q -of [get_pins -q $argsp(-from)]]
+    set stp_cell_coll [get_cells -quiet -of [get_pins -quiet $argsp(-from)]]
     if {[sizeof_col $stp_cell_coll]} {
         set stp_cell_coll [filter $stp_cell_coll "is_hierarchical==false"]
     }
 
     set stp_coll [add_to_col -uni $stp_port_coll $stp_cell_coll]
 
-    set edp_port_coll [get_ports -q $argsp(-to)]
+    set edp_port_coll [get_ports -quiet $argsp(-to)]
     if {[sizeof_col $edp_port_coll]} {
         set edp_port_coll [filter $edp_port_coll "direction!=inout"]
     }
 
-    set edp_cell_coll [get_cells -q -of [get_pins -q $argsp(-to)]]
+    set edp_cell_coll [get_cells -quiet -of [get_pins -quiet $argsp(-to)]]
     if {[sizeof_col $edp_cell_coll]} {
         set edp_cell_coll [filter $edp_cell_coll "is_hierarchical==false"]
     }
