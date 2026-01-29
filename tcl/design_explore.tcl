@@ -2,6 +2,8 @@ set timing_report_unconstrained_paths true
 
 ### === Private Function
 
+### === Common Function
+
 ### user procedure list (user_help_des)  {{{
 set USER_HELP_DES [dict create]
 echo "Information: Type 'user_help_des' to show user procedure list."
@@ -57,10 +59,396 @@ define_proc_attributes user_help_des -info "Show the user procedure list" \
     }
 #}}}
 
-### === Common Function
+### === Design Review
+
+### explore design module (explore_design_module)  {{{
+dict append USER_HELP_DES "Design Review" { explore_design_module "Explore design module" }
+
+proc explore_design_module { args } {
+    parse_proc_arguments -args $args argsp
+
+    # option format:
+    #   -group  [dict create re_pattern1 group_name1 re_pattern2 group_name2 ... ]
+    #   -waive  [list cell1 cell2 ... ]
+
+    set PART_REGEXP "^(chip_top\\w+)/.+$"
+    set PART_FILTER "chip_top*"
+
+    if {[info exists argsp(-top)]} {
+        set MOD_FILTER "chip_top*/i_chip_core*/i_core*/i_*"
+    } else {
+        set MOD_FILTER "i_chip_core*/i_core*/i_*"
+    }
+    
+    if {[info exists argsp(-config)]} {
+        set config_dict $argsp(-config)
+        if {[dict exists $config_dict PART_REGEXP]} {
+            set PART_REGEXP [dict get $config_dict PART_REGEXP]
+        }
+        if {[dict exists $config_dict PART_FILTER]} {
+            set PART_FILTER [dict get $config_dict PART_FILTER]
+        }
+        if {[dict exists $config_dict MOD_FILTER]} {
+            set MOD_FILTER [dict get $config_dict MOD_FILTER]
+        }
+    }
+
+    if {[info exists argsp(-group)]} {
+        set group_dict $argsp(-group)
+    } else {
+        set group_dict {}
+    }
+
+    set mod_coll [get_cells -quiet $MOD_FILTER]
+    if {[info exists argsp(-waive)]} {
+        set mod_coll [remove_from_col $mod_coll [get_cells -quiet $argsp(-waive)]]
+    }
+
+    set PART_MOD_DICT [dict create]
+
+    foreach_in_col mod_cell $mod_coll {
+        set mod_name [get_object_name $mod_cell]
+        set ref_name [get_attr $mod_cell ref_name]
+
+        if {[info exists argsp(-top)]} {
+            regexp "$PART_REGEXP" $mod_name -> part_name
+        } else {
+            set part_name "(none)"
+        }
+
+        if {[dict exists $PART_MOD_DICT $part_name]} {
+            set part_dict [dict get $PART_MOD_DICT $part_name]
+        } else {
+            set part_dict [dict create]
+        }
+
+        set gname "(none)"
+        dict for {pat gname_tmp} $group_dict {
+            if {[regexp $pat $mod_name]} {
+                set gname $gname_tmp
+                break
+            }
+        }
+
+        dict lappend part_dict $gname [list $mod_name $ref_name]
+        dict set PART_MOD_DICT $part_name $part_dict
+    }
+
+    if {[info exists argsp(-print)]} {
+        set fs   "%-55s %-30s"
+        set head [format $fs "Instance" "Design"]
+        set div1 [string repeat "=" [expr 55 + 30 + 1]]
+
+        echo ""
+        dict for {part_name part_dict} $PART_MOD_DICT {
+            echo "====== $part_name"
+            echo $div1
+            echo $head
+            echo $div1
+            if {[dict size $part_dict] > 1} {
+                dict for {gname mod_list} $part_dict {
+                    echo "###### $gname ######"
+                    foreach mod_info $mod_list {
+                        echo [format $fs [lindex $mod_info 0] [lindex $mod_info 1]]
+                    }
+                }
+            } else {
+                foreach mod_info [dict get $part_dict "(none)"] {
+                    echo [format $fs [lindex $mod_info 0] [lindex $mod_info 1]]
+                }
+            }
+            echo ""
+            echo ""
+        }
+    } else {
+        return $PART_MOD_DICT
+    }
+}
+
+define_proc_attributes explore_design_module -info "Explore design module" \
+    -define_args { \
+        {-top    "Explore from top"                ""          boolean optional}
+        {-group  "Module group pattern dictionary" group_dict  list    optional}
+        {-waive  "Module waive list"               waive_list  list    optional}
+        {-print  "Show the result"                 ""          boolean optional}
+        {-config "User configuration dictionary"   config_dict list    optional}
+    }
+#}}}
+
+### explore design sram (explore_design_sram)  {{{
+dict append USER_HELP_DES "Design Review" { explore_design_sram "Explore design sram" }
+
+proc explore_design_sram { args } {
+    parse_proc_arguments -args $args argsp
+
+    # option format:
+    #   -mod_group  [dict create re_pattern1 group_name1 re_pattern2 group_name2 ... ]
+    #   -clk_group  [dict create re_pattern1 group_name1 re_pattern2 group_name2 ... ]
+
+    set PART_REGEXP "^(chip_top\\w+)/.+$"
+    set PART_FILTER "chip_top*"
+
+    if {[info exists argsp(-top)]} {
+        set MOD_FILTER "chip_top*/i_chip_core*/i_core*/i_*"
+        set MOD_WAIVE  {chip_top*/i_chip_core*/i_core*/i_cb_*}
+    } else {
+        set MOD_FILTER "i_chip_core*/i_core*/i_*"
+        set MOD_WAIVE  {i_chip_core*/i_core*/i_cb_*}
+    }
+
+    if {[info exists argsp(-mod_group)]} {
+        set mod_group_dict $argsp(-mod_group)
+    } else {
+        set mod_group_dict {}
+    }
+
+    if {[info exists argsp(-clk_group)]} {
+        set clk_group_dict $argsp(-clk_group)
+    } else {
+        set clk_group_dict {}
+    }
+
+    if {[info exists argsp(-debug)]} {
+        set is_debug 1
+    } else {
+        set is_debug 0
+    }
+
+    set mod_coll [get_cells -quiet $MOD_FILTER]
+    set mod_coll [remove_from_col $mod_coll [get_cells -quiet $MOD_WAIVE]]
+
+    set PART_MOD_DICT [dict create]
+    set inst_col_len  0
+    set ref_col_len   0
+
+    foreach_in_col mod_cell $mod_coll {
+        set mod_name [get_object_name $mod_cell]
+        if {$is_debug} { echo $mod_name }
+
+        if {[info exists argsp(-top)]} {
+            regexp "$PART_REGEXP" $mod_name -> part_name
+        } else {
+            set part_name "(none)"
+        }
+
+        if {[dict exists $PART_MOD_DICT $part_name]} {
+            set part_dict [dict get $PART_MOD_DICT $part_name]
+        } else {
+            set part_dict [dict create]
+        }
+
+        if {[info exists synopsys_program_name] && $synopsys_program_name == "fc_shell"} {
+            set sram_coll [filter_col [get_cells * -hier] "design_type==black_box && \
+                                                           is_memory_cell==true && \
+                                                           full_name=~${mod_name}/*"]
+        } else {
+            set sram_coll [filter_col [get_cells * -hier] "is_black_box==true && \
+                                                           is_memory_cell==true && \
+                                                           full_name=~${mod_name}/*"]
+        }
+
+        if {[sizeof_col $sram_coll] == 0} { continue }
+
+        set sram_dict [dict create]
+        foreach_in_col sram_cell $sram_coll {
+            set sram_name     [get_object_name $sram_cell]
+            set sram_ref_name [get_attr $sram_cell ref_name]
+
+            dict set sram_dict $sram_name $sram_ref_name
+
+            if {[set newlen [string length $sram_name]] > $inst_col_len} {
+                set inst_col_len $newlen
+            }
+
+            if {[set newlen [string length $sram_ref_name]] > $ref_col_len} {
+                set ref_col_len $newlen
+            }
+        }
+
+        dict set part_dict $mod_name $sram_dict
+        dict set PART_MOD_DICT $part_name $part_dict
+    }
+
+    if {[info exists argsp(-print)]} {
+        set fs   "%-${inst_col_len}s    %-${ref_col_len}s    "
+        set head [format $fs "Instance" "Cell"]
+        set div1 [string repeat "=" [expr $inst_col_len + $ref_col_len + 8]]
+
+        echo ""
+        dict for {part_name part_dict} $PART_MOD_DICT {
+            set total_sram_count 0
+
+            echo [format "###### %s% s" $part_name [string repeat "#" [expr 52 - [string length $part_name]]]]
+            echo ""
+            echo ""
+            dict for {mod_name sram_dict} $part_dict {
+                set sram_count [dict size $sram_dict]
+                set total_sram_count [expr $total_sram_count + $sram_count]
+
+                echo "====== $mod_name ($sram_count)"
+                echo $div1
+                echo $head
+                echo $div1
+                dict for {sram_name sram_ref_name} $sram_dict {
+                    echo [format $fs $sram_name $sram_ref_name]
+                }
+                echo ""
+                echo ""
+            }
+            echo "=== Total SRAM number: $total_sram_count"
+            echo ""
+            echo ""
+        }
+    } else {
+        return $PART_MOD_DICT
+    }
+}
+
+define_proc_attributes explore_design_sram -info "Explore design sram" \
+    -define_args { \
+        {-top       "Explore from top"                ""         boolean optional}
+        {-mod_group "Module group pattern dictionary" group_dict list    optional}
+        {-clk_group "Clock group pattern dictionary"  group_dict list    optional}
+        {-print     "Show the result"                 ""         boolean optional}
+        {-debug     "Show the debug information"      ""         boolean optional}
+    }
+#}}}
+
+### report design module information (report_design_mod_info)  {{{
+dict append USER_HELP_DES "Design Review" { report_design_mod_info "Report design module information" }
+
+proc report_design_mod_info { args } {
+    parse_proc_arguments -args $args argsp
+
+    # option format:
+    #   -mod_group  [dict create re_pattern1 group_name1 re_pattern2 group_name2 ... ]
+    #   -mod_waive  [list cell1 cell2 ... ]
+
+    set extra_opt ""
+    if {[info exists argsp(-top)]} {
+        set extra_opt "-top $extra_opt"
+    }
+    
+    ### Explore design module
+    set cmd_opt $extra_opt
+
+    if {[info exists argsp(-mod_group)]} {
+        set cmd_opt "-group \$argsp(-mod_group) $cmd_opt"
+    }
+
+    if {[info exists argsp(-mod_waive)]} {
+        set cmd_opt "-waive \$argsp(-mod_waive) $cmd_opt"
+    }
+
+    set PART_MOD_DICT [eval explore_design_module $cmd_opt]
+
+    ### Explore design macro
+    set cmd_opt $extra_opt
+
+    if {[info exists argsp(-ma_group)]} {
+        set cmd_opt "-group \$argsp(-ma_group) $cmd_opt"
+    }
+
+    if {[info exists argsp(-ma_waive)]} {
+        set cmd_opt "-waive \$argsp(-ma_waive) $cmd_opt"
+    }
+
+    if {[info exists argsp(-top)]} {
+        set cmd_opt "-config {MOD_FILTER chip_top*/i_ip*/i_*} $cmd_opt"
+    } else {
+        set cmd_opt "-config {MOD_FILTER i_ip*/i_*} $cmd_opt"
+    }
+
+    set PART_MA_DICT [eval explore_design_module $cmd_opt]
+
+    ### Print reports
+    file delete -force $argsp(outdir)
+    file mkdir $argsp(outdir)
+
+    if {[info exists argsp(-top)]} {
+        foreach part_name [get_object_name [get_cells chip_top*]] {
+            set outpath "${argsp(outdir)}/${part_name}_info.rpt"
+            _print_design_mod_info $part_name $outpath $PART_MOD_DICT $PART_MA_DICT
+        }
+    } else {
+        set outpath "${argsp(outdir)}/partition_info.rpt"
+        _print_design_mod_info "(none)" $outpath $PART_MOD_DICT $PART_MA_DICT
+    }
+}
+
+define_proc_attributes report_design_mod_info -info "Report design module information" \
+    -define_args { \
+        { outdir    "Output directory"                path       string  required}
+        {-top       "Explore from top"                ""         boolean optional}
+        {-mod_group "Module group pattern dictionary" group_dict list    optional}
+        {-mod_waive "Module waive list"               waive_list list    optional}
+        {-ma_group  "Macro group pattern dictionary"  group_dict list    optional}
+        {-ma_waive  "Macro waive list"                waive_list list    optional}
+    }
+
+proc _print_design_mod_info { PART_NAME OUTPATH PART_MOD_DICT PART_MA_DICT } {
+    #{{{
+    redirect $OUTPATH {
+        echo ""
+
+        set fs   "%-55s %-30s"
+        set head [format $fs "Instance" "Design"]
+        set div1 [string repeat "=" [expr 55 + 30 + 1]]
+
+        echo "###### Partition Moudle ####################################"
+        echo ""
+        echo "====== MODULE"
+        echo $div1
+        echo $head
+        echo $div1
+        if {[dict exists $PART_MOD_DICT $PART_NAME]} {
+            set part_dict [dict get $PART_MOD_DICT $PART_NAME]
+            if {[dict size $part_dict] > 1} {
+                dict for {gname mod_list} $part_dict {
+                    echo "###### $gname ######"
+                    foreach mod_info $mod_list {
+                        echo [format $fs [lindex $mod_info 0] [lindex $mod_info 1]]
+                    }
+                }
+            } else {
+                foreach mod_info [dict get $part_dict "(none)"] {
+                    echo [format $fs [lindex $mod_info 0] [lindex $mod_info 1]]
+                }
+            }
+        }
+        echo ""
+        echo ""
+
+        echo "###### Partition Macro #####################################"
+        echo ""
+        echo "====== MACRO"
+        echo $div1
+        echo $head
+        echo $div1
+        if {[dict exists $PART_MA_DICT $PART_NAME]} {
+            set part_dict [dict get $PART_MA_DICT $PART_NAME]
+            if {[dict size $part_dict] > 1} {
+                dict for {gname mod_list} $part_dict {
+                    echo "###### $gname ######"
+                    foreach mod_info $mod_list {
+                        echo [format $fs [lindex $mod_info 0] [lindex $mod_info 1]]
+                    }
+                }
+            } else {
+                foreach mod_info [dict get $part_dict "(none)"] {
+                    echo [format $fs [lindex $mod_info 0] [lindex $mod_info 1]]
+                }
+            }
+        }
+        echo ""
+        echo ""
+    }
+    #}}}
+}
+#}}}
 
 ### explore design pads (explore_design_pads)  {{{
-dict append USER_HELP_DES "Common Function" { explore_design_pads "Explore design PADs" }
+dict append USER_HELP_DES "Design Review" { explore_design_pads "Explore design PADs" }
 
 proc explore_design_pads { args } {
     parse_proc_arguments -args $args argsp
@@ -89,15 +477,20 @@ proc explore_design_pads { args } {
     }
 
     if {[info exists argsp(-print)]} {
+        set fs   "%-20s %-20s %-40s"
+        set head [format $fs "Inout" "PadType" "Instance"]
+        set div1 [string repeat "=" [expr 20 + 20 + 40 + 2]]
+
         echo ""
         foreach part_name [lsort [dict keys $PART_PAD_DICT]] {
             set pad_dict [dict get $PART_PAD_DICT $part_name]
             echo "====== $part_name"
-            echo [format "%-20s %-20s %-60s" "Inout" "PadType" "Instance"]
-            echo [string repeat "=" [expr 20 + 20 + 60]]
+            echo $div1
+            echo $head
+            echo $div1
             foreach port_name [lsort [dict key $pad_dict]] {
                 set pad_cell [dict get $pad_dict $port_name]
-                echo [format "%-20s %-20s %-60s" \
+                echo [format $fs \
                         $port_name \
                         [get_attr $pad_cell ref_name] \
                         [get_object_name $pad_cell] \
@@ -118,71 +511,20 @@ define_proc_attributes explore_design_pads -info "Explore design PADs" \
     }
 #}}}
 
-### explore design module (explore_design_module)  {{{
-dict append USER_HELP_DES "Common Function" { explore_design_module "Explore design module" }
-
-proc explore_design_module { args } {
-    parse_proc_arguments -args $args argsp
-
-    set PART_REGEXP "^(chip_top\\w+)/.+$"
-    set PART_FILTER "chip_top*"
-    set MOD_FILTER  "chip_top*/i_chip_core*/i_core*/i_*"
-
-    if {[info exists argsp(-waive)]} {
-        set waive_coll [get_cells -quiet $argsp(-waive)]
-    } else {
-        set waive_coll {}
-    }
-
-    set mod_coll [get_cells -quiet $MOD_FILTER]
-
-    set PART_MOD_DICT [dict create]
-    foreach_in_col mod_cell $mod_coll {
-        set mod_name [get_object_name $mod_cell]
-
-        if {[sizeof_col [remove_from_col -inter $waive_coll $mod_cell]] == 0} {
-            if {[info exists argsp(-top)]} {
-                regexp "$PART_REGEXP" $mod_name -> part_name
-            } else {
-                set part_name "(none)"
-            }
-
-            if {[dict exists $PART_MOD_DICT $part_name]} {
-                set tmp_coll [dict get $PART_MOD_DICT $part_name]
-                dict set PART_MOD_DICT $part_name [add_to_col $tmp_coll $mod_cell]
-            } else {
-                dict set PART_MOD_DICT $part_name $mod_cell
-            }
-        }
-    }
-
-    if {[info exists argsp(-print)]} {
-        echo ""
-        dict for {part_name mod_coll} $PART_MOD_DICT {
-            echo "====== $part_name"
-            echo [format "%-60s %-20s" "Instance" "Design"]
-            echo [string repeat "=" [expr 60 + 20]]
-            foreach_in_col mod_cell $mod_coll {
-                echo [format "%-60s %-20s" [get_object_name $mod_cell] [get_attr $mod_cell ref_name]]
-            }
-            echo ""
-            echo ""
-        }
-    } else {
-        return $PART_MOD_DICT
-    }
-}
-
-define_proc_attributes explore_design_module -info "Explore design module" \
-    -define_args { \
-        {-top   "Explore from top"  ""         boolean optional}
-        {-waive "Module waive list" waive_list list    optional}
-        {-print "Show the result"   ""         boolean optional}
-    }
-#}}}
-
 ### explore design io (explore_design_io)  {{{
-dict append USER_HELP_DES "Common Function" { explore_design_io "Explore design IO" }
+dict append USER_HELP_DES "Design Review" { explore_design_io "Explore design IO" }
+
+proc _get_part_tag { part_name } {
+    #{{{
+    if {[regexp {chip_top_(\w+)} $part_name -> tag]} {
+        return [string toupper $tag]
+    } elseif {[regexp {chip_top(\d+)} $part_name -> tag]} {
+        return "TOP${tag}"
+    } else {
+        return "NA"
+    }
+    #}}}
+}
 
 proc explore_design_io { args } {
     parse_proc_arguments -args $args argsp
@@ -190,21 +532,21 @@ proc explore_design_io { args } {
     set PART_REGEXP "^(chip_top\\w+)/.+$"
     set PART_FILTER "chip_top*"
 
-    # format: { \
-    #   group1 {tag11 regexp11 tag12 regexp12 ... } \
-    #   group2 {tag21 regexp21 tag22 regexp22 ... } \
-    #   ...
-    # }
+    # option format:
+    #   -group [dict create group1 [dict create tag11 regexp11 ... ] ... ]
+    #   -waive [list pin1 pin2 ... ]
+
     if {[info exists argsp(-group)]} {
         set group_dict $argsp(-group)
     } else {
         set group_dict {}
     }
 
-    set waive_coll {}
     if {[info exists argsp(-top)]} {
         if {[info exists argsp(-waive)]} {
             set waive_coll [get_pins -quiet $argsp(-waive)]
+        } else {
+            set waive_coll {}
         }
 
         set io_dict [dict create]
@@ -215,12 +557,16 @@ proc explore_design_io { args } {
     } else {
         if {[info exists argsp(-waive)]} {
             set waive_coll [get_ports -quiet $argsp(-waive)]
+        } else {
+            set waive_coll {}
         }
+
         set port_coll [remove_from_col [get_ports * -filter "direction!=inout"] $waive_coll]
         set io_dict   [dict create "(none)" $port_coll]
     }
 
     set IO_GROUP_DICT [dict create]
+
     dict for {part_name io_coll} $io_dict {
         set part_dict [dict create "(none)" {}]
 
@@ -235,6 +581,21 @@ proc explore_design_io { args } {
                 set io_type "data"
             }
 
+            if {$io_dir == "in"} {
+                set dir2 "out"
+            } else {
+                set dir2 "in"
+            }
+            set io_coll2 [get_pins -quiet -of [get_nets -quiet -of $io_obj] -filter "direction==$dir2"]
+            set io_obj2  [index_col $io_coll2 0]
+
+            if {[sizeof_col $io_obj2] > 0} {
+                regexp $PART_REGEXP [get_object_name $io_obj2] -> part_name2
+            } else {
+                set part_name2 ""
+            }
+            set io_conn "[_get_part_tag $part_name]:[_get_part_tag $part_name2]"
+
             set gname "(none)"
             dict for {gname_tmp tag_dict} $group_dict {
                 dict for {tname pat} $tag_dict {
@@ -247,7 +608,7 @@ proc explore_design_io { args } {
                             set g_info_dict [dict create]
                         }
 
-                        dict lappend g_info_dict $tname [list $io_name $io_dir $io_type]
+                        dict lappend g_info_dict $tname [list $io_name $io_dir $io_type $io_conn]
                         dict set part_dict $gname $g_info_dict
                         break
                     }
@@ -259,7 +620,7 @@ proc explore_design_io { args } {
             }
 
             if {$gname == "(none)"} {
-                dict lappend part_dict "(none)" [list $io_name $io_dir $io_type]
+                dict lappend part_dict "(none)" [list $io_name $io_dir $io_type $io_conn]
             }
         }
 
@@ -267,19 +628,24 @@ proc explore_design_io { args } {
     }
 
     if {[info exists argsp(-print)]} {
+        set fs   "%-55s %-11s %-11s %-11s %-11s"
+        set head [format $fs "TagName" "Direction" "Type" "Connect" "Count"]
+        set div1 [string repeat "=" [expr 55 + 12 * 4]]
+
         echo ""
         dict for {part_name part_dict} $IO_GROUP_DICT {
-            echo "====== $part_name ======"
+            echo [format "###### %s %s" $part_name [string repeat "#" [expr 52 - [string length $part_name]]]]
             echo ""
             foreach gname [dict key $part_dict] {
                 if {$gname != "(none)"} {
                     echo "====== $gname"
-                    echo [format "%-60s %-20s %-20s" "TagName" "Direction" "Type"]
-                    echo [string repeat "=" [expr 60 + 20 + 20]]
+                    echo $div1
+                    echo $head
+                    echo $div1
                     foreach {tname tag_info_list} [dict get $part_dict $gname] {
                         set tag_dir ""
                         foreach tag_info $tag_info_list {
-                            lassign $tag_info io_name io_dir io_type
+                            lassign $tag_info io_name io_dir io_type io_conn
                             if {$tag_dir == ""} {
                                 set tag_dir $io_dir
                             } elseif {$tag_dir != $io_dir} {
@@ -290,7 +656,7 @@ proc explore_design_io { args } {
 
                         set tag_type ""
                         foreach tag_info $tag_info_list {
-                            lassign $tag_info io_name io_dir io_type
+                            lassign $tag_info io_name io_dir io_type io_conn
                             if {$tag_type == ""} {
                                 set tag_type $io_type
                             } elseif {$tag_type != $io_type} {
@@ -299,16 +665,29 @@ proc explore_design_io { args } {
                             }
                         }
 
-                        echo [format "%-60s %-20s %-20s" $tname $tag_dir $tag_type]
+                        set tag_conn ""
+                        foreach tag_info $tag_info_list {
+                            lassign $tag_info io_name io_dir io_type io_conn
+                            if {$tag_conn == ""} {
+                                set tag_conn $io_conn
+                            } elseif {$tag_conn != $io_conn} {
+                                set tag_conn "mix"
+                                break
+                            }
+                        }
+
+                        set io_cnt [llength $tag_info_list]
+                        echo [format $fs $tname $tag_dir $tag_type $tag_conn $io_cnt]
                     }
                     echo ""
-                } else {
+                } elseif {[llength [dict get $part_dict "(none)"]] > 0} {
                     echo "====== NoGroup"
-                    echo [format "%-60s %-20s %-20s" "Pin/Port" "Direction" "Type"]
-                    echo [string repeat "=" [expr 60 + 20 + 20]]
+                    echo $div1
+                    echo $head
+                    echo $div1
                     foreach io_info [dict get $part_dict "(none)"] {
-                        lassign $io_info io_name io_dir io_type
-                        echo [format "%-60s %-20s %-20s" $io_name $io_dir $io_type]
+                        lassign $io_info io_name io_dir io_type io_conn
+                        echo [format $fs $io_name $io_dir $io_type $io_conn 1]
                     }
                     echo ""
                 }
@@ -322,12 +701,161 @@ proc explore_design_io { args } {
 
 define_proc_attributes explore_design_io -info "Explore design IO" \
     -define_args { \
-        {-top   "Explore from top"                                 ""         boolean optional}
-        {-waive "Pin/Port waive list"                              waive_list list    optional}
-        {-group "Group constraint for the pin/port classification" group_dict list    optional}
-        {-print "Show the result"                                  ""         boolean optional}
+        {-top   "Explore from top"                  ""         boolean optional}
+        {-group "Pin/Port group pattern dictionary" group_dict list    optional}
+        {-waive "Pin/Port waive list"               waive_list list    optional}
+        {-print "Show the result"                   ""         boolean optional}
     }
 #}}}
+
+### report design io information (report_design_io_info)  {{{
+dict append USER_HELP_DES "Design Review" { report_design_io_info "Report design io information" }
+
+proc report_design_io_info { args } {
+    parse_proc_arguments -args $args argsp
+
+    # option format:
+    #   -io_group  [dict create group1 [dict create tag11 regexp11 ... ] ... ]
+    #   -io_waive  [list pin1 pin2 ... ]
+
+    set PART_LIST [get_object_name [get_cells chip_top*]]
+
+    set extra_opt ""
+    if {[info exists argsp(-top)]} {
+        set extra_opt "-top $extra_opt"
+    }
+    
+    ### Explore design pads
+    set PART_PAD_DICT [eval explore_design_pads $extra_opt]
+
+    ### Explore design io
+    set cmd_opt $extra_opt
+
+    if {[info exists argsp(-io_group)]} {
+        set cmd_opt "-group \$argsp(-io_group) $cmd_opt"
+    }
+
+    if {[info exists argsp(-io_waive)]} {
+        set cmd_opt "-waive \$argsp(-io_waive) $cmd_opt"
+    }
+
+    set IO_GROUP_DICT [eval explore_design_io $cmd_opt]
+    
+    ### Print reports
+    file delete -force $argsp(outdir)
+    file mkdir $argsp(outdir)
+
+    if {[info exists argsp(-top)]} {
+        foreach part_name $PART_LIST {
+            set outpath "${argsp(outdir)}/${part_name}_info.rpt"
+            _print_design_io_info $part_name $outpath $PART_PAD_DICT $IO_GROUP_DICT
+        }
+    } else {
+        set outpath "${argsp(outdir)}/partition_info.rpt"
+        _print_design_io_info "(none)" $outpath $PART_PAD_DICT $IO_GROUP_DICT
+    }
+}
+
+define_proc_attributes report_design_io_info -info "Report design io information" \
+    -define_args { \
+        { outdir    "Output directory"                  path       string  required}
+        {-top       "Explore design from top"           ""         boolean optional}
+        {-io_group  "Pin/Port group pattern dictionary" group_dict list    optional}
+        {-io_waive  "Pin/Port waive list"               waive_list list    optional}
+    }
+
+proc _print_design_io_info { PART_NAME OUTPATH PART_PAD_DICT IO_GROUP_DICT } {
+    #{{{
+    redirect $OUTPATH {
+        echo ""
+
+        echo "###### Partition Inout #####################################"
+        echo ""
+        echo "====== IO/PAD"
+        echo [format "%-20s %-20s %-55s" "Inout" "PadType" "Instance"]
+        echo [string repeat "=" [expr 20 + 21 + 56]]
+        if {[dict exists $PART_PAD_DICT $PART_NAME]} {
+            set pad_dict [dict get $PART_PAD_DICT $PART_NAME]
+            foreach port_name [lsort [dict key $pad_dict]] {
+                set pad_cell [dict get $pad_dict $port_name]
+                echo [format "%-20s %-20s %-55s" \
+                        $port_name \
+                        [get_attr $pad_cell ref_name] \
+                        [get_object_name $pad_cell] \
+                     ]
+            }
+        }
+        echo ""
+        echo ""
+
+        echo "###### Partition Input/Output ##############################"
+        echo ""
+        echo "====== Inter-Partition IO ======"
+        echo ""
+        if {[dict exists $IO_GROUP_DICT $PART_NAME]} {
+            set part_dict [dict get $IO_GROUP_DICT $PART_NAME]
+            foreach gname [dict key [dict get $IO_GROUP_DICT $PART_NAME]] {
+                if {$gname != "(none)"} {
+                    echo "====== $gname"
+                    echo [format "%-55s %-11s %-11s %-11s %-11s" "TagName" "Direction" "Type" "Connect" "Count"]
+                    echo [string repeat "=" [expr 55 + 12 * 4]]
+                    foreach {tname tag_info_list} [dict get $part_dict $gname] {
+                        set tag_dir ""
+                        foreach tag_info $tag_info_list {
+                            lassign $tag_info io_name io_dir io_type io_conn
+                            if {$tag_dir == ""} {
+                                set tag_dir $io_dir
+                            } elseif {$tag_dir != $io_dir} {
+                                set tag_dir "mix"
+                                break
+                            }
+                        }
+
+                        set tag_type ""
+                        foreach tag_info $tag_info_list {
+                            lassign $tag_info io_name io_dir io_type io_conn
+                            if {$tag_type == ""} {
+                                set tag_type $io_type
+                            } elseif {$tag_type != $io_type} {
+                                set tag_type "mix"
+                                break
+                            }
+                        }
+
+                        set tag_conn ""
+                        foreach tag_info $tag_info_list {
+                            lassign $tag_info io_name io_dir io_type io_conn
+                            if {$tag_conn == ""} {
+                                set tag_conn $io_conn
+                            } elseif {$tag_conn != $io_conn} {
+                                set tag_conn "mix"
+                                break
+                            }
+                        }
+
+                        set io_cnt [llength $tag_info_list]
+                        echo [format "%-55s %-11s %-11s %-11s %-11s" $tname $tag_dir $tag_type $tag_conn $io_cnt]
+                    }
+                    echo ""
+                } elseif {[llength [dict get $part_dict "(none)"]] > 0} {
+                    echo "====== NoGroup"
+                    echo [format "%-55s %-11s %-11s %-11s %-11s" "TagName" "Direction" "Type" "Connect" "Count"]
+                    echo [string repeat "=" [expr 55 + 12 * 4]]
+                    foreach io_info [dict get $part_dict "(none)"] {
+                        lassign $io_info io_name io_dir io_type io_conn
+                        echo [format "%-55s %-11s %-11s %-11s %-11s" $io_name $io_dir $io_type $io_conn 1]
+                    }
+                    echo ""
+                }
+            }
+        }
+        echo ""
+    }
+    #}}}
+}
+#}}}
+
+### === Design Floorplan
 
 ### create group bound (create_group_bound)  {{{
 dict append USER_HELP_DES "Common Function" { create_group_bound "Create group bound" }
@@ -345,160 +873,4 @@ define_proc_attributes create_group_bound -info "Create group bound" \
             { optional value_help {values {"log" "prc"}} }}
     }
 #}}}
-
-### report partition information (report_partition_info)  {{{
-dict append USER_HELP_DES "Common Function" { report_partition_info "Report partition information" }
-
-proc report_partition_info { args } {
-    parse_proc_arguments -args $args argsp
-
-    set PART_LIST [get_object_name [get_cells chip_top*]]
-
-    set extra_opt ""
-    if {[info exists argsp(-top)]} {
-        set extra_opt "-top $extra_opt"
-    }
-    
-    ### Expore design pads
-    set PART_PAD_DICT [eval explore_design_pads $extra_opt]
-
-    ### Expore design module
-    set cmd_opt $extra_opt
-
-    if {[info exists argsp(-mod_waive)]} {
-        set cmd_opt "-waive \$argsp(-mod_waive) $cmd_opt"
-    }
-
-    set PART_MOD_DICT [eval explore_design_module $cmd_opt]
-
-    ### Export design io
-    set cmd_opt $extra_opt
-
-    if {[info exists argsp(-io_waive)]} {
-        set cmd_opt "-waive \$argsp(-io_waive) $cmd_opt"
-    }
-
-    # format: { \
-    #   group1 {tag11 regexp11 tag12 regexp12 ... } \
-    #   group2 {tag21 regexp21 tag22 regexp22 ... } \
-    #   ...
-    # }
-    if {[info exists argsp(-io_group)]} {
-        set cmd_opt "-group \$argsp(-io_group) $cmd_opt"
-    }
-
-    set IO_GROUP_DICT [eval explore_design_io $cmd_opt]
-    
-    ### Print reports
-    file delete -force $argsp(outdir)
-    file mkdir $argsp(outdir)
-
-    if {[info exists argsp(-top)]} {
-        foreach part_name $PART_LIST {
-            set outpath "${argsp(outdir)}/${part_name}_info.rpt"
-            _print_part_info $part_name $outpath $PART_PAD_DICT $PART_MOD_DICT $IO_GROUP_DICT
-        }
-    } else {
-        set outpath "${argsp(outdir)}/partition_info.rpt"
-        _print_part_info "(none)" $outpath $PART_PAD_DICT $PART_MOD_DICT $IO_GROUP_DICT
-    }
-}
-
-define_proc_attributes report_partition_info -info "Report partition information" \
-    -define_args { \
-        {outdir     "Output directory"                                 path       string  required}
-        {-top       "Explore from top"                                 ""         boolean optional}
-        {-mod_waive "Module waive list"                                waive_list list    optional}
-        {-io_waive  "Pin/Port waive list"                              waive_list list    optional}
-        {-io_group  "Group constraint for the pin/port classification" group_dict list    optional}
-    }
-
-proc _print_part_info { PART_NAME OUTPATH PART_PAD_DICT PART_MOD_DICT IO_GROUP_DICT} {
-    redirect $OUTPATH {
-        echo ""
-
-        echo "====== IO/PAD"
-        echo [format "%-20s %-20s %-60s" "Inout" "PadType" "Instance"]
-        echo [string repeat "=" 100]
-        if {[dict exists $PART_PAD_DICT $PART_NAME]} {
-            set pad_dict [dict get $PART_PAD_DICT $PART_NAME]
-            foreach port_name [lsort [dict key $pad_dict]] {
-                set pad_cell [dict get $pad_dict $port_name]
-                echo [format "%-20s %-20s %-60s" \
-                        $port_name \
-                        [get_attr $pad_cell ref_name] \
-                        [get_object_name $pad_cell] \
-                     ]
-            }
-        }
-        echo ""
-        echo ""
-
-        echo "====== MODULE"
-        echo [format "%-60s %-20s" "Instance" "Design"]
-        echo [string repeat "=" 100]
-        if {[dict exists $PART_MOD_DICT $PART_NAME]} {
-            set mod_coll [dict get $PART_MOD_DICT $PART_NAME]
-            foreach_in_col mod_cell $mod_coll {
-                echo [format "%-60s %-20s" [get_object_name $mod_cell] [get_attr $mod_cell ref_name]]
-            }
-        }
-        echo ""
-        echo ""
-
-        echo "====== Inter-Partition IO ======"
-        echo ""
-        if {[dict exists $IO_GROUP_DICT $PART_NAME]} {
-            set part_dict [dict get $IO_GROUP_DICT $PART_NAME]
-            foreach gname [dict key [dict get $IO_GROUP_DICT $PART_NAME]] {
-                if {$gname != "(none)"} {
-                    echo "====== $gname"
-                    echo [format "%-60s %-20s %-20s" "TagName" "Direction" "Type"]
-                    echo [string repeat "=" 100]
-                    foreach {tname tag_info_list} [dict get $part_dict $gname] {
-                        set tag_dir ""
-                        foreach tag_info $tag_info_list {
-                            lassign $tag_info io_name io_dir io_type
-                            if {$tag_dir == ""} {
-                                set tag_dir $io_dir
-                            } elseif {$tag_dir != $io_dir} {
-                                set tag_dir "mix"
-                                break
-                            }
-                        }
-
-                        set tag_type ""
-                        foreach tag_info $tag_info_list {
-                            lassign $tag_info io_name io_dir io_type
-                            if {$tag_type == ""} {
-                                set tag_type $io_type
-                            } elseif {$tag_type != $io_type} {
-                                set tag_type "mix"
-                                break
-                            }
-                        }
-
-                        echo [format "%-60s %-20s %-20s" $tname $tag_dir $tag_type]
-                    }
-                    echo ""
-                } else {
-                    echo "====== NoGroup"
-                    echo [format "%-60s %-20s %-20s" "TagName" "Direction" "Type"]
-                    echo [string repeat "=" 100]
-                    foreach io_info [dict get $part_dict "(none)"] {
-                        lassign $io_info io_name io_dir io_type
-                        echo [format "%-60s %-20s %-20s" $io_name $io_dir $io_type]
-                    }
-                    echo ""
-                }
-            }
-        }
-        echo ""
-    }
-}
-#}}}
-
-### === Top
-
-### === Partition
 

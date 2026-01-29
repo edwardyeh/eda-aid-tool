@@ -312,8 +312,8 @@ define_proc_attributes get_mem_afip -info "Get memory fanin startpoint" \
     }
 #}}}
 
-### get memory fanin endpoint (get_mem_afop)  {{{
-dict append USER_HELP "Fanin/Fanout" { get_mem_afop "Get memory fanin endpoint" }
+### get memory fanout endpoint (get_mem_afop)  {{{
+dict append USER_HELP "Fanin/Fanout" { get_mem_afop "Get memory fanout endpoint" }
 
 proc get_mem_afop { mem_pin_coll } {
     set edp [afop -from $mem_pin_coll]
@@ -324,7 +324,7 @@ proc get_mem_afop { mem_pin_coll } {
                                                )"]]
 }
 
-define_proc_attributes get_mem_afop -info "Get memory fanin endpoint" \
+define_proc_attributes get_mem_afop -info "Get memory fanout endpoint" \
     -define_args { \
         { mem_pin_coll "Memory pin collection" collection string required}
     }
@@ -1843,7 +1843,7 @@ define_proc_attributes cross_inst_inter_clock_skew -info "Instance-to-Instance i
 
 ### to instance clock latency (to_inst_clock_latency)  {{{
 dict append USER_HELP "Top Timing Analysis" { \
-    cross_inst_intra_clock_skew "Instance-to-Instance intra clock skew" }
+    cross_inst_intra_clock_skew "To instance clock latency" }
 
 proc cross_inst_intra_clock_skew { args } {
     parse_proc_arguments -args $args argsp
@@ -1854,7 +1854,7 @@ proc cross_inst_intra_clock_skew { args } {
                              -nworst $argsp(-nworst)
 }
 
-define_proc_attributes cross_inst_intra_clock_skew -info "Instance-to-Instance intra clock skew" \
+define_proc_attributes cross_inst_intra_clock_skew -info "To instance clock latency" \
     -define_args { \
         {-clock      "Specific clock"        clock         string required}
         {-to         "To instance"           to_instance   string required}
