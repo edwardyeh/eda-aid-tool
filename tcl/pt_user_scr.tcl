@@ -413,7 +413,7 @@ proc rpsum { args } {
     if {![info exists RPSUM_CFG(slk_on_rpt)]       } { set RPSUM_CFG(slk_on_rpt)        "true" }
     if {![info exists RPSUM_CFG(ck_skew_on_rpt)]   } { set RPSUM_CFG(ck_skew_on_rpt)    "true" }
     if {![info exists RPSUM_CFG(dplv_on_rpt)]      } { set RPSUM_CFG(dplv_on_rpt)       "true" }
-    #if {![info exists RPSUM_CFG(seg_clat_inc_crpr)]} { set RPSUM_CFG(seg_clat_inc_crpr) "true" }
+   #if {![info exists RPSUM_CFG(seg_clat_inc_crpr)]} { set RPSUM_CFG(seg_clat_inc_crpr) "true" }
 
     if {![info exists RPSUM_CFG(pc) ]} { set RPSUM_CFG(pc)  [dict create]}
     if {![info exists RPSUM_CFG(hcd)]} { set RPSUM_CFG(hcd) [dict create]}
@@ -436,7 +436,7 @@ proc rpsum { args } {
     set PATH_INFO(type) [get_attr $path_coll path_type]
     set PATH_INFO(scen) [get_attr $path_coll scenario_name -q]
 
-    if {[get_attr $path_coll end_block -q] == "_Port_"} {
+    if {[get_attr $path_coll endpoint.object_class] == "port"} {
         set PATH_INFO(outp) "true"
     } else {
         set PATH_INFO(outp) "false"
@@ -450,13 +450,14 @@ proc rpsum { args } {
     set PATH_INFO(clat) [get_attr $path_coll endpoint_clock_latency -q]
     set PATH_INFO(crpr) [get_attr $path_coll common_path_pessimism -q]
     set PATH_INFO(lpg)  [get_attr $path_coll startpoint_clock_is_propagated]
-    set PATH_INFO(cpg)  [get_attr $path_coll endpoint_clock_is_propagated]
+    set PATH_INFO(cpg)  [get_attr $path_coll endpoint_clock_is_propagated -q]
 
-    if {$PATH_INFO(sedv) == ""} { set PATH_INFO(sedv) 0 }
-    if {$PATH_INFO(eedv) == ""} { set PATH_INFO(eedv) 0 }
-    if {$PATH_INFO(llat) == ""} { set PATH_INFO(llat) 0 }
-    if {$PATH_INFO(clat) == ""} { set PATH_INFO(clat) 0 }
-    if {$PATH_INFO(crpr) == ""} { set PATH_INFO(crpr) 0 }
+    if {$PATH_INFO(sedv) == ""} { set PATH_INFO(sedv) 0       }
+    if {$PATH_INFO(eedv) == ""} { set PATH_INFO(eedv) 0       }
+    if {$PATH_INFO(llat) == ""} { set PATH_INFO(llat) 0       }
+    if {$PATH_INFO(clat) == ""} { set PATH_INFO(clat) 0       }
+    if {$PATH_INFO(crpr) == ""} { set PATH_INFO(crpr) 0       }
+    if {$PATH_INFO(cpg)  == ""} { set PATH_INFO(cpg)  "false" }
 
     set PATH_INFO(skew) [expr $PATH_INFO(llat) - $PATH_INFO(clat) - $PATH_INFO(crpr)]
 
@@ -469,13 +470,14 @@ proc rpsum { args } {
     set PATH_INFO(pmag) [get_attr $path_coll path_margin]
     set PATH_INFO(slk)  [get_attr $path_coll slack]
 
-    if {$PATH_INFO(unce) == ""} { set PATH_INFO(unce) 0 }
+    if {$PATH_INFO(unce) == ""} {
+        set PATH_INFO(unce) 0
+    } elseif {$PATH_INFO(type) == "max"} {
+        set PATH_INFO(unce) [expr -1 * $PATH_INFO(unce)]
+    }
 
     if {$PATH_INFO(type) == "max"} {
         set PATH_INFO(lib) [get_attr $path_coll endpoint_setup_time_value -q]
-        if {$PATH_INFO(lib) != ""} {
-            set PATH_INFO(lib) [expr -1 * $PATH_INFO(lib)]
-        }
     } else {
         set PATH_INFO(lib) [get_attr $path_coll endpoint_hold_time_value -q]
     }
@@ -575,9 +577,14 @@ proc rpsum { args } {
                 if {$inst_name == $cc_inst} { break }
             }
         }
-        set PATH_INFO(cclvl) [expr ([llength [lsort -uni $cc_list]] - $cnt_dec) / 2]
-        set PATH_INFO(llvl)  [expr $PATH_INFO(llvl) - $PATH_INFO(cclvl)]
-        set PATH_INFO(clvl)  [expr $PATH_INFO(clvl) - $PATH_INFO(cclvl)]
+
+        if {$PATH_INFO(req) == "INFINITY"} {
+            set PATH_INFO(cclvl) 0
+        } else {
+            set PATH_INFO(cclvl) [expr ([llength [lsort -uni $cc_list]] - $cnt_dec) / 2]
+        }
+        set PATH_INFO(llvl) [expr $PATH_INFO(llvl) - $PATH_INFO(cclvl)]
+        set PATH_INFO(clvl) [expr $PATH_INFO(clvl) - $PATH_INFO(cclvl)]
     }
 
     if {$RPSUM_CFG(seg_en) && [dict size $RPSUM_CFG(pc)]} {
@@ -652,10 +659,15 @@ proc rpsum { args } {
                 set cpath  [index_col [get_attr $path_coll [string range $attr 0 end-1]] 0]
                 set sc_lat [get_attr $cpath startpoint_clock_latency]
                 set PATH_INFO(${ptype}lat_sc) $sc_lat
+
                 if {$com_done} {
                     set PATH_INFO(${ptype}lat_com) [expr $sc_lat + $com_lat]
                 } else {
                     set PATH_INFO(${ptype}lat_com) $sc_lat
+                }
+
+                if {$PATH_INFO(req) == "INFINITY"} {
+                    set PATH_INFO(${ptype}lat_com) 0
                 }
             }
 
@@ -666,6 +678,10 @@ proc rpsum { args } {
             set PATH_INFO($lat_seg_var) [subst $$lat_seg_var]
             set PATH_INFO($dt_seg_var)  [subst $$dt_seg_var ]
         }
+    }
+
+    if {$PATH_INFO(req) == "INFINITY"} {
+        set PATH_INFO(clat) "INFINITY"
     }
 
     ## report summary
@@ -731,7 +747,7 @@ proc rpsum { args } {
             }
             if {$PATH_INFO(odly) != ""} {
                 if {!$is_sub_div} { set is_sub_div "true"; echo $div2 }
-                echo [format " %-26s% 5.4f" "output delay:" [expr -1 * $PATH_INFO(odly)]]
+                echo [format " %-26s% 5.4f" "output delay:" $PATH_INFO(odly)]
             }
             if {$PATH_INFO(pmag) != "UNINIT" && $PATH_INFO(pmag) != 0} {
                 if {!$is_sub_div} { set is_sub_div "true"; echo $div2 }
@@ -754,29 +770,38 @@ proc rpsum { args } {
 
         # clock latency
         if {$RPSUM_CFG(ck_skew_on_rpt)} {
+            set is_div     "false"
             set is_sub_div "true"
             if {$PATH_INFO(edly) != "UNINIT"} {
                 set is_sub_div "false"
                 echo [format " %-26s% 5.4f" "max delay:" $PATH_INFO(edly)]
+                set is_div "true"
             }
             if {$PATH_INFO(slk) != "INFINITY" && $PATH_INFO(edly) == "UNINIT"} {
                 echo [format " %-26s% 5.4f" "launch clock edge value:"  $PATH_INFO(sedv)]
                 echo [format " %-26s% 5.4f" "capture clock edge value:" $PATH_INFO(eedv)]
+                set is_div "true"
             }
             if {$PATH_INFO(lpg)} {
                 if {!$is_sub_div} { set is_sub_div "true"; echo $div2 }
                 echo [format " %-26s% 5.4f" "launch clock latency:" $PATH_INFO(llat)]
+                set is_div "true"
             }
             if {$PATH_INFO(cpg)} {
                 if {!$is_sub_div} { set is_sub_div "true"; echo $div2 }
                 echo [format " %-26s% 5.4f" "capture clock latency:" $PATH_INFO(clat)]
+                set is_div "true"
             }
             if {$PATH_INFO(slk) != "INFINITY" && $PATH_INFO(lpg) && $PATH_INFO(cpg)} {
                 if {!$is_sub_div} { set is_sub_div "true"; echo $div2 }
                 echo [format " %-26s% 5.4f" "crpr:"                  $PATH_INFO(crpr)]
                 echo [format " %-26s% 5.4f" "clock skew:"            $PATH_INFO(skew)]
+                set is_div "true"
             }
-            echo $div1
+
+            if {$is_div} {
+                echo $div1
+            }
         }
 
         # path delta / path level
@@ -790,7 +815,7 @@ proc rpsum { args } {
                 append dts_tag "L/"
                 append dts_val [format "%5.4f/" $PATH_INFO(ldt)]
             }
-            if {[info exists PATH_INFO(cdt)]} {
+            if {[info exists PATH_INFO(cdt)] && $PATH_INFO(req) != "INFINITY"} {
                 append dts_tag "C/"
                 append dts_val [format "%5.4f/" $PATH_INFO(cdt)]
             }
@@ -803,7 +828,7 @@ proc rpsum { args } {
             set is_div_end "true"
             set dlvl_tag "D/"
             set dlvl_val [format "% d/" $PATH_INFO(dlvl)]
-            if {[info exists PATH_INFO(cclvl)]} {
+            if {[info exists PATH_INFO(cclvl)] && $PATH_INFO(req) != "INFINITY"} {
                 append dlvl_tag "CP/"
                 append dlvl_val [format "%d/" $PATH_INFO(cclvl)]
             }
@@ -811,7 +836,7 @@ proc rpsum { args } {
                 append dlvl_tag "L/"
                 append dlvl_val [format "%d/" $PATH_INFO(llvl)]
             }
-            if {[info exists PATH_INFO(clvl)]} {
+            if {[info exists PATH_INFO(clvl)] && $PATH_INFO(req) != "INFINITY"} {
                 append dlvl_tag "C/"
                 append dlvl_val [format "%d/" $PATH_INFO(clvl)]
             }
@@ -866,22 +891,24 @@ proc rpsum { args } {
                 }
                 echo [format " %-21s%s" "launch clk delta:" $str]
 
-                echo $div2
-                set str ""
-                foreach item $PATH_INFO(clat_seg) {
-                    lassign $item tag value
-                    set str [format "%s%s:% 5.4f " $str $tag $value]
-                }
-                echo [format " %-21s%s (SC:% 5.4f COM:% 5.4f)" "capture clk latency:" \
-                    $str $PATH_INFO(clat_sc) [expr $PATH_INFO(clat_com) + $PATH_INFO(crpr)] \
-                ]
+                if {$PATH_INFO(req) != "INFINITY"} {
+                    echo $div2
+                    set str ""
+                    foreach item $PATH_INFO(clat_seg) {
+                        lassign $item tag value
+                        set str [format "%s%s:% 5.4f " $str $tag $value]
+                    }
+                    echo [format " %-21s%s (SC:% 5.4f COM:% 5.4f)" "capture clk latency:" \
+                        $str $PATH_INFO(clat_sc) [expr $PATH_INFO(clat_com) + $PATH_INFO(crpr)] \
+                    ]
 
-                set str ""
-                foreach item $PATH_INFO(cdt_seg) {
-                    lassign $item tag value
-                    set str [format "%s%s:% 5.4f " $str $tag $value]
+                    set str ""
+                    foreach item $PATH_INFO(cdt_seg) {
+                        lassign $item tag value
+                        set str [format "%s%s:% 5.4f " $str $tag $value]
+                    }
+                    echo [format " %-21s%s" "capture clk delta:" $str]
                 }
-                echo [format " %-21s%s" "capture clk delta:" $str]
             }
             echo $div1
         }
@@ -1215,7 +1242,7 @@ define_proc_attributes gpcom -info "Get components of paths" \
 #}}}
 
 ### write out path collection (write_path)  {{{
-dict append USER_HELP "Path/Instance Information" { rpsum "Write out path collection" }
+dict append USER_HELP "Path/Instance Information" { write_path "Write out path collection" }
 
 proc write_path { args } {
     parse_proc_arguments -args $args argsp
