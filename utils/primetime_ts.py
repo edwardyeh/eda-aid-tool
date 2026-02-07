@@ -123,7 +123,7 @@ class TimeReport:
     opt  : a set of the report options.
     path : a list of timing paths.
     """
-    _path_re = re.compile(r"\s*\S+")
+    _path_re = re.compile(r'\s*\S+')
     _anno_sym = set(['H', '^', '*', '&', '$', '+', '@'])
 
     def __init__(self, cpkg:dict=None, cpin:dict=None,  
@@ -153,7 +153,7 @@ class TimeReport:
         self.opt = set()     # report option
         self.path = list()   # path list
 
-    def parse_report(self, rpt_fp, prange:list):
+    def parse_report(self, rpt_fp, prange: list, is_debug: bool=False):
         """
         Parse the timing report.
 
@@ -168,19 +168,21 @@ class TimeReport:
             fp = open(rpt_fp)
 
         fno = self._parse_option(fp, 0)
-        for range_ in prange:
+        for pno, range_ in enumerate(prange, start=1):
             p_st, p_ed, p_nu = range_[0]-1, range_[1], range_[2]
             while fno < p_st:
                 line, fno = fp.readline(), fno+1
             pcnt = 0  # parsed path count
             while True:
-                is_eof, fno = self._parse_path(fp, fno)
+                if is_debug:
+                    print('\n=== Parse Path {}:'.format(pno))
+                is_eof, fno = self._parse_path(fp, fno, is_debug)
                 if is_eof:
                     fp.close()
                     return
                 elif p_ed is not None and fno >= p_ed:
                     break
-                elif p_nu is not None and (pcnt:=pcnt+1) == p_nu:
+                elif p_nu is not None and (pcnt := pcnt+1) == p_nu:
                     break
         fp.close()
 
@@ -199,19 +201,19 @@ class TimeReport:
             '-derate': 'derate'
         }
 
-        while (line:=fp.readline()):
+        while (line := fp.readline()):
             fno += 1
             if line.lstrip().startswith('Report'):
                 break
 
-        while (line:=fp.readline()):
+        while (line := fp.readline()):
             fno += 1
             tok = line.strip().split()
             if tok[0][0] == '*':
                 break
             elif tok[0] in opt_dict:
                 try:
-                    if isinstance(value:=opt_dict[tok[0]], dict):
+                    if isinstance(value := opt_dict[tok[0]], dict):
                         self.opt.add(value[tok[1]])
                     else:
                         self.opt.add(value)
@@ -223,7 +225,7 @@ class TimeReport:
         self.opt.add('incr')
         return fno
 
-    def _parse_path(self, fp, fno: int) -> tuple:
+    def _parse_path(self, fp, fno: int, is_debug: bool=False) -> tuple:
         """
         Parse a timing path.
 
@@ -236,18 +238,39 @@ class TimeReport:
 
         ### parse path prefix info
         is_start = False
-        while (line:=fp.readline()):
+        while (line := fp.readline()):
             fno += 1
-            if not (tok:=line.strip().split()):
+            if not (tok := line.strip().split()):
                 continue
             if is_start and tok[0][0] == '-':
                 break
             elif tok[0] == 'Startpoint:':
                 path.ln = fno
                 path.stp = tok[1]
+                if tok[-1][-1] != ')':
+                    tok, fno = fp.readline().strip().split(), fno + 1
+                    sed_tmp = tok[0][1:]
+                else:
+                    sed_tmp = tok[2][1:]
+                path.sck = tok[-1][:-1]
+                if sed_tmp == 'rising':
+                    path.sed = 'rise'
+                elif sed_tmp == 'falling':
+                    path.sed = 'fall'
                 is_start = True
             elif tok[0] == 'Endpoint:':
                 path.edp = tok[1]
+                if tok[-1][-1] != ')':
+                    tok, fno = fp.readline().strip().split(), fno + 1
+                    eed_tmp = tok[0][1:]
+                else:
+                    eed_tmp = tok[2][1:]
+                if eed_tmp != 'internal':
+                    path.eck = tok[-1][:-1]
+                if eed_tmp == 'rising':
+                    path.eed = 'rise'
+                elif eed_tmp == 'falling':
+                    path.eed = 'fall'
             elif tok[0] == 'Last':
                 path.comp = tok[3]
             elif tok[0] == 'Scenario:':
@@ -264,26 +287,27 @@ class TimeReport:
             return True, fno
 
         ### parse launch path
-        is_eof, fno = self._parse_lpath(fp, fno, path)
+        is_eof, fno = self._parse_lpath(fp, fno, path, is_debug)
         if is_eof:
             return True, fno
 
-        if path.dpath[0].cell not in ('in', 'inout'):
+        if path.dpath[0].cell not in ('in', 'inout') and not path.idly_en:
             path.lpath.append(copy.deepcopy(path.dpath[0]))
 
         ### parse capture path
-        is_eof, fno = self._parse_cpath(fp, fno, path)
+        is_eof, fno = self._parse_cpath(fp, fno, path, is_debug)
         if is_eof:
             return True, fno
 
         ### parse the slack
         for fno, line in enumerate(fp, fno+1):
-            if not (tok:=line.strip().split()):
+            if not (tok := line.strip().split()):
                 continue
             elif tok[0] == 'slack':
                 path.slk = Decimal(tok[-1])
                 break
-            elif len(tok) >= 3 and tok[2][:-1] == 'unconstrainted':
+            elif len(tok) >= 3 and tok[2][:-1] == 'unconstrained':
+                path.req = math.inf
                 path.slk = math.inf
                 break
         else:
@@ -319,8 +343,15 @@ class TimeReport:
             path.llat_sc = Decimal('0.0')
 
         ### get capture clock path latency / delta sum / path level
-        if len(path.cpath):
-            path.clat = path.cpath[-1].arr - path.eedv
+        if path.req == math.inf:
+            path.clat = math.inf
+            path.clat_sc = Decimal('0.0')
+        elif len(path.cpath):
+            if 'pf' in self.opt:
+                path.clat = path.clat_sc
+                path.clat_sc = Decimal('0.0')
+            else:
+                path.clat = path.cpath[-1].arr - path.eedv
             if path.cpid is not None:
                 path.clat_com = path.cpath[path.cpid].arr - path.eedv
             for pin in path.cpath:
@@ -329,11 +360,13 @@ class TimeReport:
                     path.clvl += 1
             path.clvl -= path.cclvl
         else:
-            path.clat = path.clat_sc - path.eedv
+           #path.clat = path.clat_sc - path.eedv
+            path.clat = path.clat_sc
             path.clat_sc = Decimal('0.0')
 
         ### get clock skew
-        path.skew = path.llat - path.clat - path.crpr
+        if path.req != math.inf:
+            path.skew = path.llat - path.clat - path.crpr
 
         ### get path segment info
         if len(self._pc):
@@ -345,7 +378,7 @@ class TimeReport:
         self.path.append(path)
         return False, fno
 
-    def _parse_lpath(self, fp, fno: int, path: TimePath) -> tuple:
+    def _parse_lpath(self, fp, fno: int, path: TimePath, is_debug: bool=False) -> tuple:
         """
         Parse the launch clock & data path.
 
@@ -359,31 +392,48 @@ class TimeReport:
         stp_toks = path.stp.split('/')
         pv_pin, pv_pin_toks = Pin(), []
 
-        while (line:=fp.readline()):
+        while (line := fp.readline()):
             fno += 1
-            if not (tok:=self._path_re.findall(line)):
+            if not (tok := self._path_re.findall(line)):
                 continue
+            if is_debug:
+                print('ln_tok:'.ljust(9), fno, tok)
 
             tag0, tag1 = tok[0].lstrip(), tok[1].lstrip()
             if state == CKEG and tag0 == 'clock':
-                path.sck = tag1
-                path.sed = tok[2].lstrip()[1:]
-                if len(tok) == 4:
-                    tok, fno = fp.readline().strip().split(), fno+1
-                path.sedv = Decimal(tok[-2])
-                state = SCLAT
+                tag3 = tok[3].lstrip()
+                if tag1 == 'source':
+                    path.llat_sc = Decimal(tok[-2])
+                    state = LLAT
+                elif tag3 == '(propagated)' or tag3 == 'latency)':
+                    if len(tok) == 4:
+                        tok, fno = fp.readline().strip().split(), fno + 1
+                    path.llat_sc = Decimal(tok[-2])
+                    state = LLAT
+                else:
+                    path.sck = tag1
+                    path.sed = tok[2].lstrip()[1:]
+                    if len(tok) == 4:
+                        tok, fno = fp.readline().strip().split(), fno + 1
+                    path.sedv = Decimal(tok[-2])
+                    state = SCLAT
             elif state == SCLAT and tag0 == 'clock':
                 if len(tok) == 4:
-                    tok, fno = fp.readline().strip().split(), fno+1
+                    tok, fno = fp.readline().strip().split(), fno + 1
                 path.llat_sc = Decimal(tok[-2])
                 state = LLAT 
             elif tag1 == 'arrival':
                 path.arr = Decimal(tok[-1])
+                if is_debug:
+                    print('arrival:'.ljust(9), path.dpath, '\n')
                 self._get_last_pin_dir(path.dpath)
                 return False, fno
             elif tag0 == 'input':
                 path.idly_en = True
                 path.idly = Decimal(tok[-3])
+                if state == DLAT:
+                    path.lpath, path.dpath = path.dpath, path.lpath
+                state = DLAT
             else:
                 # no startpoint clock propagate
                 if state in (CKEG, SCLAT):
@@ -396,6 +446,8 @@ class TimeReport:
 
                 pin = Pin(ln=fno)
                 pin_toks = tag0.split('/')
+                if is_debug:
+                    print('pin_tok:'.ljust(9), pin_toks)
 
                 # concat the separated info descriptions
                 tok_len = len(tok)
@@ -422,22 +474,36 @@ class TimeReport:
                         fp.seek(seek_pos)
                         fno -= 1
                         continue
+
                     # record fanout and cap to the last pin
-                    self._parse_pin(path.lpath[-1], tok2, start_col)
+                    if state == DLAT:
+                        if is_debug:
+                            print('dnet:'.ljust(9), path.dpath[-1])
+                        self._parse_pin(path.dpath[-1], tok2, start_col)
+                    else:
+                        if is_debug:
+                            print('lnet:'.ljust(9), path.lpath[-1])
+                        self._parse_pin(path.lpath[-1], tok2, start_col)
                 else:
                     pin.name, pin.cell = tag0, tag1[1:-1]
-                    if 'r' in self._dc and (m:=self._dc['r'].fullmatch(pin.cell)):
-                        if len(m.groups()) and (drv:=m.groups()[0]) in self._dc:
+                    if is_debug:
+                        print('pin_info:'.ljust(9), pin.name, pin.cell)
+
+                    if 'r' in self._dc and (m := self._dc['r'].fullmatch(pin.cell)):
+                        if len(m.groups()) and (drv := m.groups()[0]) in self._dc:
                             pin.drv = self._dc[drv]
                     self._parse_pin(pin, tok2, start_col)
 
                     if state == LLAT:
-                        if pin_toks[:-1] == stp_toks:
+                        if pin.cell in ('in', 'inout') and pin_toks == stp_toks:
+                            path.dpath.append(pin)
+                            state = DLAT
+                        elif pin_toks[:-1] == stp_toks:
                             path.dpath.append(pin)
                             state = DLAT
                         else:
-                            if tag0 == path.comp:
-                                path.cpid = len(path.lpath)
+                           #if tag0 == path.comp:
+                           #    path.cpid = len(path.lpath)
                             path.lpath.append(pin)
                     else:
                         path.dpath.append(pin)
@@ -453,9 +519,17 @@ class TimeReport:
                     pv_pin = pin
                     pv_pin_toks = pin_toks
 
+            if is_debug:
+                if state == DLAT:
+                    path_msg = path.dpath[-1] if len(path.dpath) > 0 else tuple()
+                    print('dpath:'.ljust(9), path_msg, '\n')
+                else:
+                    path_msg = path.lpath[-1] if len(path.lpath) > 0 else tuple()
+                    print('lpath:'.ljust(9), path_msg, '\n')
+
         return True, fno
 
-    def _parse_cpath(self, fp, fno: int, path: TimePath) -> tuple:
+    def _parse_cpath(self, fp, fno: int, path: TimePath, is_debug: bool=False) -> tuple:
         """
         Parse the capture clock path.
 
@@ -469,12 +543,14 @@ class TimeReport:
         state = CKEG
         pv_pin, pv_pin_toks = Pin(), []
 
-        while (line:=fp.readline()):
+        while (line := fp.readline()):
             fno += 1
             if line.lstrip().startswith('---'):
                 return False, fno
-            if not (tok:=self._path_re.findall(line)):
+            if not (tok := self._path_re.findall(line)):
                 continue
+            if is_debug:
+                print('ln_tok:'.ljust(9), fno, tok)
 
             tag0, tag1 = tok[0].lstrip(), tok[1].lstrip()
             if state == CKEG and tag0 == 'clock':
@@ -484,30 +560,37 @@ class TimeReport:
                     tok, fno = fp.readline().strip().split(), fno+1
                 path.eedv = Decimal(tok[-2])
                 state = SCLAT
-            elif state == SCLAT and tag0 == 'clock':
+            elif state == SCLAT and tag0 == 'clock' and tag1 == 'reconvergence':
                 if len(tok) == 4:
                     tok, fno = fp.readline().strip().split(), fno+1
                 path.clat_sc = Decimal(tok[-2])
                 state = CLAT
             elif tag1 == 'required':
                 path.req = Decimal(tok[-1])
-                self._get_last_pin_dir(path.cpath)
+                if is_debug:
+                    print('required:'.ljust(9), path.cpath, '\n')
+                if len(path.cpath) > 0:
+                    path.cpath[-1].dir = 'in'
+                else:
+                    path.cpg = False
                 return False, fno
             elif tag1 == 'reconvergence':
                 path.crpr = Decimal(tok[-2])
             elif tag1 == 'margin':
                 path.pmag_en = True
-                path.pmag = Decimal(tok[-2])
+                path.pmag = (-1 if path.type == 'max' else 1) * Decimal(tok[-2])
             elif tag1 == 'uncertainty':
-                path.unce = Decimal(tok[-2])
+                path.unce = (-1 if path.type == 'max' else 1) * Decimal(tok[-2])
             elif tag1 == 'external':
                 path.odly_en = True
-                path.odly = Decimal(tok[-2])
+                path.odly = (-1 if path.type == 'max' else 1) * Decimal(tok[-2])
             elif tag1 in lib_set:
                 path.lib = (-1 if path.type == 'max' else 1) * Decimal(tok[-2])
             elif tag0 == 'max_delay':
                 path.edly_en = True
                 path.edly = Decimal(tok[-2])
+                path.eedv = path.edly
+                state = SCLAT
             else:
                 # no endpoint clock propagate
                 if state in (CKEG, SCLAT):
@@ -516,6 +599,8 @@ class TimeReport:
 
                 pin = Pin(ln=fno)
                 pin_toks = tag0.split('/')
+                if is_debug:
+                    print('pin_tok:'.ljust(9), pin_toks)
 
                 # concat the separated info descriptions
                 tok_len = len(tok)
@@ -534,19 +619,32 @@ class TimeReport:
                         fp.seek(seek_pos)
                         fno -= 1
                         continue
+
                     # record fanout and cap to the last pin
+                    if is_debug:
+                        print('cnet:'.ljust(9), path.cpath[-1])
                     self._parse_pin(path.cpath[-1], tok2, start_col)
                 else:
                     pin.name, pin.cell = tag0, tag1[1:-1]
-                    if 'r' in self._dc and (m:=self._dc['r'].fullmatch(pin.cell)):
-                        if len(m.groups()) and (drv:=m.groups()[0]) in self._dc:
+                    if is_debug:
+                        print('pin_info:'.ljust(9), pin.name, pin.cell)
+
+                    if 'r' in self._dc and (m := self._dc['r'].fullmatch(pin.cell)):
+                        if len(m.groups()) and (drv := m.groups()[0]) in self._dc:
                             pin.drv = self._dc[drv]
                     self._parse_pin(pin, tok2, start_col)
+
+                    if tag0 == path.comp:
+                        path.cpid = len(path.cpath)
                     path.cpath.append(pin)
 
                     pv_pin.dir = self._get_prev_pin_dir(pv_pin_toks, pin_toks)
                     pv_pin = pin
                     pv_pin_toks = pin_toks
+
+            if is_debug:
+                path_msg = path.cpath[-1] if len(path.cpath) > 0 else tuple()
+                print('cpath:'.ljust(9), path_msg, '\n')
 
         return True, fno
 
@@ -570,13 +668,13 @@ class TimeReport:
             tid, tpos = 0, len(self._head[0])
             for attr in ['fo', 'cap', 'dtran', 'tran', 'derate', 'delta']:
                 if attr in self.opt:
-                    tpos += len(self._head[tid:=tid+1])
+                    tpos += len(self._head[tid := tid+1])
                     if tpos >= cpos:
                         if attr == 'fo':
                             pin.__dict__[attr] = int(tok[cid])
                         else:
                             pin.__dict__[attr] = Decimal(tok[cid])
-                        cpos += len(tok[cid:=cid+1])
+                        cpos += len(tok[cid := cid+1])
 
             ## incr, arr, location
             pin.incr, cid = Decimal(tok[cid]), cid+1
@@ -606,7 +704,7 @@ class TimeReport:
 
     def _get_prev_pin_dir(self, pv_pin_toks: list, pin_toks: list) -> str:
         """Get previous pin direction."""
-        if (plen:=len(pv_pin_toks)):
+        if (plen := len(pv_pin_toks)):
             clen = len(pin_toks)
             if plen < clen and pv_pin_toks[:-1] == pin_toks[:plen-1]:
                 return 'in'
@@ -622,11 +720,11 @@ class TimeReport:
     def _get_last_pin_dir(self, path: list[Pin]):
         """Get last pin direction."""
         ppin_dir = path[-2].dir
-        plen = len(ppin_toks:=path[-2].name.split('/'))
-        clen = len(cpin_toks:=path[-1].name.split('/'))
+        plen = len(ppin_toks := path[-2].name.split('/'))
+        clen = len(cpin_toks := path[-1].name.split('/'))
         if ppin_dir == 'in' and ppin_toks[:-1] == cpin_toks[:-1]:
             path[-1].dir = 'out'
-        elif (ppin_dir == 'out' and plen > clen and ppin_toks[:cpin_len-1] == cpin_toks[:-1]):
+        elif (ppin_dir == 'out' and plen > clen and ppin_toks[:clen-1] == cpin_toks[:-1]):
             path[-1].dir = 'out'
         else:
             path[-1].dir = 'in'

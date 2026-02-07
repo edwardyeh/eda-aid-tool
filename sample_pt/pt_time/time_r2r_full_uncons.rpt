@@ -1,6 +1,6 @@
 ****************************************
 Report : timing
-        -path_type full_clock
+        -path_type full
         -delay_type max
         -input_pins
         -nets
@@ -17,27 +17,16 @@ Date   : XXXX
 ****************************************
 
   Startpoint: chip_top1/module1_A/data_reg_2_0_
-               (rise edge-triggered flip-flop clocked by pclk)
-  Endpoint: chip_top3/module3_A/recv_reg (rise edge-triggered flip-flop clocked by pclk)
+               (rising edge-triggered flip-flop clocked by pclk)
+  Endpoint: chip_top3/module3_A/recv_reg (rising edge-triggered flip-flop clocked by pclk)
   Path Group: (none)
   Path Type: max
   
   Point                Fanout       Cap    DTrans     Trans    Derate    Delta     Incr      Path
   ------------------------------------------------------------------------------------------------------
-  clock pclk (rise edge)                                                         0.0000    0.0000
-  clock source delay (propagated)                                                0.1000    0.1000
-  chip_top1/cb_pclk/Z (BUF)
-                                                     0.0200                      0.0100 &  0.1100 r
-  chip_top1/clock_cts/n1 (net)
-                          1      0.0020
-  chip_top1/clk_cell1/I (BUF)
-                                           0.0000    0.0300   1.0620    0.0020   0.0300 &  0.1400 r
-  chip_top1/clk_cell1/Z (BUF)
-                                                     0.0160   1.0308             0.0150 &  0.1550 r
-  chip_top1/clock_cts/n2 (net)
-                          1      0.0030
+  clock network delay (propagated)                                               0.1660    0.1660
   chip_top1/module1_A/data_reg_2_0_/CP (DFF)
-                                           0.0010    0.1000   1.0600    0.0015   0.0110 &  0.1660 r
+                                                     0.1000                      0.0000 &  0.1660 r
   chip_top1/module1_A/data_reg_2_0_/Q0 (DFF)
                                                      0.0455   1.0500             0.1562 &  0.3222 f
   chip_top1/module1_A/n100 (net)

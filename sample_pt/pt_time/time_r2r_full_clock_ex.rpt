@@ -18,8 +18,8 @@ Date   : XXXX
 ****************************************
 
   Startpoint: chip_top1/chip_core1/data_start_reg_3_0_
-               (rise edge-triggered flip-flop clocked by pclk)
-  Endpoint: chip_top3/chip_core3/data_end_reg_0_ (rise edge-triggered flip-flop clocked by pclk)
+               (rising edge-triggered flip-flop clocked by pclk)
+  Endpoint: chip_top3/chip_core3/data_end_reg_0_ (rising edge-triggered flip-flop clocked by pclk)
   Last common pin: chip_top1/chip_core1/i_ckgen/clk_buff_1/X
   Path Group: pclk
   Path Type: max

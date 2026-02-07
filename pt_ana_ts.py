@@ -130,7 +130,7 @@ def report_summary(args, range_list: list):
         cc=cons_cfg['cc'],
         dc=cons_cfg['dc']
     )
-    time_rpt.parse_report(args.rpt_fp, range_list)
+    time_rpt.parse_report(args.rpt_fp, range_list, args.is_debug)
 
     if args.is_debug:
         print('\n=== Configure:')
@@ -247,12 +247,13 @@ def report_summary(args, range_list: list):
             is_div_end = True
             dts_tag = 'D/'
             dts_val = '{: 5.4f}/'.format(path.ddt)
-            if len(path.lpath):
-                dts_tag += 'L/'
-                dts_val += '{:5.4f}/'.format(path.ldt)
-            if len(path.cpath):
-                dts_tag += 'C/'
-                dts_val += '{:5.4f}/'.format(path.cdt)
+            if 'pf' not in time_rpt.opt:
+                if len(path.lpath):
+                    dts_tag += 'L/'
+                    dts_val += '{:5.4f}/'.format(path.ldt)
+                if len(path.cpath):
+                    dts_tag += 'C/'
+                    dts_val += '{:5.4f}/'.format(path.cdt)
             dts_tag = dts_tag[:-1]
             dts_val = dts_val[:-1]
             print(' {:26}{}'.format(f'delta sum  ({dts_tag}):', dts_val))
@@ -261,15 +262,16 @@ def report_summary(args, range_list: list):
             is_div_end = True
             dlvl_tag = 'D/'
             dlvl_val = '{: d}/'.format(path.dlvl)
-            if path.comp is not None:
-                dlvl_tag += 'CP/'
-                dlvl_val += '{:d}/'.format(path.cclvl)
-            if len(path.lpath):
-                dlvl_tag += 'L/'
-                dlvl_val += '{:d}/'.format(path.llvl)
-            if len(path.cpath):
-                dlvl_tag += 'C/'
-                dlvl_val += '{:d}/'.format(path.clvl)
+            if 'pf' not in time_rpt.opt:
+                if path.comp is not None:
+                    dlvl_tag += 'CP/'
+                    dlvl_val += '{:d}/'.format(path.cclvl)
+                if len(path.lpath):
+                    dlvl_tag += 'L/'
+                    dlvl_val += '{:d}/'.format(path.llvl)
+                if len(path.cpath):
+                    dlvl_tag += 'C/'
+                    dlvl_val += '{:d}/'.format(path.clvl)
             dlvl_tag = dlvl_tag[:-1]
             dlvl_val = dlvl_val[:-1]
             print(' {:26}{}'.format(f'path level ({dlvl_tag}):', dlvl_val))
@@ -304,7 +306,7 @@ def report_summary(args, range_list: list):
                 print(' {:14s}{}'.format('data delta:', msg_str))
 
             # launch clock latency & delta
-            if len(path.lpath):
+            if 'pf' not in time_rpt.opt and len(path.lpath):
                 print(div2)
                 msg_str = ''
                 for tag, value in path.llat_seg:
@@ -318,7 +320,7 @@ def report_summary(args, range_list: list):
                     print(' {:21s}{}'.format('launch clk delta:', msg_str))
 
             # capture clock latency & delta
-            if len(path.cpath):
+            if 'pf' not in time_rpt.opt and len(path.cpath):
                 print(div2)
                 msg_str = ''
                 for tag, value in path.clat_seg:

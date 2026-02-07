@@ -17,8 +17,8 @@ Date   : XXXX
 ****************************************
 
 Startpoint: chip_top1/module1_A/data_reg_2_0_
-             (rise edge-triggered flip-flop clocked by pclk)
-Endpoint: chip_top3/module3_A/recv_reg (rise edge-triggered flip-flop clocked by pclk)
+             (rising edge-triggered flip-flop clocked by pclk)
+Endpoint: chip_top3/module3_A/recv_reg (rising edge-triggered flip-flop clocked by pclk)
 Path Group: pclk
 Path Type: max
 
