@@ -13,6 +13,7 @@ import re
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from pathlib import Path
 from . import __version__
 
 VERSION = f'{Path(__file__).stem} version {__version__}'

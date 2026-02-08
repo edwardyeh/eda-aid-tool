@@ -3,9 +3,9 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "inc1-cad-tool"
+name = "eda-aid-tool"
 dynamic = ["version"]
-description = "CAD tool for Inc."
+description = "Tools to improve IC design flow or analysis EDA tool reports."
 readme = "README.md"
 requires-python = ">=3.10"
 
@@ -29,10 +29,15 @@ dependencies = [
 ]
 
 [project.scripts]
-pinmux_analyser = "inc1_cad_tool.pinmux_analyser:main"
+layout_check   = "eda_aid_tool.layout_check:main"
+para_axis_calc = "eda_aid_tool.para_axis_calc:main"
+pt_ana_cons    = "eda_aid_tool.pt_ana_cons:main"
+pt_ana_tb      = "eda_aid_tool.pt_ana_tb:main"
+pt_ana_ts      = "eda_aid_tool.pt_ana_ts:main"
+pt_rpt_ana     = "eda_aid_tool.pt_rpt_ana:main"
 
 [tool.setuptools.dynamic]
-version = {attr = "inc1_cad_tool.__version__"}
+version = {attr = "eda_aid_tool.__version__"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -41,5 +46,5 @@ where = ["src"]
 #"inc1_cad_tool" = ["example/*.json"]
 
 [project.urls]
-"Homepage" = "https://github.com/edwardyeh/inc1-cad-tool.git"
+"Homepage" = "https://github.com/edwardyeh/eda-aid-tool.git"
 

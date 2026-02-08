@@ -16,8 +16,6 @@ from dataclasses import dataclass, field
 from decimal import Decimal, ROUND_HALF_UP
 from enum import IntEnum
 
-import simpletools.simpletable as sst
-
 
 @dataclass
 class Pin:

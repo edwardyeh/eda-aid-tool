@@ -16,7 +16,7 @@ from enum import IntEnum
 from re import Pattern as RePat
 from typing import Any
 
-import simpletools.simpletable as sst
+# import simpletools.simpletable as sst
 
 
 ### Glocal Variable ############################################################
@@ -403,41 +403,41 @@ def _print_cons_cfg(cons_cfg: dict, end: bool=False):
     import pdb; pdb.set_trace()
 
 
-def _print_cons_table(table: dict):
-    """"Print constraint table."""
-    print()
-    for vtype, vtable in table.items():
-        print(f"###### Violation: {vtype}\n")
-        def_gtables, usr_gtables = [], []
-        for gtable in vtable.values():
-            if gtable.user:
-                usr_gtables.append(gtable)
-            else:
-                def_gtables.append(gtable)
+# def _print_cons_table(table: dict):
+#     """"Print constraint table."""
+#     print()
+#     for vtype, vtable in table.items():
+#         print(f"###### Violation: {vtype}\n")
+#         def_gtables, usr_gtables = [], []
+#         for gtable in vtable.values():
+#             if gtable.user:
+#                 usr_gtables.append(gtable)
+#             else:
+#                 def_gtables.append(gtable)
 
-        for gtable in (def_gtables + usr_gtables):
-            gtitle = f"== Group: {gtable.name}"
-            print(f"{gtitle:30}(modify:{gtable.modify})")
-            for rid, ptable in enumerate(gtable.ptable):
-                title_va = [f'PIN (RID:{rid:2})', 'SC', 'REQ', 'ACT', 'SLK', 'ORGP']
-                title_fs = ['{}', '{}', '{:< .4f}', '{:< .4f}', '{:< .4f}', '']
-                title_len = [len(s) for s in title_va]
-                title_len[2:5] = [10] * 3
+#         for gtable in (def_gtables + usr_gtables):
+#             gtitle = f"== Group: {gtable.name}"
+#             print(f"{gtitle:30}(modify:{gtable.modify})")
+#             for rid, ptable in enumerate(gtable.ptable):
+#                 title_va = [f'PIN (RID:{rid:2})', 'SC', 'REQ', 'ACT', 'SLK', 'ORGP']
+#                 title_fs = ['{}', '{}', '{:< .4f}', '{:< .4f}', '{:< .4f}', '']
+#                 title_len = [len(s) for s in title_va]
+#                 title_len[2:5] = [10] * 3
 
-                data = sst.Block(data=ptable, col_len=title_len, fs=title_fs)
-                title = sst.Block(data=[title_va], col_len=data.col_len)
-                data.divider = (div:=sst.Divider(data.col_len))
-                data.update_col_len()
-                sst.SimpleTable([div, title, div, data, div]).draw()
+#                 data = sst.Block(data=ptable, col_len=title_len, fs=title_fs)
+#                 title = sst.Block(data=[title_va], col_len=data.col_len)
+#                 data.divider = (div:=sst.Divider(data.col_len))
+#                 data.update_col_len()
+#                 sst.SimpleTable([div, title, div, data, div]).draw()
 
-                if rid == 1:
-                    print(">>> Summary(WNS|TNS|NVP): {: 9.4f}, {: 9.4f}, {: 9.4f}".format(
-                            *gtable.sum[GTT.RW:GTT.RN+1]))
-                else:
-                    print(">>> Summary(WNS|TNS|NVP): {: 9.4f}, {: 9.4f}, {: 9.4f}".format(
-                            *gtable.sum[GTT.LW:GTT.LN+1]))
-            print()
-    exit(1)
+#                 if rid == 1:
+#                     print(">>> Summary(WNS|TNS|NVP): {: 9.4f}, {: 9.4f}, {: 9.4f}".format(
+#                             *gtable.sum[GTT.RW:GTT.RN+1]))
+#                 else:
+#                     print(">>> Summary(WNS|TNS|NVP): {: 9.4f}, {: 9.4f}, {: 9.4f}".format(
+#                             *gtable.sum[GTT.LW:GTT.LN+1]))
+#             print()
+#     exit(1)
 
 
 class ConsReport:

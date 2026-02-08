@@ -12,6 +12,7 @@ import argparse
 import gzip
 import os
 import re
+from pathlib import Path
 from . import __version__
 
 VERSION = f'{Path(__file__).stem} version {__version__}'
