@@ -12,8 +12,9 @@ import argparse
 import time
 from pathlib import Path
 from .utils.primetime_cons import ConsReport
+from . import __version__
 
-VERSION = f"{Path(__file__).stem} version 1.0.0.b1"
+VERSION = f'{Path(__file__).stem} version {__version__}'
 
 
 ##############################################################################

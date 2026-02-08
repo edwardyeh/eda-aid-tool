@@ -10,14 +10,12 @@ import argparse
 import gzip
 import os
 import re
-
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
+from . import __version__
 
-from .utils.common import PKG_VERSION, PT_ANA_VER
-
-VERSION = f"pt_rpt_ana version {PT_ANA_VER} ({PKG_VERSION})"
+VERSION = f'{Path(__file__).stem} version {__version__}'
 
 ### Function ###
 

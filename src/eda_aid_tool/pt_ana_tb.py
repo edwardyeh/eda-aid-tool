@@ -12,10 +12,9 @@ import argparse
 import gzip
 import os
 import re
+from . import __version__
 
-from .utils.common import PKG_VERSION, PT_TB_VER
-
-VERSION = f"pt_ana_tb version {PT_TB_VER} ({PKG_VERSION})"
+VERSION = f'{Path(__file__).stem} version {__version__}'
 
 ### Function ###
 

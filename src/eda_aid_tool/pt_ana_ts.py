@@ -12,17 +12,15 @@ import gzip
 import math
 import os
 import re
-
 import numpy as np
 import matplotlib as mpl
 import matplotlib.pyplot as plt
-
 from decimal import Decimal, ROUND_HALF_UP
-
-from .utils.common import PKG_VERSION, PT_TS_VER, str2tok
+from .utils.common import str2tok
 from .utils.primetime_ts import Pin, TimePath, TimeReport
+from . import __version__
 
-VERSION = f'pt_ana_ts version {PT_TS_VER} ({PKG_VERSION})'
+VERSION = f'{Path(__file__).stem} version {__version__}'
 
 
 ##############################################################################
