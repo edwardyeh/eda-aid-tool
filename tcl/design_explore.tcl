@@ -1,4 +1,3 @@
-set timing_report_unconstrained_paths true
 
 ### === Private Function
 

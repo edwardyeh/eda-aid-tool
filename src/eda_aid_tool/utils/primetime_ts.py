@@ -468,7 +468,7 @@ class TimeReport:
 
                 # parsing pin info
                 if tag1 == '(net)':
-                    if tok2[1].lstrip()[0] == '(':
+                    if tok2 != tok and tok2[1].lstrip()[0] == '(':
                         fp.seek(seek_pos)
                         fno -= 1
                         continue
@@ -613,7 +613,7 @@ class TimeReport:
 
                 # parsing pin info
                 if tag1 == '(net)':
-                    if tok2[1].lstrip()[0] == '(':
+                    if tok2 != tok and tok2[1].lstrip()[0] == '(':
                         fp.seek(seek_pos)
                         fno -= 1
                         continue

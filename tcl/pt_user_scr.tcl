@@ -4,57 +4,80 @@ set timing_report_unconstrained_paths true
 
 ### user help  {{{
 set USER_HELP [dict create]
-echo "Information: Type 'user_help' to show user procedure list."
+puts "Information: Type 'user_help' to show user procedure list."
 
-proc user_help { args } {
+proc user_help {args} {
     global USER_HELP
     parse_proc_arguments -args $args argsp
 
-    set gid_len [string length [dict size $USER_HELP]]
+    set group_num [dict size $USER_HELP]
 
-    echo ""
-    ## only show group title
-    if {[info exists argsp(-only_group)]} {
-        set gid 0
-        foreach {gname proc_list} $USER_HELP {
-            echo [format "=== (%${gid_len}d %s" $gid $gname]
-            incr gid
+    # --- Get maximum proc name legnth
+    set proc_len 0
+    foreach proc_list [dict values $USER_HELP]
+        foreach {proc_name description} $proc_list {
+            set new_len [string length $proc_name]
+            set proc_len [expr {max($proc_len, $new_len)}]
         }
-        echo ""
-        return
     }
 
-    ## get column length
-    set gid     0
-    set col_len 0
-    foreach {gname proc_list} $USER_HELP {
-        if {[info exists argsp(-group)] && $argsp(-group) != $gid} { continue }
-        foreach {fname comment} $proc_list {
-            set newlen [string length $fname]
-            if {$newlen > $col_len} { set col_len $newlen }
-        }
-        incr gid
-    }
+    if {[info exists argsp(-interactive)]} {
+        # --- Interactive mode
+        _print_group_list
 
-    ## show the procedure list
-    set gid 0
-    foreach {gname proc_list} $USER_HELP {
-        if {[info exists argsp(-group)] && $argsp(-group) != $gid} { continue }
-        echo [format "=== (%${gid_len}d) %s\n" $gid $gname]
-        foreach {fname comment} $proc_list {
-            echo [format "  %-${col_len}s   %s" $fname $comment]
+        set cmd ""
+        while {$cmd ne "q"} {
+            puts -nonewline "Select group ('q' to exit, 'l' to show list): "
+            flush stdout
+            gets stdin cmd
+
+            if {$cmd eq "q"} {
+                return
+            } elseif {$cmd eq "l" || $cmd >= $group_num} {
+                _print_group_list
+            } else {
+                _print_proc_help $cmd $proc_len
+            }
         }
-        echo ""
-        incr gid
+    } else {
+        # --- Normal mode
+        for {set i 0} {$i < $group_num} {incr i} {
+            _print_proc_help $i $proc_len
+        }
     }
-    echo ""
 }
 
 define_proc_attributes user_help -info "Show the user procedure list" \
     -define_args { \
-        {-only_group "Only show group titles"                              ""  boolean optional}
-        {-group      "Only show the user procedures of the specific group" gid int     optional}
+        {-interactive "Interactive mode" "" boolean optional}
     }
+
+proc _print_group_list {} {
+    global USER_HELP
+    set gid_len [string length [dict size $USER_HELP]]
+    set gid 0
+
+    puts ""
+    foreach group_name [dict keys $USER_HELP] {
+        puts [format "=== (%${gid_len}d) %s" $gid $group_name]
+        incr gid
+    }
+    puts ""
+}
+
+proc _print_proc_help {gid proc_col_len} {
+    global USER_HELP
+    set group_list [dict keys $USER_HELP]
+    set group_name [lindex $group_list $gid]
+
+    puts ""
+    puts [format "=== (%d) %s\n" $gid $group_name]
+    foreach {proc_name description} [dict get $USER_HELP $group_name] {
+        puts [format "  %-${proc_col_len}s   %s" $proc_name $description]
+    }
+
+    if {$proc_name ne ""} {puts ""}
+}
 #}}}
 
 ### === Flow Control
@@ -92,16 +115,19 @@ proc printfor { data_coll } {
 ### === Get Collection
 
 ### get collection  {{{
-dict append USER_HELP "Flow Control" {
-    find_cells      "Find cells by the filter expression"
-    get_cells_ckp   "Get clock pins of the cell collection"
-    get_regs        "Get registers of the specific clock"
-    get_mems        "Get memory collection from the cell collection"
-    get_design_mems "Get memory collection of the specific design"
-    get_pins_attr   "Get the attribute of pins"
-    get_ports_attr  "Get the attribute of ports"
-    get_cells_attr  "Get the attribute of cells"
-    get_nets_attr   "Get the attribute of nets"
+dict append USER_HELP "Get Collection" {
+    find_cells        "Find cells by the filter expression"
+    get_cells_ckp     "Get clock pins of the cell collection"
+    get_regs          "Get registers of the specific clock"
+    get_mems          "Get memory collection from the cell collection"
+    get_design_mems   "Get memory collection of the specific design"
+    get_pins_attr     "Get the attribute of pins"
+    get_ports_attr    "Get the attribute of ports"
+    get_cells_attr    "Get the attribute of cells"
+    get_nets_attr     "Get the attribute of nets"
+    get_clk_frequency "Get the frequency of clocks"
+    get_clk_period    "Get the period of clocks"
+    get_hier_thp      "Get through pins of the hierarchical cell"
 }
 
 proc find_cells { args } {
@@ -127,22 +153,44 @@ proc get_cells_ckp { cells } {
 proc get_regs { args } {
     parse_proc_arguments -args $args argsp
 
+    set reg_coll [all_register -clock [get_clocks $argsp(-clock)]]
+
+    if {[info exists argsp(-exclude_icg)]} {
+        set reg_coll [filter_col $reg_coll "is_integrated_clock_gating_cell==false"]
+    }
+
+    if {[info exists argsp(-only_icg)]} {
+        set reg_coll [filter_col $reg_coll "is_integrated_clock_gating_cell==true"]
+    }
+
+    if {[info exists argsp(cell_coll)]} {
+        set reg_coll [remove_from_col -inter $reg_coll [get_cells $argsp(cell_coll)]]
+    }
+
     if {[info exists argsp(-filter)]} {
         if {[info exists argsp(-regexp)]} {
-            return [filter [all_reg -clock [get_clocks $argsp(-clock)]] $argsp(-filter) -regexp]
+            set reg_coll [filter_col $reg_coll $argsp(-filter) -regexp]
         } else {
-            return [filter [all_reg -clock [get_clocks $argsp(-clock)]] $argsp(-filter)]
+            set reg_coll [filter_col $reg_coll $argsp(-filter)]
         }
+    }
+
+    if {[info exists argsp(-clock_pin)]} {
+        return [get_pins -quiet -of $reg_coll -filter "is_clock_pin==true"]
     } else {
-        return [all_reg -clock [get_clocks $argsp(-clock)]]
+        return $reg_coll
     }
 }
             
 define_proc_attributes get_regs -info "Get registers of the specific clock" \
     -define_args { \
-        {-clock  "Clock collection"        collection string  required}
-        {-filter "Filter expression"       expression string  optional}
-        {-regexp "Regular expression mode" ""         boolean optional}
+        {-clock       "Clock collection"        collection string  required}
+        {-filter      "Filter expression"       expression string  optional}
+        {-regexp      "Regular expression mode" ""         boolean optional}
+        {-exclude_icg "Exclude ICG cells"       ""         boolean optional}
+        {-only_icg    "Only ICG cells"          ""         boolean optional}
+        {-clock_pin   "Export clock pin"        ""         boolean optional}
+        { cell_coll   "Cell collection"         collection string  optional}
     }
 
 proc get_mems { cell_coll } {
@@ -178,6 +226,69 @@ proc get_pins_attr  { coll attr } { return [get_attr [get_pins  $coll] $attr] }
 proc get_ports_attr { coll attr } { return [get_attr [get_ports $coll] $attr] }
 proc get_cells_attr { coll attr } { return [get_attr [get_cells $coll] $attr] }
 proc get_nets_attr  { coll attr } { return [get_attr [get_nets  $coll] $attr] }
+
+proc get_clk_frequency { clock_coll } {
+    set clock_coll [get_clocks $clock_coll]
+    set ckname_len [expr max([join [lmap s [get_object_name $clock_coll] {string length $s}] ","])]
+    echo ""
+    foreach_in_col clock $clock_coll {
+        set clock_name [get_object_name $clock]
+        set clock_freq [expr 1000.0 / [get_attr $clock period]]
+        echo [format "%-${ckname_len}s : %9.4f Mhz" $clock_name $clock_freq]
+    }
+    echo ""
+}
+
+proc get_clk_period { clock_coll } {
+    set clock_coll [get_clocks $clock_coll]
+    set ckname_len [expr max([join [lmap s [get_object_name $clock_coll] {string length $s}] ","])]
+    echo ""
+    foreach_in_col clock $clock_coll {
+        set clock_name [get_object_name $clock]
+        echo [format "%-${ckname_len}s : %9.4f ns" $clock_name [get_attr $clock period]]
+    }
+    echo ""
+}
+
+proc get_hier_thp { args } {
+    parse_proc_arguments -args $args argsp
+
+    append_to_col thp_coll [get_pins  -quiet $argsp(-th)]
+    append_to_col thp_coll [get_ports -quiet $argsp(-th)]
+
+    set cmd     ""
+    set cmd_opt ""
+
+    if {[info exists argsp(-from)]} {
+        set cmd "all_fanout -flat -trace all -quiet"
+        append cmd_opt " -from ${argsp(-from)}"
+    }
+
+    if {[info exists argsp(-to)]} {
+        set cmd "all_fanin -flat -trace all -quiet"
+        append cmd_opt " -to ${argsp(-to)}"
+    }
+
+    set result_thp_coll ""
+    foreach_in_col thp $thp_coll {
+        set result [eval $cmd $cmd_opt -th \$thp]
+        if {[sizeof_col $result] > 0} {
+            append_to_col result_thp_coll $thp 
+        }
+    }
+
+    return $result_thp_coll
+}
+            
+define_proc_attributes get_hier_thp -info "Get through pins of the hierarchical cell" \
+    -define_args { \
+        {-from "From pins/ports"    collection string required}
+        {-to   "To pins/ports"      collection string required}
+        {-th   "Through pins/ports" collection string required}
+    } \
+    -define_arg_groups {
+        {exclusive {-from -to}}
+    }
 #}}}
 
 ### === Report Timing
@@ -387,8 +498,85 @@ define_proc_attributes show_coll_attr -info "Show collection attribute" \
     }
 #}}}
 
+### show object attribute (show_obj_attr)  {{{
+dict append USER_HELP "Path/Instance Information" { show_obj_attr "Show object attribute" }
+
+proc show_obj_attr { args } {
+    parse_proc_arguments -args $args argsp
+
+    if {[info exists argsp(-attribute)]} {
+        set attr_regexp_list $argsp(-attribute)
+    } else {
+        set attr_regexp_list ".+"
+    }
+
+    foreach_in_col object $argsp(collection) {
+        set attr_table ""
+        set name_strlen 0
+        set is_title "true"
+
+        report_attr -app $object -format csv -out tmpfile
+        
+        set f [open "tmpfile" r]
+        while {[gets $f line] >= 0} {
+            if {$is_title} {
+                set is_title "false"
+                continue
+            }
+
+            set data_list [split $line ","]
+            set attr_name [lindex $data_list 3] 
+
+            foreach pattern $attr_regexp_list {
+                if {[regexp $pattern $attr_name]} {
+                    lappend attr_table $attr_name
+                    lappend attr_table [lindex $data_list 2]
+                    lappend attr_table [lindex $data_list 4]
+
+                    set new_strlen  [string length $attr_name]
+                    set name_strlen [expr {max($name_strlen, $new_strlen)}]
+                    break
+                }
+            }
+        }
+        close $f
+        file delete tmpfile
+
+        set object_name [get_object_name $object]
+        set object_type [get_attr $object object_class]
+
+        puts ""
+        puts "Object: $object_name (type: $object_type)"
+        puts ""
+        puts [format "%-${name_strlen}s    %-10s    %s" "Attrubute" "Type" "Value"]
+        puts [string repeat "-" [expr {$name_strlen + 10 + 11 + 8}]]
+        foreach {attr_name type value} $attr_table {
+            echo [format "%-${name_strlen}s    %-10s    %s" $attr_name $type $value]
+        }
+        puts ""
+    }
+}
+
+define_proc_attributes show_obj_attr -info "Show object attribute" \
+    -define_args { \
+        { collection "Object collection"           collection string required}
+        {-attribute  "List of attributes (regexp)" attr_list  string optional}
+    }
+#}}}
+
 ### report timing path summary (rpsum)  {{{
 dict append USER_HELP "Path/Instance Information" { rpsum "Report timing path summary" }
+
+# Parameter Setting (RPSUM_CFG):
+#   - debug          : <true|false>             (show debug information)
+#   - dts_en         : <true|false>             (show delta sum)
+#   - seg_en         : <true|false>             (enable path segment analysis)
+#   - slk_on_rpt     : <true|false>             (show data latency/arrival/required/slack)
+#   - ck_skew_on_rpt : <true|false>             (show clock latency)
+#   - dplv_on_rpt    : <true|false>             (show path level)
+#   - pc             : <tag> <regex_pattern>    (path classify by the regular expression)
+#   - hcd            : <cell_type> {<from_pin> <to_pin> <comment> ...} 
+#                                               (highlight cell delay)
 
 proc rpsum { args } {
     global RPSUM_CFG
@@ -519,7 +707,7 @@ proc rpsum { args } {
         set dt_var     "${ptype}dt"
         set lvl_var    "${ptype}lvl"
 
-        lassign {0 0 "false"} pre_arr dt_sum hcd_det
+        lassign {0 0 "false" ""} pre_arr dt_sum hcd_det hcd_pi
 
         foreach_in_col point $point_coll {
             # delta sum
@@ -537,17 +725,27 @@ proc rpsum { args } {
                 set pre_arr   [get_attr $point arrival]
 
                 if {[dict exists $RPSUM_CFG(hcd) $ref_name]} {
-                    lassign [dict get $RPSUM_CFG(hcd) $ref_name] pi po pcom
                     set pin_name [regsub {\S+\/} $inst_name {}]
-                    if {$pin_name == $pi} {
-                        set hcd_det "true"
-                    } elseif {$hcd_det && ($pin_name == $po)} {
-                        set hcd_det "false"
-                        set PATH_INFO(hcd) [concat $PATH_INFO(hcd) [list $pcom $delay]]
-                        if {[string length $pcom] > $PATH_INFO(hcd_len)} {
-                            set PATH_INFO(hcd_len) [string length $pcom]
+                    set hcd_hit  "false"
+
+                    foreach {pi po pcom} [dict get $RPSUM_CFG(hcd) $ref_name] {
+                        if {$hcd_det} {
+                            if {($hcd_pi == $pi) && ($pin_name == $po)} {
+                                set hcd_det "false"
+                                set PATH_INFO(hcd)     [concat $PATH_INFO(hcd) [list $pcom $delay]]
+                                set new_hcd_len        [string length $pcom]
+                                set PATH_INFO(hcd_len) [expr {max($PATH_INFO(hcd_len), $new_hcd_len)}]
+                                break
+                            }
+                        } elseif {$pin_name == $pi} {
+                            set hcd_hit "true"
+                            set hcd_det "true"
+                            set hcd_pi  $pi
+                            break
                         }
-                    } else {
+                    }
+
+                    if {$hcd_det && !$hcd_hit} {
                         set hcd_det "false"
                     }
                 }
@@ -1194,11 +1392,24 @@ proc gpcom { args } {
         redirect $argsp(-out_coll) {
             echo ""
             foreach type [array names coll_array] {
-                echo "set user_${type}_coll \["
+                switch $type {
+                    "pin"   {set cmd {"get_pins  \[" "\]"}}
+                    "net"   {set cmd {"get_nets  \[" "\]"}}
+                    "cell"  {set cmd {"get_cells \[" "\]"}}
+                    "stp"   {set cmd {"get_pins  \[" "\]"}}
+                    "edp"   {set cmd {"get_pins  \[" "\]"}}
+                    default {set cmd {"" ""}}
+                }
+
+                if {[sizeof_col $coll_array($type)] == 0} {
+                    set cmd {"" ""}
+                }
+
+                echo "set user_${type}_coll \[[lindex $cmd 0]list \\"
                 foreach_in_col inst $coll_array($type) {
                     echo "    [get_object_name $inst] \\"
                 }
-                echo "\]\n"
+                echo "[lindex $cmd 1]\]\n"
             }
         }
     }
@@ -1645,19 +1856,19 @@ proc io_connect_check { args } {
     parse_proc_arguments -args $args argsp
 
     global sh_host_mode
-    if {$sh_host_mode == "manager"} {
+    if {[info exists sh_host_mode] && $sh_host_mode == "manager"} {
         echo "Error: not support DMSA mode"
         return 0
-    }
-
-    set clock_coll [get_clocks]
-    if {[info exists argsp(-clock)]} { 
-        set clock_coll [get_clocks $argsp(-clock)] 
     }
 
     set report_type "slk"
     if {[info exists argsp(-type)]} {
         set report_type $argsp(-type)
+    }
+
+    set clock_coll [get_clocks -quiet]
+    if {[info exists argsp(-clock)]} { 
+        set clock_coll [get_clocks $argsp(-clock)] 
     }
 
     set cmd_opt ""
@@ -1669,17 +1880,30 @@ proc io_connect_check { args } {
     set clk_col_len  {}
     set act_clk_coll {} 
 
+    set pin_ignore_coll ""
+    if {[info exists argsp(-pin_ignore)]} {
+        set pin_ignore_coll [get_pins $argsp(-pin_ignore)]
+    }
+
+    set pad_ignore_coll ""
+    if {[info exists argsp(-pad_ignore)]} {
+        set pad_ignore_coll [get_ports $argsp(-pad_ignore)]
+    }
+
     proc _path_trace {pin_dir instance} {
-        upvar 1 clock_coll   clock_coll
-        upvar 1 report_type  report_type
-        upvar 1 cmd_opt      cmd_opt
-        upvar 1 port_col_len port_col_len
-        upvar 1 pin_col_len  pin_col_len
-        upvar 1 clk_col_len  clk_col_len
-        upvar 1 act_clk_coll act_clk_coll
+        upvar 1 clock_coll      clock_coll
+        upvar 1 report_type     report_type
+        upvar 1 cmd_opt         cmd_opt
+        upvar 1 port_col_len    port_col_len
+        upvar 1 pin_col_len     pin_col_len
+        upvar 1 clk_col_len     clk_col_len
+        upvar 1 act_clk_coll    act_clk_coll
+        upvar 1 pin_ignore_coll pin_ignore_coll
+        upvar 1 pad_ignore_coll pad_ignore_coll
         set result_list {}
 
         set inst_pi_coll [get_pins -of [index_col [get_cells $instance] 0] -filter "direction==$pin_dir"]
+        set inst_pi_coll [remove_from_col $inst_pi_coll $pin_ignore_coll]
 
         foreach_in_col pin $inst_pi_coll {
             if {$pin_dir == "in"} {
@@ -1687,15 +1911,15 @@ proc io_connect_check { args } {
             } else {
                 set port_coll [filter [afop -quiet -from $pin] "object_class==port"]
             }
+            set port_coll [remove_from_col $port_coll $pad_ignore_coll]
+
             set lclk_coll [remove_from_col -inter [get_attr -quiet $pin launch_clocks] $clock_coll]
 
             if {[sizeof_col $port_coll]} {
-                set new_len [string length [get_object_name $pin]]
-                if {$new_len > $pin_col_len} { set pin_col_len $new_len }
+                set pin_col_len [expr max($pin_col_len, [string length [get_object_name $pin]])]
 
                 foreach_in_col port $port_coll {
-                    set new_len [string length [get_object_name $port]]
-                    if {$new_len > $port_col_len} { set port_col_len $new_len }
+                    set port_col_len [expr max($port_col_len, [string length [get_object_name $port]])]
 
                     set path_coll {}
                     foreach_in_col clk $lclk_coll {
@@ -1804,11 +2028,13 @@ proc io_connect_check { args } {
 
 define_proc_attributes io_connect_check -info "Check I/O connect of the instance" \
     -define_args { \
-        { instance "Instance path"                        instance    string  required}
-        {-clock    "Indicate the clock list, default all" clock_list  string  optional}
-        {-type     "Report type (slk: slack, dlat: data latency, \
-                    arr: arrival time; default is 'slk')" report_type string  optional}
-        {-pba      "PBA exhaustive mode"                  ""          boolean optional}
+        { instance   "Instance path"                        instance    string  required}
+        {-clock      "Indicate the clock list, default all" clock_list  string  optional}
+        {-type       "Report type (slk: slack, dlat: data latency, arr: arrival time; default is 'slk')" \
+                                                            report_type string  optional}
+        {-pba        "PBA exhaustive mode"                  ""          boolean optional}
+        {-pin_ignore "Ignore through pin list"              pin_list    string  optional}
+        {-pad_ignore "Ignore PAD list"                      pad_list    string  optional}
     }
 #}}}
 
@@ -1870,9 +2096,9 @@ define_proc_attributes cross_inst_inter_clock_skew -info "Instance-to-Instance i
 
 ### to instance clock latency (to_inst_clock_latency)  {{{
 dict append USER_HELP "Top Timing Analysis" { \
-    cross_inst_intra_clock_skew "To instance clock latency" }
+    to_inst_clock_latency "To instance clock latency" }
 
-proc cross_inst_intra_clock_skew { args } {
+proc to_inst_clock_latency { args } {
     parse_proc_arguments -args $args argsp
     set clk_pin_coll [all_reg -clock $argsp(-clock) -clock_pins]
 
@@ -1881,7 +2107,7 @@ proc cross_inst_intra_clock_skew { args } {
                              -nworst $argsp(-nworst)
 }
 
-define_proc_attributes cross_inst_intra_clock_skew -info "To instance clock latency" \
+define_proc_attributes to_inst_clock_latency -info "To instance clock latency" \
     -define_args { \
         {-clock      "Specific clock"        clock         string required}
         {-to         "To instance"           to_instance   string required}
